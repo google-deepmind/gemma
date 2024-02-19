@@ -1,0 +1,31 @@
+[tool.poetry]
+name = "gemma"
+version = "1.0.0"
+description = "Open weights large language model (LLM) from Google DeepMind."
+authors = [
+  "Alek Andreev <alekandreev@google.com>",
+  "Armand Joulin <ajoulin@google.com>",
+  "Cassidy Hardin <cassidyhardin@google.com>",
+  "Juliette Love <juliettelove@google.com>",
+  "Kathleen Kenealy <kkenealy@google.com>",
+  "Laurent Sifre <sifre@google.com>",
+  "Léonard Hussenot <hussenot@google.com>",
+  "Mihir Sanjay Kale <mihirkale@google.com>",
+  "Morgane Riviere <mriviere@google.com>",
+  "Robert Dadashi <dadashi@google.com>",
+  "Shreya Pathak <shreyapa@google.com>",
+  "Surya Bhupatiraju <sbhupatiraju@google.com>",
+  "Thomas Mesnard <mesnard@google.com>"
+]
+python-version = "3.10"
+license = "Apache-2.0"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+absl-py = "^2.1.0"
+sentencepiece = "^0.1.99"
+flax = "^0.7.5"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
