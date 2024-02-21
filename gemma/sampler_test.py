@@ -15,6 +15,7 @@
 """Minimal test for sampler."""
 
 import os
+import unittest
 
 from absl.testing import absltest
 from gemma import sampler as sampler_lib
@@ -28,10 +29,15 @@ import sentencepiece as spm
 # TODO: Replace with a mock tokenizer.
 # Download the tokenizer and put its path here.
 _VOCAB = ''
+_NO_TOKENIZER_MESSAGE = (
+    'No tokenizer path specified. Please download a tokenizer and update the'
+    ' `_VOCAB` constant.'
+)
 
 
 class SamplerTest(absltest.TestCase):
 
+  @unittest.skipIf(not _VOCAB, _NO_TOKENIZER_MESSAGE)
   def test_samples(self):
     vocab = spm.SentencePieceProcessor()
     vocab.Load(_VOCAB)
@@ -68,6 +74,7 @@ class SamplerTest(absltest.TestCase):
     result = sampler(['input string', 'hello world'], total_generation_steps=10)
     self.assertIsNotNone(result)
 
+  @unittest.skipIf(not _VOCAB, _NO_TOKENIZER_MESSAGE)
   def test_forward_equivalence(self):
     vocab = spm.SentencePieceProcessor()
     vocab.Load(_VOCAB)
