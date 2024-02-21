@@ -71,14 +71,14 @@ python examples/sampling.py -- \
 
 There are also several Colab notebook tutorials:
 
--   [`colabs/sampling_tutorial.py`](https://colab.sandbox.google.com/github/google-deepmind/gemma/blob/main/colabs/sampling_tutorial.py)
+-   [`colabs/sampling_tutorial.ipynb`](https://colab.sandbox.google.com/github/google-deepmind/gemma/blob/main/colabs/sampling_tutorial.ipynb)
     contains a [Colab](http://colab.google) notebook with a sampling example.
 
--   [`colabs/fine_tuning_tutorial.py`](https://colab.sandbox.google.com/github/google-deepmind/gemma/blob/main/colabs/fine_tuning_tutorial.py)
+-   [`colabs/fine_tuning_tutorial.ipynb`](https://colab.sandbox.google.com/github/google-deepmind/gemma/blob/main/colabs/fine_tuning_tutorial.ipynb)
     contains a [Colab](http://colab.google) with a basic tutorial on how to fine
     tune Gemma for a task, such as English to French translation.
 
--   [`colabs/gsm8k_eval.py`](https://colab.sandbox.google.com/github/google-deepmind/gemma/blob/main/colabs/gsm8k_eval.py)
+-   [`colabs/gsm8k_eval.ipynb`](https://colab.sandbox.google.com/github/google-deepmind/gemma/blob/main/colabs/gsm8k_eval.ipynb)
     is a [Colab](http://colab.google) with a reference GSM8K eval
     implementation.
 
