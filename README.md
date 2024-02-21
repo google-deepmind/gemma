@@ -34,8 +34,15 @@ pip install git+https://github.com/google-deepmind/gemma.git
 ### Downloading the models
 
 The model checkpoints are available through Kaggle at
-http://kaggle.com/models/google/gemma. Please be sure the download Flax
-checkpoints, as well as the tokenizer.
+http://kaggle.com/models/google/gemma. Select one of the **Flax** model
+variations, click the ⤓ button to download the model archive, then extract the
+contents to a local directory. The archive contains both the model weights and
+the tokenizer, for example the 2b Flax variation contains:
+
+```
+2b/              # Directory containing model weights
+tokenizer.model  # Tokenizer
+```
 
 ### Running the unit tests
 
@@ -48,9 +55,21 @@ pytest .
 
 Note that the tests in `sampler_test.py` are skipped by default since no
 tokenizer is distributed with the Gemma sources. To run these tests, download a
-tokenizer and update the `_VOCAB` constant in `sampler_test.py`.
+tokenizer following the instructions above, and update the `_VOCAB` constant in
+`sampler_test.py` with the path to `tokenizer.model`.
 
 ## Examples
+
+To run the example sampling script, pass the paths to the weights directory and
+tokenizer:
+
+```
+python examples/sampling.py -- \
+  --path_checkpoint=/path/to/archive/contents/2b/ \
+  --path_tokenizer=/path/to/archive/contents/tokenizer.model
+```
+
+There are also several Colab notebook tutorials:
 
 -   [`colabs/sampling_tutorial.py`](https://colab.sandbox.google.com/github/google-deepmind/gemma/blob/main/colabs/sampling_tutorial.py)
     contains a [Colab](http://colab.google) notebook with a sampling example.
@@ -62,6 +81,10 @@ tokenizer and update the `_VOCAB` constant in `sampler_test.py`.
 -   [`colabs/gsm8k_eval.py`](https://colab.sandbox.google.com/github/google-deepmind/gemma/blob/main/colabs/gsm8k_eval.py)
     is a [Colab](http://colab.google) with a reference GSM8K eval
     implementation.
+
+To run these notebooks you will need to download a local copy of the weights and
+tokenizer (see above), and update the `ckpt_path` and `vocab_path` variables
+with the corresponding paths.
 
 ## System Requirements
 
