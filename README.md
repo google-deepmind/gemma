@@ -9,7 +9,7 @@ This repository contains an inference implementation and examples, based on the
 
 ### Learn more about Gemma
 
--   The [Gemma technical report](https://ai.google.dev/gemma/technical-report)
+-   The [Gemma technical report](https://goo.gle/GemmaReport)
     details the models' capabilities.
 -   For tutorials, reference implementations in other ML frameworks, and more,
     visit https://ai.google.dev/gemma.
