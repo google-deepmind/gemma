@@ -17,11 +17,11 @@ authors = [
   "Surya Bhupatiraju <sbhupatiraju@google.com>",
   "Thomas Mesnard <mesnard@google.com>"
 ]
-python-version = "3.10"
 license = "Apache-2.0"
 readme = "README.md"
 
 [tool.poetry.dependencies]
+python = ">=3.10"
 absl-py = "^2.1.0"
 sentencepiece = "^0.1.99"
 flax = "^0.7.5"
