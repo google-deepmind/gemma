@@ -64,7 +64,7 @@ To run the example sampling script, pass the paths to the weights directory and
 tokenizer:
 
 ```
-python examples/sampling.py -- \
+python examples/sampling.py \
   --path_checkpoint=/path/to/archive/contents/2b/ \
   --path_tokenizer=/path/to/archive/contents/tokenizer.model
 ```
