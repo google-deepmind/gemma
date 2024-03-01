@@ -56,7 +56,6 @@ the tokenizer, for example the 2b Flax variation contains:
 tokenizer.model  # Tokenizer
 ```
 
-
 ### Running the unit tests
 
 To run the unit tests, install the optional `[test]` dependencies (e.g. using
