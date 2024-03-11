@@ -86,7 +86,7 @@ class AttentionTest(parameterized.TestCase):
   ):
     attn_mask = jnp.ones((batch_size, 1, num_heads))
     attn = modules.Attention(num_heads, num_heads, features, head_dim)
-    cache = modules.init_layer_cache(
+    cache = modules.Attention.init_cache(
         cache_size, num_heads, head_dim, batch_size, dtype=jnp.float32
     )
     x = jnp.ones((batch_size, 1, features))
@@ -157,7 +157,7 @@ class BlockTest(parameterized.TestCase):
       expected_output_shape,
   ):
     inputs = jnp.ones((batch_size, 1, embed_dim))
-    cache = modules.init_layer_cache(
+    cache = modules.Attention.init_cache(
         cache_size, num_heads, head_dim, batch_size, dtype=jnp.float32
     )
     attn_mask = jnp.ones((batch_size, 1, cache_size))

@@ -117,24 +117,23 @@ class TransformerConfig:
         max_cache_length=cache_size,
     )
 
-
-def init_cache(
-    config: TransformerConfig,
-    batch_size: int,
-    dtype: jnp.dtype = jnp.bfloat16,
-) -> Cache:
-  """Initializes a new Transformer cache."""
-  cache = {
-      f'layer_{i}': modules.init_layer_cache(
-          config.max_cache_length,
-          config.num_heads,
-          config.head_dim,
-          batch_size,
-          dtype,
-      )
-      for i in range(config.num_layers)
-  }
-  return cache
+  def init_cache(
+      self,
+      batch_size: int,
+      dtype: jnp.dtype = jnp.bfloat16,
+  ) -> Cache:
+    """Initializes a new Transformer cache."""
+    cache = {
+        f'layer_{i}': modules.Attention.init_cache(
+            self.max_cache_length,
+            self.num_heads,
+            self.head_dim,
+            batch_size,
+            dtype,
+        )
+        for i in range(self.num_layers)
+    }
+    return cache
 
 
 class Transformer(nn.Module):

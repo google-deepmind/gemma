@@ -79,9 +79,7 @@ class TransformerTest(parameterized.TestCase):
         num_kv_heads=num_kv_heads,
         max_cache_length=cache_size,
     )
-    cache = transformer_lib.init_cache(
-        config, batch_size, dtype=jnp.float32
-    )
+    cache = config.init_cache(batch_size, dtype=jnp.float32)
     attention_mask = jnp.ones((batch_size, 1, cache_size), dtype=jnp.bool)
     transformer = transformer_lib.Transformer(config=config)
     params = transformer.init(
@@ -117,7 +115,7 @@ class TransformerTest(parameterized.TestCase):
       )
   ])
   def test_creates_cache(self, config, keys, k_shape, v_shape):
-    cache = transformer_lib.init_cache(config, 1)
+    cache = config.init_cache(1)
     self.assertEqual(list(cache.keys()), keys)
     self.assertEqual(cache['layer_0']['k'].shape, k_shape)
     self.assertEqual(cache['layer_0']['v'].shape, v_shape)
@@ -146,9 +144,7 @@ class TransformerTest(parameterized.TestCase):
   ):
 
     token_input = jnp.ones((batch_size, seq_size), dtype=jnp.int32)
-    empty_cache = transformer_lib.init_cache(
-        config, batch_size, dtype=jnp.float32
-    )
+    empty_cache = config.init_cache(batch_size, dtype=jnp.float32)
     transformer = transformer_lib.Transformer(config=config)
     attention_mask = jnp.ones(
         (batch_size, seq_size, config.max_cache_length), dtype=jnp.bool

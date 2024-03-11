@@ -26,7 +26,7 @@ import numpy as np
 
 import sentencepiece as spm
 
-# TODO: Replace with a mock tokenizer.
+# TODO(b/329105706): Replace with a mock tokenizer.
 # Download the tokenizer and put its path here.
 _VOCAB = ''
 _NO_TOKENIZER_MESSAGE = (
@@ -53,9 +53,7 @@ class SamplerTest(absltest.TestCase):
         max_cache_length=1024,
     )
     attention_mask = jnp.ones((1, 1, transformer_config.max_cache_length))
-    cache = transformer_lib.init_cache(
-        transformer_config, 1, dtype=jnp.float32
-    )
+    cache = transformer_config.init_cache(1, dtype=jnp.float32)
     transformer = transformer_lib.Transformer(transformer_config)
     params = transformer.init(
         jax.random.PRNGKey(0),
@@ -95,9 +93,7 @@ class SamplerTest(absltest.TestCase):
         [vocab.bos_id()] + vocab.EncodeAsIds(raw_input)
     ).reshape((1, -1))
     batch_size = 1
-    cache = transformer_lib.init_cache(
-        transformer_config, batch_size, dtype=jnp.float32
-    )
+    cache = transformer_config.init_cache(batch_size, dtype=jnp.float32)
     input_mask = token_input != vocab.pad_id()
     positions = transformer_lib.build_positions_from_mask(
         input_mask

@@ -169,9 +169,7 @@ class Sampler:
 
   def init_cache(self, bsz) -> dict[str, modules.LayerCache]:
     """Initializes the attention cache for each layer."""
-    return transformer_lib.init_cache(
-        self.transformer.config, bsz, dtype=self.dtype
-    )
+    return self.transformer.config.init_cache(bsz, dtype=self.dtype)
 
   def init_sample_state(
       self,
@@ -255,7 +253,8 @@ class Sampler:
 
     Args:
       input_strings: input prompts to feed to the model for sampling.
-      total_generation_steps: number of generation steps. will correspond to the longest prompt in the batch.
+      total_generation_steps: number of generation steps. will correspond to the
+      longest prompt in the batch.
       echo: whether to return the prompt as part of the output sample.
       return_logits: whether to return per-step logits used during generation.
 

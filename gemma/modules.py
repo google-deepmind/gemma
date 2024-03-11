@@ -24,24 +24,6 @@ K_MASK = -2.3819763e38  # Set to a large negative number.
 LayerCache = dict[str, jax.Array]
 
 
-def init_layer_cache(
-    cache_size: int,
-    num_heads: int,
-    head_dim: int,
-    batch_size: int,
-    dtype: jnp.dtype = jnp.bfloat16,
-) -> LayerCache:
-  return {
-      'v': jnp.zeros(
-          (batch_size, cache_size, num_heads, head_dim), dtype=dtype
-      ),
-      'k': jnp.zeros(
-          (batch_size, cache_size, num_heads, head_dim), dtype=dtype
-      ),
-      'end_index': jnp.zeros((batch_size,), dtype=jnp.int32),
-  }
-
-
 class Embedder(nn.Module):
   """Embedder module."""
 
@@ -154,6 +136,26 @@ class Attention(nn.Module):
       new_cache = None
 
     return new_cache, attn_output
+
+  @classmethod
+  def init_cache(
+      cls,
+      cache_size: int,
+      num_heads: int,
+      head_dim: int,
+      batch_size: int,
+      dtype: jnp.dtype = jnp.bfloat16,
+  ) -> LayerCache:
+    del cls  # not used
+    return {
+        'v': jnp.zeros(
+            (batch_size, cache_size, num_heads, head_dim), dtype=dtype
+        ),
+        'k': jnp.zeros(
+            (batch_size, cache_size, num_heads, head_dim), dtype=dtype
+        ),
+        'end_index': jnp.zeros((batch_size,), dtype=jnp.int32),
+    }
 
 
 class FeedForward(nn.Module):
