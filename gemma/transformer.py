@@ -126,7 +126,11 @@ def init_cache(
   """Initializes a new Transformer cache."""
   cache = {
       f'layer_{i}': modules.init_layer_cache(
-          config.max_cache_length, config.num_heads, config.head_dim, batch_size, dtype
+          config.max_cache_length,
+          config.num_heads,
+          config.head_dim,
+          batch_size,
+          dtype,
       )
       for i in range(config.num_layers)
   }
@@ -158,9 +162,9 @@ class Transformer(nn.Module):
 
   def __call__(
       self,
-      last_tokens: jax.Array,     # [B,L]
-      positions: jax.Array,       # [B, L]
-      cache: Cache | None,        # (sequence length L')
+      last_tokens: jax.Array,  # [B, L]
+      positions: jax.Array,  # [B, L]
+      cache: Cache | None,  # (sequence length L')
       attention_mask: jax.Array,  # [B, L, L']
   ) -> tuple[jax.Array, Cache | None]:
     """Transformer forward pass.

@@ -21,6 +21,8 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
+jax.config.update('jax_numpy_rank_promotion', 'raise')
+
 
 class TransformerTest(parameterized.TestCase):
 
