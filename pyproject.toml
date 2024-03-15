@@ -24,7 +24,7 @@ readme = "README.md"
 [tool.poetry.dependencies]
 absl-py = "^2.1.0"
 sentencepiece = "^0.1.99"
-flax = "^0.7.5"
+flax = ">=0.8"
 pytest = {version = "^8.0.0", optional = true}
 
 [tool.poetry.extras]
