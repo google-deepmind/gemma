@@ -14,7 +14,7 @@
 # ============================================================================
 """Minimal test for sampler."""
 
-import os
+import pathlib
 import unittest
 
 from absl.testing import absltest
