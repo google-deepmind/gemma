@@ -154,7 +154,7 @@ class Sampler:
       logits_buffer = sampler_state.logits_buffer
 
     done = sampler_state.done | jnp.equal(
-        sampler_state.token_buffer[:, decoding_step + 1], self.vocab.eos_id()
+        token_buffer[:, decoding_step + 1], self.vocab.eos_id()
     )
 
     return _SamplingState(
