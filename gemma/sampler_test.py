@@ -99,7 +99,6 @@ class SamplerTest(absltest.TestCase):
         transformer=transformer,
         vocab=vocab,
         params=params['params'],
-        dtype=jnp.float32,
     )
 
     result = sampler(['input string', 'hello world'], total_generation_steps=10)
@@ -156,7 +155,6 @@ class SamplerTest(absltest.TestCase):
         transformer=transformer,
         vocab=vocab,
         params=params['params'],
-        dtype=jnp.float32,
     )
 
     output_transformer = sampler(

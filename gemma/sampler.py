@@ -93,7 +93,6 @@ class Sampler:
       transformer: transformer_lib.Transformer,
       vocab: spm.SentencePieceProcessor,
       params: params_lib.Params,
-      dtype: jnp.dtype = jnp.bfloat16,
   ):
     """Initializes a sampler for a Gemma model.
 
@@ -101,14 +100,15 @@ class Sampler:
       transformer: an instance of the Gemma transformer.
       vocab: vocabulary of the given model.
       params: weights of the model.
-      dtype: type of weight to use, default are bfloat16 weights. This value
-        should match the type of the input parameters (see @params).
     """
     self.transformer = transformer
     self.vocab = vocab
     self.params = params
     self._compiled_sample_fn = jax.jit(self._sample_fn)
-    self.dtype = dtype
+
+  @property
+  def dtype(self) -> jnp.dtype:
+    return jax.tree_util.tree_leaves(self.params)[0].dtype
 
   def _sample_step(
       self, params, sampler_state: _SamplingState
