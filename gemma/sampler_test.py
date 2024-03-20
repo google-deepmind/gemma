@@ -14,8 +14,7 @@
 # ============================================================================
 """Minimal test for sampler."""
 
-import pathlib
-import unittest
+from typing import Iterable
 
 from absl.testing import absltest
 from gemma import sampler as sampler_lib
@@ -26,25 +25,59 @@ import numpy as np
 
 import sentencepiece as spm
 
-# TODO(b/329105706): Replace with a mock tokenizer.
-# Download the tokenizer and put its path here.
-_VOCAB = ''
-_NO_TOKENIZER_MESSAGE = (
-    'No tokenizer path specified. Please download a tokenizer and update the'
-    ' `_VOCAB` constant.'
-)
+
+class MockVocab(spm.SentencePieceProcessor):
+
+  def __init__(self):
+    super().__init__()
+    self._start_id = 3
+    self._mapping_text_to_id = {
+        '<pad>': 0,
+        '<s>': 1,
+        '</s>': 2,
+        'input': 3,
+        'string': 4,
+        'hello': 5,
+        'world': 6,
+        'Hello': 7,
+        'there': 8,
+        '!': 9,
+        'My': 10,
+        'name': 11,
+        'is': 12,
+        'Morgane': 13,
+    }
+    self._vocab_size = len(self._mapping_text_to_id)
+
+  def pad_id(self) -> int:
+    return 0
+
+  def bos_id(self) -> int:
+    return 1
+
+  def eos_id(self) -> int:
+    return 2
+
+  def GetPieceSize(self) -> int:  # pylint: disable=invalid-name
+    return self._vocab_size
+
+  def DecodeIds(self, ids: Iterable[int]) -> str:  # pylint: disable=invalid-name
+    reverse_mapping = {v: k for k, v in self._mapping_text_to_id.items()}
+    return ' '.join(reverse_mapping[e] for e in ids)
+
+  def EncodeAsIds(self, text: str) -> list[int]:  # pylint: disable=invalid-name
+    words = text.split(' ')
+    return [self._mapping_text_to_id[word] for word in words]
 
 
 class SamplerTest(absltest.TestCase):
 
-  @unittest.skipIf(not _VOCAB, _NO_TOKENIZER_MESSAGE)
   def test_samples(self):
-    vocab = spm.SentencePieceProcessor()
-    vocab.Load(_VOCAB)
+    vocab = MockVocab()
 
     transformer_config = transformer_lib.TransformerConfig(
         num_layers=6,
-        num_embed=vocab.GetPieceSize() + 128,  # 128 for padding
+        num_embed=vocab.GetPieceSize(),
         embed_dim=768,
         hidden_dim=6144,
         num_heads=4,
@@ -72,13 +105,11 @@ class SamplerTest(absltest.TestCase):
     result = sampler(['input string', 'hello world'], total_generation_steps=10)
     self.assertIsNotNone(result)
 
-  @unittest.skipIf(not _VOCAB, _NO_TOKENIZER_MESSAGE)
   def test_forward_equivalence(self):
-    vocab = spm.SentencePieceProcessor()
-    vocab.Load(_VOCAB)
+    vocab = MockVocab()
     transformer_config = transformer_lib.TransformerConfig(
         num_layers=2,
-        num_embed=vocab.GetPieceSize() + 128,  # 128 for padding
+        num_embed=vocab.GetPieceSize(),
         embed_dim=32,
         hidden_dim=64,
         num_heads=4,
@@ -88,7 +119,7 @@ class SamplerTest(absltest.TestCase):
     )
 
     transformer = transformer_lib.Transformer(transformer_config)
-    raw_input = 'Hello ! My name is Morgane'
+    raw_input = 'Hello there ! My name is Morgane'
     token_input = jnp.asarray(
         [vocab.bos_id()] + vocab.EncodeAsIds(raw_input)
     ).reshape((1, -1))
