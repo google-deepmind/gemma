@@ -34,7 +34,7 @@ pip install git+https://github.com/google-deepmind/gemma.git
 ### Downloading the models
 
 The model checkpoints are available through Kaggle at
-https://www.kaggle.com/models/google/gemma/frameworks/flax. Select one of the **Flax** model
+http://kaggle.com/models/google/gemma. Select one of the **Flax** model
 variations, click the ⤓ button to download the model archive, then extract the
 contents to a local directory. 
 
