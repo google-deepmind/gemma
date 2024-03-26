@@ -38,7 +38,7 @@ http://kaggle.com/models/google/gemma. Select one of the **Flax** model
 variations, click the ⤓ button to download the model archive, then extract the
 contents to a local directory. 
 
-Alternatively, visit the [gemma]([https://huggingface.co/models?other=gemma.cpp](https://huggingface.co/models?other=gemma_jax))
+Alternatively, visit the [gemma](https://huggingface.co/models?other=gemma_jax)
 models on the Hugging Face Hub. To download the model, you can run the following code if you have `huggingface_hub` installed:
 
 ```
