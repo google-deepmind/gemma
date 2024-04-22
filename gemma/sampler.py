@@ -71,6 +71,9 @@ class _SamplingState:
   # Fixed-size buffer for accumulating the output logits.
   logits_buffer: jnp.ndarray | None = None  # [B, L, V]
 
+  # List of tokens that are forbidden to be generated.
+  forbidden_token_ids: Sequence[int] | None = None
+
 
 @dataclasses.dataclass
 class SamplerOutput:
@@ -131,6 +134,8 @@ class Sampler:
         sampler_state.cache,
         attention_mask,
     )
+    if sampler_state.forbidden_token_ids:
+      logits = logits.at[:, :, sampler_state.forbidden_token_ids].set(-jnp.inf)
 
     next_token_candidate = jnp.argmax(logits, axis=-1)  # [B, 1]
     next_token_candidate = next_token_candidate[:, 0]  # [B,]
@@ -165,6 +170,7 @@ class Sampler:
         cache=cache,
         done=done,
         total_sampling_steps=sampler_state.total_sampling_steps,
+        forbidden_token_ids=sampler_state.forbidden_token_ids,
     )
 
   def init_cache(self, bsz) -> dict[str, modules.LayerCache]:
@@ -176,6 +182,7 @@ class Sampler:
       all_input_ids: list[jax.Array],
       total_sampling_steps: int,
       include_logits: bool = False,
+      forbidden_token_ids: Sequence[int] | None = None,
   ) -> _SamplingState:
     """Initializes the sampling state given input prompts."""
     bsz = len(all_input_ids)
@@ -213,6 +220,7 @@ class Sampler:
         cache=self.init_cache(bsz),
         done=done,
         total_sampling_steps=total_sampling_steps,
+        forbidden_token_ids=forbidden_token_ids,
     )
 
   def tokenize(self, input_string: str) -> jax.Array:
@@ -248,20 +256,33 @@ class Sampler:
       total_generation_steps: int,
       echo: bool = False,
       return_logits: bool = True,
+      forbidden_tokens: Sequence[str] | None = None,
   ) -> SamplerOutput:
     """Samples a completion of the input string.
 
     Args:
       input_strings: input prompts to feed to the model for sampling.
       total_generation_steps: number of generation steps. will correspond to the
-      longest prompt in the batch.
+        longest prompt in the batch.
       echo: whether to return the prompt as part of the output sample.
       return_logits: whether to return per-step logits used during generation.
+      forbidden_tokens: list of tokens that are forbidden to be generated. Each
+        token must map to a single token id in the vocab.
 
     Returns:
       sampler_output: A SamplerOutput object containing the generated samples.
     """
-
+    forbidden_token_ids = None
+    if forbidden_tokens is not None:
+      forbidden_token_ids = []
+      for token in forbidden_tokens:
+        token_id = self.vocab.EncodeAsIds(token)
+        if len(token_id) != 1:
+          raise ValueError(
+              'Forbidden tokens must map to single token ids in the vocab.'
+          )
+        forbidden_token_ids.extend(token_id)
+      forbidden_token_ids = tuple(forbidden_token_ids)
     all_input_ids = [self.tokenize(x) for x in input_strings]
     max_input_length = max(len(input_ids) for input_ids in all_input_ids)
     total_sampling_steps = max_input_length + total_generation_steps
@@ -269,6 +290,7 @@ class Sampler:
         all_input_ids,
         include_logits=return_logits,
         total_sampling_steps=total_sampling_steps,
+        forbidden_token_ids=forbidden_token_ids,
     )
 
     sampling_state = self._compiled_sample_fn(
@@ -291,9 +313,7 @@ class Sampler:
             logits_buffer[start_idx:total_sampling_steps].tolist()
         )
 
-    decoded_outputs = [
-        self.vocab.DecodeIds(tokens) for tokens in out_tokens
-    ]
+    decoded_outputs = [self.vocab.DecodeIds(tokens) for tokens in out_tokens]
 
     result = SamplerOutput(
         text=decoded_outputs,
