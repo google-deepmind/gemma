@@ -104,6 +104,58 @@ class SamplerTest(absltest.TestCase):
     result = sampler(['input string', 'hello world'], total_generation_steps=10)
     self.assertIsNotNone(result)
 
+  def test_forbidden_tokens(self):
+    vocab = MockVocab()
+    transformer_config = transformer_lib.TransformerConfig(
+        num_layers=0,
+        num_embed=vocab.GetPieceSize(),
+        embed_dim=32,
+        hidden_dim=64,
+        num_heads=4,
+        num_kv_heads=1,
+        head_dim=64,
+        max_cache_length=8,
+    )
+    attention_mask = jnp.ones((1, 1, transformer_config.max_cache_length))
+    cache = transformer_config.init_cache(1, dtype=jnp.float32)
+    transformer = transformer_lib.Transformer(transformer_config)
+    params = transformer.init(
+        jax.random.PRNGKey(0),
+        jnp.array([[1]]),
+        jnp.array([[1]]),
+        cache,
+        attention_mask,
+    )
+    # Pre-cook the embedding matrix so that the output is deterministic.
+    params['params']['embedder']['initial_embedding'] = jnp.eye(
+        vocab.GetPieceSize(), 32
+    )
+    sampler = sampler_lib.Sampler(
+        transformer=transformer,
+        vocab=vocab,
+        params=params['params'],
+    )
+
+    # First, we check that the sampler would produce the tokens that we are
+    # trying to forbid.
+    result1 = sampler(
+        ['input string', 'hello world'],
+        total_generation_steps=10,
+        forbidden_tokens=None,
+    )
+    self.assertIn('string', result1.text[0])
+    self.assertIn('world', result1.text[1])
+
+    # Then, we check that the sampler does not produce the forbidden tokens.
+    result2 = sampler(
+        ['input string', 'hello world'],
+        total_generation_steps=10,
+        forbidden_tokens=['string', 'world'],
+    )
+    for output in result2.text:
+      self.assertNotIn('string', output)
+      self.assertNotIn('world', output)
+
   def test_forward_equivalence(self):
     vocab = MockVocab()
     transformer_config = transformer_lib.TransformerConfig(
@@ -125,9 +177,7 @@ class SamplerTest(absltest.TestCase):
     batch_size = 1
     cache = transformer_config.init_cache(batch_size, dtype=jnp.float32)
     input_mask = token_input != vocab.pad_id()
-    positions = transformer_lib.build_positions_from_mask(
-        input_mask
-    )
+    positions = transformer_lib.build_positions_from_mask(input_mask)
     attention_mask = transformer_lib.make_causal_attn_mask(
         token_input != vocab.pad_id()
     )
