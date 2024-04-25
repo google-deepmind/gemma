@@ -38,11 +38,14 @@ def _compute_attention_masks(
   causal_padding = jnp.greater(
       jnp.expand_dims(jnp.arange(seq_len), 0), batch_time_step
   )
-  causal_padding = causal_padding * jnp.expand_dims(input_mask, axis=-1)
-  attention_mask = causal_padding[:, jnp.newaxis, jnp.newaxis, :].astype(
-      jnp.bool_
+  input_mask = jax.lax.dynamic_update_slice(
+      jnp.zeros((bsz, seq_len), dtype=jnp.bool_),
+      input_mask[:, :seq_len],
+      (0, 0),
   )
-  attention_mask = jnp.squeeze(attention_mask, axis=1)
+  causal_padding = jnp.logical_or(causal_padding, input_mask)
+  attention_mask = causal_padding[:, jnp.newaxis, :].astype(jnp.bool_)
+
   return ~attention_mask
 
 
@@ -58,6 +61,9 @@ class _SamplingState:
 
   # Fixed-size buffer for accumulating the output tokens.
   token_buffer: jnp.ndarray  # [B, L]
+
+  # Position indices, based on ignoring pad tokens
+  positions: jnp.ndarray  # [B, L]
 
   # Model state for conditioning the model on autoregressively.
   cache: dict[str, modules.LayerCache]
@@ -120,17 +126,19 @@ class Sampler:
     batch_size = sampler_state.token_buffer.shape[0]
     decoding_step = jnp.asarray(sampler_state.decoding_step, dtype=jnp.int32)
     last_token = sampler_state.token_buffer[:, decoding_step]
-    input_mask = last_token != self.vocab.pad_id()
+    input_mask = sampler_state.token_buffer == self.vocab.pad_id()
     attention_mask = _compute_attention_masks(
         decoding_step, self.transformer.config.max_cache_length, input_mask
     )
-    positions = jnp.full((batch_size, 1), decoding_step, dtype=jnp.int32)
+    step_positions = jnp.expand_dims(
+        sampler_state.positions[:, decoding_step], -1
+    )
     last_token = last_token.reshape((batch_size, 1))
 
     logits, cache = self.transformer.apply(
         {'params': params},
         last_token,
-        positions,
+        step_positions,
         sampler_state.cache,
         attention_mask,
     )
@@ -166,6 +174,7 @@ class Sampler:
         decoding_step=sampler_state.decoding_step + 1,
         num_input_tokens=sampler_state.num_input_tokens,
         token_buffer=token_buffer,
+        positions=sampler_state.positions,
         logits_buffer=logits_buffer,
         cache=cache,
         done=done,
@@ -212,10 +221,14 @@ class Sampler:
     else:
       logits_buffer = None
 
+    input_mask = token_buffer != self.vocab.pad_id()
+    positions = transformer_lib.build_positions_from_mask(input_mask)
+
     return _SamplingState(
         decoding_step=0,
         num_input_tokens=jnp.array(num_input_tokens, dtype=jnp.int32),
         token_buffer=token_buffer,
+        positions=positions,
         logits_buffer=logits_buffer,
         cache=self.init_cache(bsz),
         done=done,

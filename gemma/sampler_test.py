@@ -166,11 +166,11 @@ class SamplerTest(absltest.TestCase):
         num_heads=4,
         num_kv_heads=1,
         head_dim=64,
-        max_cache_length=8,
+        max_cache_length=9,
     )
 
     transformer = transformer_lib.Transformer(transformer_config)
-    raw_input = 'Hello there ! My name is Morgane'
+    raw_input = 'Hello there ! My name is Morgane <pad>'
     token_input = jnp.asarray(
         [vocab.bos_id()] + vocab.EncodeAsIds(raw_input)
     ).reshape((1, -1))
