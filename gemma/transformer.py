@@ -126,7 +126,7 @@ class TransformerConfig:
     cache = {
         f'layer_{i}': modules.Attention.init_cache(
             self.max_cache_length,
-            self.num_heads,
+            self.num_kv_heads,
             self.head_dim,
             batch_size,
             dtype,
