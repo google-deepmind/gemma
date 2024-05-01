@@ -102,9 +102,6 @@ class Attention(nn.Module):
         head_dim=self.head_dim,
     )
 
-    if not self.use_qkv_einsum:
-      value_proj = jnp.repeat(value_proj, self.num_heads, axis=-2)
-      key_proj = jnp.repeat(key_proj, self.num_heads, axis=-2)
     # Cache is left aligned.
     if cache is not None:
       end_index = cache['end_index'][0]

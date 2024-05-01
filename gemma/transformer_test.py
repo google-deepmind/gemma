@@ -51,7 +51,7 @@ class TransformerTest(parameterized.TestCase):
           cache_size=2,
           batch_size=1,
           expected_outputs_shape=(1, 1, 4),
-          expected_cache_shape=(1, 2, 2, 4),
+          expected_cache_shape=(1, 2, 1, 4),
       ),
   )
   def test_transformer(
