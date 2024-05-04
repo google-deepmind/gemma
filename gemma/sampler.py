@@ -246,6 +246,22 @@ class Sampler:
     )
     return input_ids
 
+  def mask_tokens_after_eos_ids(self, token_buffer):
+    """Mask token IDs after the EOS token with the padding ID."""
+    eos_id = self.vocab.eos_id()
+    eos_exists = jnp.any(jnp.equal(token_buffer, eos_id), axis=-1)
+    eos_indices = jnp.where(
+        eos_exists,
+        jnp.argmax(jnp.equal(token_buffer, eos_id), axis=-1),
+        token_buffer.shape[-1],
+    )
+    mask = jnp.less_equal(
+        jnp.arange(token_buffer.shape[-1]), eos_indices[:, None]
+    )
+    masked_token_buffer = token_buffer * mask + self.vocab.pad_id()*(1 - mask)
+
+    return masked_token_buffer
+
   def _sample_fn(
       self,
       params: params_lib.Params,
@@ -312,11 +328,15 @@ class Sampler:
         self.params, initial_sampling_state
     )
 
+    masked_token_buffer = self.mask_tokens_after_eos_ids(
+        sampling_state.token_buffer
+    )
+
     out_tokens = []
     out_logits = []
     for i, (token_buffer, num_tokens) in enumerate(
         zip(
-            sampling_state.token_buffer,
+            masked_token_buffer,
             sampling_state.num_input_tokens,
         )
     ):
