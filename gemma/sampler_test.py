@@ -214,6 +214,46 @@ class SamplerTest(absltest.TestCase):
 
     np.testing.assert_almost_equal(output_forward, out_logits)
 
+  def test_sampler_init_sample_state(self):
+    vocab = MockVocab()
+    transformer_config = transformer_lib.TransformerConfig(
+        num_layers=0,
+        num_embed=vocab.GetPieceSize(),
+        embed_dim=32,
+        hidden_dim=64,
+        num_heads=4,
+        num_kv_heads=1,
+        head_dim=64,
+        max_cache_length=8,
+    )
+    attention_mask = jnp.ones((1, 1, transformer_config.max_cache_length))
+    cache = transformer_config.init_cache(1, dtype=jnp.float32)
+    transformer = transformer_lib.Transformer(transformer_config)
+    params = transformer.init(
+        jax.random.PRNGKey(0),
+        jnp.array([[1]]),
+        jnp.array([[1]]),
+        cache,
+        attention_mask,
+    )
+    sampler = sampler_lib.Sampler(
+        transformer=transformer,
+        vocab=vocab,
+        params=params['params'],
+    )
+
+    input_strings = ['<pad> hello world', 'input string <pad>']
+    all_input_ids = [sampler.tokenize(x) for x in input_strings]
+    total_sampling_steps = 5
+    sample_state = sampler.init_sample_state(
+        all_input_ids,
+        total_sampling_steps=total_sampling_steps,
+    )
+
+    # Check that the position indices correctly ignore padding
+    self.assertListEqual(list(sample_state.positions[0]), [0, 0, 1, 2, 3, 4])
+    self.assertListEqual(list(sample_state.positions[1]), [0, 1, 2, 2, 3, 4])
+
 
 if __name__ == '__main__':
   absltest.main()
