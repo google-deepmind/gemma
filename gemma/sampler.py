@@ -206,10 +206,15 @@ class Sampler:
         self.vocab.pad_id(),
         dtype=jnp.int32,
     )
+    input_mask = jnp.ones_like(token_buffer, dtype=jnp.bool_)
     for i, (input_ids, num_tokens) in enumerate(
         zip(all_input_ids, num_input_tokens)
     ):
       token_buffer = token_buffer.at[i, :num_tokens].set(input_ids)
+      input_mask = input_mask.at[i, :num_tokens].set(
+          input_ids != self.vocab.pad_id()
+      )
+    positions = transformer_lib.build_positions_from_mask(input_mask)
 
     done = jnp.zeros((bsz,), dtype=jnp.bool_)
 
@@ -220,9 +225,6 @@ class Sampler:
       )
     else:
       logits_buffer = None
-
-    input_mask = token_buffer != self.vocab.pad_id()
-    positions = transformer_lib.build_positions_from_mask(input_mask)
 
     return _SamplingState(
         decoding_step=0,
