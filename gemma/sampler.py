@@ -38,11 +38,18 @@ def _compute_attention_masks(
   causal_padding = jnp.greater(
       jnp.expand_dims(jnp.arange(seq_len), 0), batch_time_step
   )
-  input_mask = jax.lax.dynamic_update_slice(
-      jnp.zeros((bsz, seq_len), dtype=jnp.bool_),
-      input_mask[:, :seq_len],
-      (0, 0),
+  max_seq_len = min(input_mask.shape[-1], seq_len)
+  input_mask = jax.lax.dynamic_slice(
+      input_mask,
+      (0, jnp.maximum(time_step - seq_len + 1, 0)),
+      (bsz, max_seq_len),
   )
+  input_mask = (
+      jnp.zeros((bsz, seq_len), dtype=jnp.bool_)
+      .at[:, :max_seq_len]
+      .set(input_mask)
+  )
+
   causal_padding = jnp.logical_or(causal_padding, input_mask)
   attention_mask = causal_padding[:, jnp.newaxis, :].astype(jnp.bool_)
 
