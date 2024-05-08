@@ -297,6 +297,35 @@ class SamplerTest(absltest.TestCase):
     self.assertListEqual(list(masked_token_buffer[0]), [1, 5, 6, 2, 0, 0])
     self.assertListEqual(list(masked_token_buffer[0]), [1, 5, 6, 2, 0, 0])
 
+  def test_compute_attention_mask(self):
+    # Check that the input mask is correctly applied when total sampling steps
+    # is lower than the max cache length.
+    input_mask = jnp.array([[1, 1, 0, 0, 0], [1, 1, 0, 1, 0]], dtype=jnp.bool_)
+    seq_len = 8
+    time_step = jnp.asarray(4, dtype=jnp.int32)
+    attn_mask = sampler_lib._compute_attention_masks(
+        time_step, seq_len, input_mask
+    )
+    expected_attn_mask = jnp.array(
+        [[0, 0, 1, 1, 1, 0, 0, 0],
+         [0, 0, 1, 0, 1, 0, 0, 0]], dtype=jnp.bool_)
+
+    self.assertTrue((attn_mask.squeeze(1) == expected_attn_mask).all())
+
+    # Check that the input mask is correctly applied when total sampling steps
+    # is *longer* than the max cache length.
+    seq_len = 4
+    time_step = jnp.asarray(4, dtype=jnp.int32)
+    attn_mask = sampler_lib._compute_attention_masks(
+        time_step, seq_len, input_mask
+    )
+    print(attn_mask)
+    expected_attn_mask = jnp.array(
+        [[0, 1, 1, 1],
+         [0, 1, 0, 1]], dtype=jnp.bool_)
+
+    self.assertTrue((attn_mask.squeeze(1) == expected_attn_mask).all())
+
 
 if __name__ == '__main__':
   absltest.main()
