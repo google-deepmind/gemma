@@ -44,7 +44,7 @@ models on the Hugging Face Hub. To download the model, you can run the following
 ```
 from huggingface_hub import snapshot_download
 
-local_dir = snapshot_download(repo_id="google/gemma-2b-flax")
+local_dir = <PATH>
 snapshot_download(repo_id="google/gemma-2b-flax", local_dir=local_dir)
 ```
 
