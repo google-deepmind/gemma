@@ -178,9 +178,7 @@ class SamplerTest(absltest.TestCase):
     cache = transformer_config.init_cache(batch_size, dtype=jnp.float32)
     input_mask = token_input != vocab.pad_id()
     positions = transformer_lib.build_positions_from_mask(input_mask)
-    attention_mask = transformer_lib.make_causal_attn_mask(
-        token_input != vocab.pad_id()
-    )
+    attention_mask = transformer_lib.make_causal_attn_mask(input_mask)
 
     n_input_tokens = token_input.shape[1]
 
