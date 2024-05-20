@@ -26,41 +26,6 @@ import jax.numpy as jnp
 Cache = dict[str, modules.LayerCache]
 
 
-def make_causal_attn_mask(
-    input_mask: jax.Array,
-) -> jax.Array:
-  """Attention mask in batch mode.
-
-  Args:
-    input_mask: Input mask for the input
-
-  Returns:
-    Attention mask.
-  """
-  seq_len = input_mask.shape[-1]
-  attn_mask = input_mask[..., None, :]
-  causal_mask = jnp.tril(jnp.ones((seq_len, seq_len), dtype=jnp.bool_))
-  # Prefixes can be attended by all tokens
-  attn_mask *= causal_mask[None, ...]
-  return attn_mask
-
-
-def build_positions_from_mask(input_mask: jax.Array) -> jax.Array:
-  """Computes the `positions` from the `input_mask`.
-
-  Args:
-    input_mask: The tokens `input_mask`, True for non-padded tokens only.
-
-  Returns:
-    The indices to use for RoPE and absolute position encodings for the given
-    input mask.
-  """
-  positions = jnp.cumsum(input_mask, axis=-1)
-  # Subtract one for all positions from the first valid one as they are
-  # 0-indexed
-  return positions - (positions >= 1)
-
-
 @dataclasses.dataclass(frozen=True)
 class TransformerConfig:
   """Configuration for the gemma transformer."""
@@ -200,3 +165,39 @@ class Transformer(nn.Module):
     logits = self.embedder.decode(x)
 
     return logits, cache  # pytype: disable=bad-return-type
+
+
+def make_causal_attn_mask(
+    input_mask: jax.Array,
+) -> jax.Array:
+  """Attention mask in batch mode.
+
+  Args:
+    input_mask: Input mask for the input. True for non-padded tokens only, else
+      False.
+
+  Returns:
+    Attention mask.
+  """
+  seq_len = input_mask.shape[-1]
+  attn_mask = input_mask[..., None, :]
+  causal_mask = jnp.tril(jnp.ones((seq_len, seq_len), dtype=jnp.bool_))
+  # Prefixes can be attended by all tokens
+  attn_mask *= causal_mask[None, ...]
+  return attn_mask
+
+
+def build_positions_from_mask(input_mask: jax.Array) -> jax.Array:
+  """Computes the `positions` from the `input_mask`.
+
+  Args:
+    input_mask: The tokens `input_mask`, True for non-padded tokens only.
+
+  Returns:
+    The indices to use for RoPE and absolute position encodings for the given
+    input mask.
+  """
+  positions = jnp.cumsum(input_mask, axis=-1)
+  # Subtract one for all positions from the first valid one as they are
+  # 0-indexed
+  return positions - (positions >= 1)

@@ -60,7 +60,7 @@ def _compute_attention_masks(
 class _SamplingState:
   """Internal sampling state."""
 
-  # Decoding step
+  # Decoding step.
   decoding_step: jnp.int32
 
   # Number of tokens in the prompt.
@@ -69,16 +69,16 @@ class _SamplingState:
   # Fixed-size buffer for accumulating the output tokens.
   token_buffer: jnp.ndarray  # [B, L]
 
-  # Position indices, based on ignoring pad tokens
+  # Position indices, based on ignoring pad tokens.
   positions: jnp.ndarray  # [B, L]
 
   # Model state for conditioning the model on autoregressively.
   cache: dict[str, modules.LayerCache]
 
-  # Is decoding done on the given sequence
+  # Is decoding done on the given sequence?
   done: jnp.ndarray  # [B]
 
-  # Total sampling steps (including the prompt)
+  # Total sampling steps (including the prompt).
   total_sampling_steps: int
 
   # Fixed-size buffer for accumulating the output logits.
