@@ -53,6 +53,7 @@ class Attention(nn.Module):
   num_kv_heads: int
   features: int
   head_dim: int
+  sliding_window_size: int | None = None
 
   @property
   def use_qkv_einsum(self):
@@ -116,9 +117,13 @@ class Attention(nn.Module):
       )
 
     logits = jnp.einsum('BTNH,BSNH->BTNS', query_scaled, key_proj)
-    padded_logits = jnp.where(
-        (jnp.expand_dims(attn_mask, -2)), logits, K_MASK
-    )
+    if self.sliding_window_size is not None:
+      all_ones = jnp.ones_like(attn_mask)
+      sliding_mask = jnp.triu(
+          all_ones, -1 * self.sliding_window_size + 1
+      ) * jnp.tril(all_ones, self.sliding_window_size - 1)
+      attn_mask = sliding_mask * attn_mask
+    padded_logits = jnp.where((jnp.expand_dims(attn_mask, -2)), logits, K_MASK)
     probs = jax.nn.softmax(padded_logits, axis=-1).astype(key_proj.dtype)
     encoded = jnp.einsum('BTNS,BSNH->BTNH', probs, value_proj)
     attn_output = self.attn_vec_einsum('BTNH,NHD->BTD', encoded)
@@ -192,6 +197,7 @@ class Block(nn.Module):
   embed_dim: int
   head_dim: int
   hidden_dim: int
+  sliding_window_size: int | None = None
 
   def setup(self):
     self.pre_attention_norm = layers.RMSNorm()
@@ -200,6 +206,7 @@ class Block(nn.Module):
         features=self.embed_dim,
         head_dim=self.head_dim,
         num_kv_heads=self.num_kv_heads,
+        sliding_window_size=self.sliding_window_size,
     )
     self.pre_ffw_norm = layers.RMSNorm()
     self.mlp = FeedForward(features=self.embed_dim, hidden_dim=self.hidden_dim)

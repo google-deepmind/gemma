@@ -67,9 +67,9 @@ class AttentionTest(parameterized.TestCase):
           head_dim=4,
           features=8,
           segment_pos=0,
-          cache_size=2,
+          cache_size=3,
           batch_size=2,
-          expected_cache_shape=(2, 2, 2, 4),
+          expected_cache_shape=(2, 3, 2, 4),
           expected_output_shape=(2, 1, 8),
       ),
   )
@@ -84,7 +84,7 @@ class AttentionTest(parameterized.TestCase):
       expected_cache_shape,
       expected_output_shape,
   ):
-    attn_mask = jnp.ones((batch_size, 1, num_heads))
+    attn_mask = jnp.ones((batch_size, 1, cache_size))
     attn = modules.Attention(num_heads, num_heads, features, head_dim)
     cache = modules.Attention.init_cache(
         cache_size, num_heads, head_dim, batch_size, dtype=jnp.float32
@@ -103,6 +103,47 @@ class AttentionTest(parameterized.TestCase):
 
     self.assertEqual(cache['k'].shape, expected_cache_shape)
     self.assertEqual(output.shape, expected_output_shape)
+
+  @parameterized.parameters(
+      dict(
+          sliding_window_size=2,
+      ),
+  )
+  def test_sliding_window(self, sliding_window_size):
+    num_heads = 2
+    head_dim = 4
+    features = 8
+    segment_pos = 0
+    cache_size = 3
+    batch_size = 2
+    attn_mask = jnp.ones((batch_size, 1, cache_size))
+    cache = modules.Attention.init_cache(
+        cache_size, num_heads, head_dim, batch_size, dtype=jnp.float32
+    )
+    x = jnp.ones((batch_size, 1, features))
+    attn = modules.Attention(num_heads, num_heads, features, head_dim)
+    params = attn.init(
+        jax.random.PRNGKey(0),
+        x,
+        jnp.array([[segment_pos]]),
+        cache,
+        attn_mask,
+    )
+    _, output = attn.apply(
+        params, x, jnp.array([[segment_pos]]), cache, attn_mask
+    )
+    sliding_attn = modules.Attention(
+        num_heads,
+        num_heads,
+        features,
+        head_dim,
+        sliding_window_size=sliding_window_size,
+    )
+    _, sliding_output = sliding_attn.apply(
+        params, x, jnp.array([[segment_pos]]), cache, attn_mask
+    )
+
+    self.assertFalse((output == sliding_output).all())
 
 
 class FeedForwardTest(parameterized.TestCase):

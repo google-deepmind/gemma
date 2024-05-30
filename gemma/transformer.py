@@ -38,6 +38,7 @@ class TransformerConfig:
   head_dim: int
   num_kv_heads: int
   max_cache_length: int = 1024
+  sliding_window_size: int | None = None
 
   @classmethod
   def from_params(
@@ -119,6 +120,7 @@ class Transformer(nn.Module):
             embed_dim=self.config.embed_dim,
             head_dim=self.config.head_dim,
             hidden_dim=self.config.hidden_dim,
+            sliding_window_size=self.config.sliding_window_size,
         )
         for i in range(self.config.num_layers)
     ]
