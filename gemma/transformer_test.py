@@ -109,6 +109,67 @@ class TransformerTest(parameterized.TestCase):
     self.assertEqual(outputs.shape, expected_outputs_shape)
     self.assertEqual(cache['layer_0']['v'].shape, expected_cache_shape)
 
+  def test_logit_softcapping(
+      self,
+  ):
+    cache_size = 2
+    batch_size = 1
+    sequence_length = 1
+    soft_cap_val = 0.001
+
+    attention_mask = jnp.ones((batch_size, 1, cache_size), dtype=jnp.bool)
+
+    params = dict(
+        num_layers=3,
+        num_embed=4,
+        embed_dim=2,
+        num_heads=2,
+        num_kv_heads=1,
+        hidden_dim=4,
+        head_dim=4,
+        max_cache_length=cache_size,
+        attn_query_splits=None,
+        attention_type=transformer_lib.AttentionType.GLOBAL,
+        post_attn_norm=None,
+    )
+    config_soft_cap = transformer_lib.TransformerConfig(
+        **(params | {'logit_softcapping': soft_cap_val})
+    )
+    config_no_soft_cap = transformer_lib.TransformerConfig(
+        **(params | {'logit_softcapping': None})
+    )
+
+    all_outputs = []
+    for config in [config_soft_cap, config_no_soft_cap]:
+      cache = config.init_cache(batch_size, dtype=jnp.float32)
+      transformer = transformer_lib.Transformer(config=config)
+
+      params = transformer.init(
+          jax.random.PRNGKey(0),
+          last_tokens=jnp.tile(jnp.arange(sequence_length), (batch_size, 1)),
+          positions=jnp.array([[1]]),
+          cache=cache,
+          attention_mask=attention_mask,
+      )
+
+      outputs, _ = transformer.apply(
+          params, jnp.array([[1]]), jnp.array([[1]]), cache, attention_mask
+      )
+      all_outputs.append(outputs)
+
+    soft_cap_outputs, no_soft_cap_outputs = all_outputs  # pylint: disable=unbalanced-tuple-unpacking
+
+    # Ensure that values aren't equal coming out of computation
+    self.assertFalse((soft_cap_outputs == no_soft_cap_outputs).all())
+
+    # Run soft capping manually
+    manual_soft_cap_logits = no_soft_cap_outputs / soft_cap_val
+    manual_soft_cap_logits = jnp.tanh(manual_soft_cap_logits) * soft_cap_val
+
+    np.testing.assert_array_almost_equal(
+        manual_soft_cap_logits, soft_cap_outputs, 1e-5
+    )
+
   @parameterized.parameters([
       dict(
           config=transformer_lib.TransformerConfig(

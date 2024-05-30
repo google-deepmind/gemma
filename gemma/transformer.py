@@ -247,6 +247,10 @@ class Transformer(nn.Module):
     x = self.final_norm(x)
     logits = self.embedder.decode(x)
 
+    if self.config.logit_softcapping is not None:
+      logits /= self.config.logit_softcapping
+      logits = jnp.tanh(logits) * self.config.logit_softcapping
+
     return logits, cache  # pytype: disable=bad-return-type
 
 
