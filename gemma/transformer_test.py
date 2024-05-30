@@ -27,18 +27,20 @@ jax.config.update('jax_numpy_rank_promotion', 'raise')
 class TransformerTest(parameterized.TestCase):
 
   @parameterized.parameters(
+      # Prime number to ease shape tracing
       dict(
           num_layers=3,
-          num_embed=4,
+          num_embed=17,
           embed_dim=2,
           num_heads=2,
           num_kv_heads=2,
-          hidden_dim=4,
-          head_dim=4,
-          cache_size=2,
-          batch_size=1,
-          expected_outputs_shape=(1, 1, 4),
-          expected_cache_shape=(1, 2, 2, 4),
+          hidden_dim=11,
+          head_dim=8,
+          cache_size=29,
+          batch_size=7,
+          sequence_length=17,
+          expected_outputs_shape=(7, 17, 17),
+          expected_cache_shape=(7, 29, 2, 8),
       ),
       dict(
           num_layers=3,
@@ -50,6 +52,7 @@ class TransformerTest(parameterized.TestCase):
           head_dim=4,
           cache_size=2,
           batch_size=1,
+          sequence_length=1,
           expected_outputs_shape=(1, 1, 4),
           expected_cache_shape=(1, 2, 1, 4),
       ),
@@ -65,6 +68,7 @@ class TransformerTest(parameterized.TestCase):
       head_dim,
       cache_size,
       batch_size,
+      sequence_length,
       expected_outputs_shape,
       expected_cache_shape,
   ):
@@ -78,20 +82,28 @@ class TransformerTest(parameterized.TestCase):
         head_dim=head_dim,
         num_kv_heads=num_kv_heads,
         max_cache_length=cache_size,
+        logit_softcapping=None,
+        attn_query_splits=None,
+        attention_type=transformer_lib.AttentionType.GLOBAL,
+        post_attn_norm=None,
     )
     cache = config.init_cache(batch_size, dtype=jnp.float32)
     attention_mask = jnp.ones((batch_size, 1, cache_size), dtype=jnp.bool)
     transformer = transformer_lib.Transformer(config=config)
     params = transformer.init(
         jax.random.PRNGKey(0),
-        jnp.array([[1]]),
-        jnp.array([[1]]),
-        cache,
-        attention_mask,
+        last_tokens=jnp.tile(jnp.arange(sequence_length), (batch_size, 1)),
+        positions=jnp.tile(jnp.arange(sequence_length), (batch_size, 1)),
+        cache=cache,
+        attention_mask=attention_mask,
     )
 
     outputs, cache = transformer.apply(
-        params, jnp.array([[1]]), jnp.array([[1]]), cache, attention_mask
+        params,
+        jnp.tile(jnp.arange(sequence_length), (batch_size, 1)),
+        jnp.tile(jnp.arange(sequence_length), (batch_size, 1)),
+        cache,
+        attention_mask,
     )
 
     self.assertEqual(outputs.shape, expected_outputs_shape)
@@ -108,6 +120,10 @@ class TransformerTest(parameterized.TestCase):
               head_dim=4,
               num_kv_heads=3,
               max_cache_length=2,
+              logit_softcapping=None,
+              attn_query_splits=None,
+              attention_type=transformer_lib.AttentionType.GLOBAL,
+              post_attn_norm=None,
           ),
           keys=['layer_0', 'layer_1'],
           k_shape=(1, 2, 3, 4),
@@ -133,6 +149,10 @@ class TransformerTest(parameterized.TestCase):
               head_dim=4,
               num_kv_heads=3,
               max_cache_length=6,
+              logit_softcapping=None,
+              attn_query_splits=None,
+              attention_type=transformer_lib.AttentionType.GLOBAL,
+              post_attn_norm=None,
           ),
       )
   ])

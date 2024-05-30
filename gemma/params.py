@@ -15,7 +15,7 @@
 """Utils for loading Gemma params."""
 
 import functools
-from typing import Any, Mapping
+from typing import Any, Mapping, Optional
 
 import jax
 import jax.numpy as jnp
@@ -31,6 +31,13 @@ def load_and_format_params(path: str) -> Params:
   remapped_params = param_remapper(param_state)
   nested_params = nest_params(remapped_params)
   return nested_params
+
+
+def load_metadata(path: str) -> Optional[Any]:
+  """Loads metadata from a checkpoint path."""
+  checkpointer = orbax.checkpoint.PyTreeCheckpointer()
+  metadata = checkpointer.metadata(path)
+  return metadata
 
 
 @functools.cache
