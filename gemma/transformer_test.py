@@ -85,7 +85,7 @@ class TransformerTest(parameterized.TestCase):
         logit_softcapping=None,
         attn_query_splits=None,
         attention_type=transformer_lib.AttentionType.GLOBAL,
-        post_attn_norm=None,
+        use_post_attn_norm=False,
     )
     cache = config.init_cache(batch_size, dtype=jnp.float32)
     attention_mask = jnp.ones((batch_size, 1, cache_size), dtype=jnp.bool)
@@ -130,7 +130,7 @@ class TransformerTest(parameterized.TestCase):
         max_cache_length=cache_size,
         attn_query_splits=None,
         attention_type=transformer_lib.AttentionType.GLOBAL,
-        post_attn_norm=None,
+        use_post_attn_norm=False,
     )
     config_soft_cap = transformer_lib.TransformerConfig(
         **(params | {'logit_softcapping': soft_cap_val})
@@ -184,7 +184,7 @@ class TransformerTest(parameterized.TestCase):
               logit_softcapping=None,
               attn_query_splits=None,
               attention_type=transformer_lib.AttentionType.GLOBAL,
-              post_attn_norm=None,
+              use_post_attn_norm=False,
           ),
           keys=['layer_0', 'layer_1'],
           k_shape=(1, 2, 3, 4),
@@ -213,7 +213,7 @@ class TransformerTest(parameterized.TestCase):
               logit_softcapping=None,
               attn_query_splits=None,
               attention_type=transformer_lib.AttentionType.GLOBAL,
-              post_attn_norm=None,
+              use_post_attn_norm=False,
           ),
       )
   ])

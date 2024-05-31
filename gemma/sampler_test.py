@@ -87,7 +87,7 @@ class SamplerTest(absltest.TestCase):
         logit_softcapping=None,
         attn_query_splits=None,
         attention_type=transformer_lib.AttentionType.GLOBAL,
-        post_attn_norm=None,
+        use_post_attn_norm=None,
     )
     attention_mask = jnp.ones((1, 1, transformer_config.max_cache_length))
     cache = transformer_config.init_cache(1, dtype=jnp.float32)
@@ -122,7 +122,7 @@ class SamplerTest(absltest.TestCase):
         logit_softcapping=None,
         attn_query_splits=None,
         attention_type=transformer_lib.AttentionType.GLOBAL,
-        post_attn_norm=None,
+        use_post_attn_norm=None,
     )
     attention_mask = jnp.ones((1, 1, transformer_config.max_cache_length))
     cache = transformer_config.init_cache(1, dtype=jnp.float32)
@@ -178,7 +178,7 @@ class SamplerTest(absltest.TestCase):
         logit_softcapping=None,
         attn_query_splits=None,
         attention_type=transformer_lib.AttentionType.GLOBAL,
-        post_attn_norm=None,
+        use_post_attn_norm=None,
     )
 
     transformer = transformer_lib.Transformer(transformer_config)
@@ -238,7 +238,7 @@ class SamplerTest(absltest.TestCase):
         logit_softcapping=None,
         attn_query_splits=None,
         attention_type=transformer_lib.AttentionType.GLOBAL,
-        post_attn_norm=None,
+        use_post_attn_norm=None,
     )
     attention_mask = jnp.ones((1, 1, transformer_config.max_cache_length))
     cache = transformer_config.init_cache(1, dtype=jnp.float32)
@@ -282,7 +282,7 @@ class SamplerTest(absltest.TestCase):
         logit_softcapping=None,
         attn_query_splits=None,
         attention_type=transformer_lib.AttentionType.GLOBAL,
-        post_attn_norm=None,
+        use_post_attn_norm=None,
     )
     attention_mask = jnp.ones((1, 1, transformer_config.max_cache_length))
     cache = transformer_config.init_cache(1, dtype=jnp.float32)

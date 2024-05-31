@@ -183,6 +183,7 @@ class BlockTest(parameterized.TestCase):
           head_dim=6,
           cache_size=3,
           batch_size=2,
+          use_post_attn_norm=False,
           expected_cache_shape=(2, 3, 2, 6),
           expected_output_shape=(2, 1, 4),
       ),
@@ -194,6 +195,7 @@ class BlockTest(parameterized.TestCase):
       head_dim,
       cache_size,
       batch_size,
+      use_post_attn_norm,
       expected_cache_shape,
       expected_output_shape,
   ):
@@ -202,7 +204,9 @@ class BlockTest(parameterized.TestCase):
         cache_size, num_heads, head_dim, batch_size, dtype=jnp.float32
     )
     attn_mask = jnp.ones((batch_size, 1, cache_size))
-    block = modules.Block(num_heads, num_heads, embed_dim, head_dim, 1)
+    block = modules.Block(
+        num_heads, num_heads, embed_dim, head_dim, 1, use_post_attn_norm
+    )
     params = block.init(
         jax.random.PRNGKey(0), inputs, jnp.array([[0]]), cache, attn_mask
     )
@@ -213,6 +217,51 @@ class BlockTest(parameterized.TestCase):
 
     self.assertEqual(new_cache['k'].shape, expected_cache_shape)
     self.assertEqual(outputs.shape, expected_output_shape)
+
+  @parameterized.parameters(
+      dict(
+          num_heads=1,
+          embed_dim=1,
+          head_dim=2,
+          cache_size=1,
+          batch_size=1,
+      ),
+  )
+  def test_post_attention_norm(
+      self,
+      num_heads,
+      embed_dim,
+      head_dim,
+      cache_size,
+      batch_size,
+  ):
+    inputs = jnp.ones((batch_size, 1, embed_dim))
+    cache = modules.Attention.init_cache(
+        cache_size, num_heads, head_dim, batch_size, dtype=jnp.float32
+    )
+    attn_mask = jnp.ones((batch_size, 1, cache_size))
+    normed_block = modules.Block(
+        num_heads, num_heads, embed_dim, head_dim, 1, True
+    )
+    unnormed_block = modules.Block(
+        num_heads, num_heads, embed_dim, head_dim, 1, False
+    )
+
+    all_outputs = []
+    for block in (normed_block, unnormed_block):
+      params = block.init(
+          jax.random.PRNGKey(0), inputs, jnp.array([[0]]), cache, attn_mask
+      )
+
+      _, outputs = block.apply(
+          params, inputs, jnp.array([[0]]), cache, attn_mask
+      )
+      all_outputs.append(outputs)
+
+    normed_output, unnormed_output = all_outputs  # pylint: disable=unbalanced-tuple-unpacking
+    print(all_outputs)
+
+    self.assertFalse(jnp.not_equal(normed_output, unnormed_output).all())
 
 
 if __name__ == '__main__':
