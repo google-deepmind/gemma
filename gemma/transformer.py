@@ -45,7 +45,7 @@ class TransformerConfig:
   num_kv_heads: int
   logit_softcapping: int | None
   attn_query_splits: int | None
-  post_attn_norm: bool | None
+  use_post_attn_norm: bool
   attention_type: AttentionType
   max_cache_length: int = 1024
   sliding_window_size: int | None = None
@@ -109,7 +109,7 @@ class TransformerConfig:
         logit_softcapping=None,
         attn_query_splits=None,
         attention_type=AttentionType.GLOBAL,
-        post_attn_norm=None,
+        use_post_attn_norm=None,
         max_cache_length=cache_size,
     )
 
@@ -126,7 +126,7 @@ class TransformerConfig:
         logit_softcapping=None,
         attn_query_splits=None,
         attention_type=AttentionType.GLOBAL,
-        post_attn_norm=None,
+        use_post_attn_norm=None,
         max_cache_length=cache_size,
     )
 
@@ -143,7 +143,7 @@ class TransformerConfig:
         logit_softcapping=30,
         attn_query_splits=8,
         attention_type=AttentionType.GLOBAL_LOCAL_SLIDING,
-        post_attn_norm=True,
+        use_post_attn_norm=True,
         max_cache_length=cache_size,
     )
 
@@ -160,7 +160,7 @@ class TransformerConfig:
         logit_softcapping=50,
         attn_query_splits=8,
         attention_type=AttentionType.GLOBAL_LOCAL_SLIDING,
-        post_attn_norm=True,
+        use_post_attn_norm=True,
         max_cache_length=cache_size,
     )
 
@@ -202,6 +202,7 @@ class Transformer(nn.Module):
             head_dim=self.config.head_dim,
             hidden_dim=self.config.hidden_dim,
             sliding_window_size=self.config.sliding_window_size,
+            use_post_attn_norm=self.config.use_post_attn_norm,
         )
         for i in range(self.config.num_layers)
     ]

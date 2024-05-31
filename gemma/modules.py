@@ -197,6 +197,7 @@ class Block(nn.Module):
   embed_dim: int
   head_dim: int
   hidden_dim: int
+  use_post_attn_norm: bool
   sliding_window_size: int | None = None
 
   def setup(self):
@@ -210,6 +211,10 @@ class Block(nn.Module):
     )
     self.pre_ffw_norm = layers.RMSNorm()
     self.mlp = FeedForward(features=self.embed_dim, hidden_dim=self.hidden_dim)
+
+    self.post_attn_norm = None
+    if self.use_post_attn_norm:
+      self.post_attn_norm = layers.RMSNorm()
 
   def __call__(
       self,
@@ -228,6 +233,10 @@ class Block(nn.Module):
     attn_output += x
     residual = attn_output
     attn_output = self.pre_ffw_norm(attn_output)
+
+    if self.use_post_attn_norm:
+      attn_output = self.post_attn_norm(attn_output)
+
     outputs = self.mlp(attn_output)
     outputs = residual + outputs
     return cache, outputs
