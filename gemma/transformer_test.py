@@ -16,6 +16,7 @@
 
 from absl.testing import absltest
 from absl.testing import parameterized
+from gemma import modules
 from gemma import transformer as transformer_lib
 import jax
 import jax.numpy as jnp
@@ -83,8 +84,7 @@ class TransformerTest(parameterized.TestCase):
         num_kv_heads=num_kv_heads,
         max_cache_length=cache_size,
         logit_softcapping=None,
-        attn_query_splits=None,
-        attention_type=transformer_lib.AttentionType.GLOBAL,
+        attention_types=[modules.AttentionType.GLOBAL] * num_layers,
         use_post_attn_norm=False,
     )
     cache = config.init_cache(batch_size, dtype=jnp.float32)
@@ -128,8 +128,7 @@ class TransformerTest(parameterized.TestCase):
         hidden_dim=4,
         head_dim=4,
         max_cache_length=cache_size,
-        attn_query_splits=None,
-        attention_type=transformer_lib.AttentionType.GLOBAL,
+        attention_types=[modules.AttentionType.GLOBAL] * 3,
         use_post_attn_norm=False,
     )
     config_soft_cap = transformer_lib.TransformerConfig(
@@ -182,8 +181,7 @@ class TransformerTest(parameterized.TestCase):
               num_kv_heads=3,
               max_cache_length=2,
               logit_softcapping=None,
-              attn_query_splits=None,
-              attention_type=transformer_lib.AttentionType.GLOBAL,
+              attention_types=[modules.AttentionType.GLOBAL] * 2,
               use_post_attn_norm=False,
           ),
           keys=['layer_0', 'layer_1'],
@@ -211,8 +209,7 @@ class TransformerTest(parameterized.TestCase):
               num_kv_heads=3,
               max_cache_length=6,
               logit_softcapping=None,
-              attn_query_splits=None,
-              attention_type=transformer_lib.AttentionType.GLOBAL,
+              attention_types=[modules.AttentionType.GLOBAL] * 2,
               use_post_attn_norm=False,
           ),
       )
@@ -250,6 +247,27 @@ class TransformerTest(parameterized.TestCase):
 
     self.assertIsNone(cache_none)
     np.testing.assert_array_almost_equal(output_cache, output_none, 1e-5)
+
+  def test_attention_types(
+      self,
+  ):
+
+    config = transformer_lib.TransformerConfig(
+        num_layers=2,
+        num_embed=4,
+        embed_dim=2,
+        hidden_dim=12,
+        num_heads=3,
+        head_dim=4,
+        num_kv_heads=3,
+        max_cache_length=6,
+        logit_softcapping=None,
+        attention_types=[modules.AttentionType.GLOBAL] * 2,
+        use_post_attn_norm=False,
+    )
+
+    cache = config.init_cache(batch_size=1, dtype=jnp.float32)
+    self.assertTrue(cache)
 
 
 if __name__ == '__main__':

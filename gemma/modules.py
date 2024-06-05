@@ -14,6 +14,7 @@
 # ============================================================================
 """Transformer sub-modules."""
 
+import enum
 from flax import linen as nn
 from gemma import layers
 from gemma import positional_embeddings
@@ -22,6 +23,11 @@ import jax.numpy as jnp
 
 K_MASK = -2.3819763e38  # Set to a large negative number.
 LayerCache = dict[str, jax.Array]
+
+
+class AttentionType(enum.Enum):
+  GLOBAL = 1
+  LOCAL_SLIDING = 2
 
 
 class Embedder(nn.Module):
@@ -53,6 +59,7 @@ class Attention(nn.Module):
   num_kv_heads: int
   features: int
   head_dim: int
+  attn_type: AttentionType
   sliding_window_size: int | None = None
 
   @property
@@ -117,12 +124,18 @@ class Attention(nn.Module):
       )
 
     logits = jnp.einsum('BTNH,BSNH->BTNS', query_scaled, key_proj)
-    if self.sliding_window_size is not None:
+    if self.attn_type == AttentionType.LOCAL_SLIDING:
+      if self.sliding_window_size is None:
+        raise ValueError(
+            'Sliding_window_size must be set if Local Sliding attention type'
+        )
+
       all_ones = jnp.ones_like(attn_mask)
       sliding_mask = jnp.triu(
           all_ones, -1 * self.sliding_window_size + 1
       ) * jnp.tril(all_ones, self.sliding_window_size - 1)
       attn_mask = sliding_mask * attn_mask
+
     padded_logits = jnp.where((jnp.expand_dims(attn_mask, -2)), logits, K_MASK)
     probs = jax.nn.softmax(padded_logits, axis=-1).astype(key_proj.dtype)
     encoded = jnp.einsum('BTNS,BSNH->BTNH', probs, value_proj)
@@ -198,6 +211,7 @@ class Block(nn.Module):
   head_dim: int
   hidden_dim: int
   use_post_attn_norm: bool
+  attn_type: AttentionType
   sliding_window_size: int | None = None
 
   def setup(self):
@@ -207,6 +221,7 @@ class Block(nn.Module):
         features=self.embed_dim,
         head_dim=self.head_dim,
         num_kv_heads=self.num_kv_heads,
+        attn_type=self.attn_type,
         sliding_window_size=self.sliding_window_size,
     )
     self.pre_ffw_norm = layers.RMSNorm()
