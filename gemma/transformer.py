@@ -15,7 +15,7 @@
 """Gemma transformer."""
 
 import dataclasses
-import enum
+from typing import Iterable
 
 from flax import linen as nn
 from gemma import layers
@@ -25,11 +25,6 @@ import jax
 import jax.numpy as jnp
 
 Cache = dict[str, modules.LayerCache]
-
-
-class AttentionType(enum.Enum):
-  GLOBAL = 1
-  GLOBAL_LOCAL_SLIDING = 2
 
 
 @dataclasses.dataclass(frozen=True)
@@ -44,9 +39,8 @@ class TransformerConfig:
   head_dim: int
   num_kv_heads: int
   logit_softcapping: int | None
-  attn_query_splits: int | None
   use_post_attn_norm: bool
-  attention_type: AttentionType
+  attention_types: Iterable[modules.AttentionType]
   max_cache_length: int = 1024
   sliding_window_size: int | None = None
 
@@ -98,8 +92,9 @@ class TransformerConfig:
 
   @classmethod
   def gemma_2b(cls, cache_size: int):
+    num_layers = 18
     return cls(
-        num_layers=18,
+        num_layers=num_layers,
         num_embed=256128,
         embed_dim=2048,
         hidden_dim=16384,
@@ -107,16 +102,16 @@ class TransformerConfig:
         head_dim=256,
         num_kv_heads=1,
         logit_softcapping=None,
-        attn_query_splits=None,
-        attention_type=AttentionType.GLOBAL,
+        attention_types=[modules.AttentionType.GLOBAL] * num_layers,
         use_post_attn_norm=None,
         max_cache_length=cache_size,
     )
 
   @classmethod
   def gemma_7b(cls, cache_size: int):
+    num_layers = 28
     return cls(
-        num_layers=28,
+        num_layers=num_layers,
         num_embed=256128,
         embed_dim=3072,
         hidden_dim=24576,
@@ -124,16 +119,16 @@ class TransformerConfig:
         head_dim=256,
         num_kv_heads=16,
         logit_softcapping=None,
-        attn_query_splits=None,
-        attention_type=AttentionType.GLOBAL,
+        attention_types=[modules.AttentionType.GLOBAL] * 28,
         use_post_attn_norm=None,
         max_cache_length=cache_size,
     )
 
   @classmethod
   def gemma_27b(cls, cache_size: int):
+    num_layers = 46
     return cls(
-        num_layers=46,
+        num_layers=num_layers,
         num_embed=256128,
         embed_dim=4608,
         hidden_dim=72728,
@@ -141,16 +136,21 @@ class TransformerConfig:
         head_dim=128,
         num_kv_heads=16,
         logit_softcapping=30,
-        attn_query_splits=8,
-        attention_type=AttentionType.GLOBAL_LOCAL_SLIDING,
         use_post_attn_norm=True,
+        attention_types=[
+            modules.AttentionType.LOCAL_SLIDING,
+            modules.AttentionType.GLOBAL,
+        ]
+        * int(num_layers / 2),
         max_cache_length=cache_size,
+        sliding_window_size=4096,
     )
 
   @classmethod
   def gemma_9b(cls, cache_size: int):
+    num_layers = 42
     return cls(
-        num_layers=42,
+        num_layers=num_layers,
         num_embed=256128,
         embed_dim=3584,
         hidden_dim=28672,
@@ -158,10 +158,14 @@ class TransformerConfig:
         head_dim=256,
         num_kv_heads=8,
         logit_softcapping=50,
-        attn_query_splits=8,
-        attention_type=AttentionType.GLOBAL_LOCAL_SLIDING,
+        attention_types=[
+            modules.AttentionType.LOCAL_SLIDING,
+            modules.AttentionType.GLOBAL,
+        ]
+        * int(num_layers / 2),
         use_post_attn_norm=True,
         max_cache_length=cache_size,
+        sliding_window_size=4096,
     )
 
   def init_cache(
@@ -193,6 +197,7 @@ class Transformer(nn.Module):
         vocab_size=self.config.num_embed,
         embed_dim=self.config.embed_dim,
     )
+
     self.blocks = [
         modules.Block(
             name=f'layer_{i}',
@@ -203,8 +208,11 @@ class Transformer(nn.Module):
             hidden_dim=self.config.hidden_dim,
             sliding_window_size=self.config.sliding_window_size,
             use_post_attn_norm=self.config.use_post_attn_norm,
+            attn_type=attn_type,
         )
-        for i in range(self.config.num_layers)
+        for i, attn_type in zip(
+            range(self.config.num_layers), self.config.attention_types
+        )
     ]
     self.final_norm = layers.RMSNorm()
 

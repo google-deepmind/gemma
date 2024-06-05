@@ -85,7 +85,9 @@ class AttentionTest(parameterized.TestCase):
       expected_output_shape,
   ):
     attn_mask = jnp.ones((batch_size, 1, cache_size))
-    attn = modules.Attention(num_heads, num_heads, features, head_dim)
+    attn = modules.Attention(
+        num_heads, num_heads, features, head_dim, modules.AttentionType.GLOBAL
+    )
     cache = modules.Attention.init_cache(
         cache_size, num_heads, head_dim, batch_size, dtype=jnp.float32
     )
@@ -121,7 +123,9 @@ class AttentionTest(parameterized.TestCase):
         cache_size, num_heads, head_dim, batch_size, dtype=jnp.float32
     )
     x = jnp.ones((batch_size, 1, features))
-    attn = modules.Attention(num_heads, num_heads, features, head_dim)
+    attn = modules.Attention(
+        num_heads, num_heads, features, head_dim, modules.AttentionType.GLOBAL
+    )
     params = attn.init(
         jax.random.PRNGKey(0),
         x,
@@ -137,6 +141,7 @@ class AttentionTest(parameterized.TestCase):
         num_heads,
         features,
         head_dim,
+        modules.AttentionType.LOCAL_SLIDING,
         sliding_window_size=sliding_window_size,
     )
     _, sliding_output = sliding_attn.apply(
@@ -205,7 +210,13 @@ class BlockTest(parameterized.TestCase):
     )
     attn_mask = jnp.ones((batch_size, 1, cache_size))
     block = modules.Block(
-        num_heads, num_heads, embed_dim, head_dim, 1, use_post_attn_norm
+        num_heads,
+        num_heads,
+        embed_dim,
+        head_dim,
+        1,
+        use_post_attn_norm,
+        modules.AttentionType.GLOBAL,
     )
     params = block.init(
         jax.random.PRNGKey(0), inputs, jnp.array([[0]]), cache, attn_mask
@@ -241,10 +252,22 @@ class BlockTest(parameterized.TestCase):
     )
     attn_mask = jnp.ones((batch_size, 1, cache_size))
     normed_block = modules.Block(
-        num_heads, num_heads, embed_dim, head_dim, 1, True
+        num_heads,
+        num_heads,
+        embed_dim,
+        head_dim,
+        1,
+        True,
+        modules.AttentionType.GLOBAL,
     )
     unnormed_block = modules.Block(
-        num_heads, num_heads, embed_dim, head_dim, 1, False
+        num_heads,
+        num_heads,
+        embed_dim,
+        head_dim,
+        1,
+        False,
+        modules.AttentionType.GLOBAL,
     )
 
     all_outputs = []

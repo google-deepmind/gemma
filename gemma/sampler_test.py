@@ -17,6 +17,7 @@
 from typing import Iterable
 
 from absl.testing import absltest
+from gemma import modules
 from gemma import sampler as sampler_lib
 from gemma import transformer as transformer_lib
 import jax
@@ -85,8 +86,7 @@ class SamplerTest(absltest.TestCase):
         head_dim=256,
         max_cache_length=1024,
         logit_softcapping=None,
-        attn_query_splits=None,
-        attention_type=transformer_lib.AttentionType.GLOBAL,
+        attention_types=[modules.AttentionType.GLOBAL],
         use_post_attn_norm=None,
     )
     attention_mask = jnp.ones((1, 1, transformer_config.max_cache_length))
@@ -120,8 +120,7 @@ class SamplerTest(absltest.TestCase):
         head_dim=64,
         max_cache_length=8,
         logit_softcapping=None,
-        attn_query_splits=None,
-        attention_type=transformer_lib.AttentionType.GLOBAL,
+        attention_types=[modules.AttentionType.GLOBAL],
         use_post_attn_norm=None,
     )
     attention_mask = jnp.ones((1, 1, transformer_config.max_cache_length))
@@ -176,8 +175,7 @@ class SamplerTest(absltest.TestCase):
         head_dim=64,
         max_cache_length=9,
         logit_softcapping=None,
-        attn_query_splits=None,
-        attention_type=transformer_lib.AttentionType.GLOBAL,
+        attention_types=[modules.AttentionType.GLOBAL],
         use_post_attn_norm=None,
     )
 
@@ -236,8 +234,7 @@ class SamplerTest(absltest.TestCase):
         head_dim=64,
         max_cache_length=8,
         logit_softcapping=None,
-        attn_query_splits=None,
-        attention_type=transformer_lib.AttentionType.GLOBAL,
+        attention_types=[modules.AttentionType.GLOBAL],
         use_post_attn_norm=None,
     )
     attention_mask = jnp.ones((1, 1, transformer_config.max_cache_length))
@@ -280,8 +277,7 @@ class SamplerTest(absltest.TestCase):
         head_dim=64,
         max_cache_length=8,
         logit_softcapping=None,
-        attn_query_splits=None,
-        attention_type=transformer_lib.AttentionType.GLOBAL,
+        attention_types=[modules.AttentionType.GLOBAL],
         use_post_attn_norm=None,
     )
     attention_mask = jnp.ones((1, 1, transformer_config.max_cache_length))
