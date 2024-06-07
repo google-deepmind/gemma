@@ -102,7 +102,7 @@ class TransformerConfig:
         head_dim=256,
         num_kv_heads=1,
         logit_softcapping=None,
-        attention_types=[modules.AttentionType.GLOBAL] * num_layers,
+        attention_types=(modules.AttentionType.GLOBAL,) * num_layers,
         use_post_attn_norm=None,
         max_cache_length=cache_size,
     )
@@ -119,7 +119,7 @@ class TransformerConfig:
         head_dim=256,
         num_kv_heads=16,
         logit_softcapping=None,
-        attention_types=[modules.AttentionType.GLOBAL] * 28,
+        attention_types=(modules.AttentionType.GLOBAL,) * 28,
         use_post_attn_norm=None,
         max_cache_length=cache_size,
     )
@@ -137,10 +137,10 @@ class TransformerConfig:
         num_kv_heads=16,
         logit_softcapping=30,
         use_post_attn_norm=True,
-        attention_types=[
+        attention_types=(
             modules.AttentionType.LOCAL_SLIDING,
             modules.AttentionType.GLOBAL,
-        ]
+        )
         * int(num_layers / 2),
         max_cache_length=cache_size,
         sliding_window_size=4096,
@@ -158,10 +158,10 @@ class TransformerConfig:
         head_dim=256,
         num_kv_heads=8,
         logit_softcapping=50,
-        attention_types=[
+        attention_types=(
             modules.AttentionType.LOCAL_SLIDING,
             modules.AttentionType.GLOBAL,
-        ]
+        )
         * int(num_layers / 2),
         use_post_attn_norm=True,
         max_cache_length=cache_size,
