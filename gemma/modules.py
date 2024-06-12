@@ -211,6 +211,7 @@ class Block(nn.Module):
   head_dim: int
   hidden_dim: int
   use_post_attn_norm: bool
+  use_post_ffw_norm: bool
   attn_type: AttentionType
   sliding_window_size: int | None = None
 
@@ -226,6 +227,9 @@ class Block(nn.Module):
     )
     self.pre_ffw_norm = layers.RMSNorm()
     self.mlp = FeedForward(features=self.embed_dim, hidden_dim=self.hidden_dim)
+    self.post_ffw_norm = None
+    if self.use_post_ffw_norm:
+      self.post_ffw_norm = layers.RMSNorm()
 
     self.post_attn_norm = None
     if self.use_post_attn_norm:
@@ -253,5 +257,7 @@ class Block(nn.Module):
       attn_output = self.post_attn_norm(attn_output)
 
     outputs = self.mlp(attn_output)
+    if self.use_post_ffw_norm:
+      outputs = self.post_ffw_norm(outputs)
     outputs = residual + outputs
     return cache, outputs

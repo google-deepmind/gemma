@@ -40,6 +40,7 @@ class TransformerConfig:
   num_kv_heads: int
   logit_softcapping: int | None
   use_post_attn_norm: bool
+  use_post_ffw_norm: bool
   attention_types: Iterable[modules.AttentionType]
   max_cache_length: int = 1024
   sliding_window_size: int | None = None
@@ -104,6 +105,7 @@ class TransformerConfig:
         logit_softcapping=None,
         attention_types=(modules.AttentionType.GLOBAL,) * num_layers,
         use_post_attn_norm=None,
+        use_post_ffw_norm=None,
         max_cache_length=cache_size,
     )
 
@@ -121,6 +123,7 @@ class TransformerConfig:
         logit_softcapping=None,
         attention_types=(modules.AttentionType.GLOBAL,) * 28,
         use_post_attn_norm=None,
+        use_post_ffw_norm=None,
         max_cache_length=cache_size,
     )
 
@@ -137,6 +140,7 @@ class TransformerConfig:
         num_kv_heads=16,
         logit_softcapping=30,
         use_post_attn_norm=True,
+        use_post_ffw_norm=True,
         attention_types=(
             modules.AttentionType.LOCAL_SLIDING,
             modules.AttentionType.GLOBAL,
@@ -164,6 +168,7 @@ class TransformerConfig:
         )
         * int(num_layers / 2),
         use_post_attn_norm=True,
+        use_post_ffw_norm=True,
         max_cache_length=cache_size,
         sliding_window_size=4096,
     )
@@ -208,6 +213,7 @@ class Transformer(nn.Module):
             hidden_dim=self.config.hidden_dim,
             sliding_window_size=self.config.sliding_window_size,
             use_post_attn_norm=self.config.use_post_attn_norm,
+            use_post_ffw_norm=self.config.use_post_ffw_norm,
             attn_type=attn_type,
         )
         for i, attn_type in zip(

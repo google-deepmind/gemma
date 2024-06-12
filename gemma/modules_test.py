@@ -189,6 +189,7 @@ class BlockTest(parameterized.TestCase):
           cache_size=3,
           batch_size=2,
           use_post_attn_norm=False,
+          use_post_ffw_norm=False,
           expected_cache_shape=(2, 3, 2, 6),
           expected_output_shape=(2, 1, 4),
       ),
@@ -201,6 +202,7 @@ class BlockTest(parameterized.TestCase):
       cache_size,
       batch_size,
       use_post_attn_norm,
+      use_post_ffw_norm,
       expected_cache_shape,
       expected_output_shape,
   ):
@@ -216,6 +218,7 @@ class BlockTest(parameterized.TestCase):
         head_dim,
         1,
         use_post_attn_norm,
+        use_post_ffw_norm,
         modules.AttentionType.GLOBAL,
     )
     params = block.init(
@@ -258,6 +261,7 @@ class BlockTest(parameterized.TestCase):
         head_dim,
         1,
         True,
+        False,  # use_post_ffw_norm
         modules.AttentionType.GLOBAL,
     )
     unnormed_block = modules.Block(
@@ -267,6 +271,66 @@ class BlockTest(parameterized.TestCase):
         head_dim,
         1,
         False,
+        False,  # use_post_ffw_norm
+        modules.AttentionType.GLOBAL,
+    )
+
+    all_outputs = []
+    for block in (normed_block, unnormed_block):
+      params = block.init(
+          jax.random.PRNGKey(0), inputs, jnp.array([[0]]), cache, attn_mask
+      )
+
+      _, outputs = block.apply(
+          params, inputs, jnp.array([[0]]), cache, attn_mask
+      )
+      all_outputs.append(outputs)
+
+    normed_output, unnormed_output = all_outputs  # pylint: disable=unbalanced-tuple-unpacking
+    print(all_outputs)
+
+    self.assertFalse(jnp.not_equal(normed_output, unnormed_output).all())
+
+  @parameterized.parameters(
+      dict(
+          num_heads=1,
+          embed_dim=1,
+          head_dim=2,
+          cache_size=1,
+          batch_size=1,
+      ),
+  )
+  def test_post_ffw_norm(
+      self,
+      num_heads,
+      embed_dim,
+      head_dim,
+      cache_size,
+      batch_size,
+  ):
+    inputs = jnp.ones((batch_size, 1, embed_dim))
+    cache = modules.Attention.init_cache(
+        cache_size, num_heads, head_dim, batch_size, dtype=jnp.float32
+    )
+    attn_mask = jnp.ones((batch_size, 1, cache_size))
+    normed_block = modules.Block(
+        num_heads,
+        num_heads,
+        embed_dim,
+        head_dim,
+        1,
+        True,
+        True,  # use_post_ffw_norm
+        modules.AttentionType.GLOBAL,
+    )
+    unnormed_block = modules.Block(
+        num_heads,
+        num_heads,
+        embed_dim,
+        head_dim,
+        1,
+        False,
+        False,  # use_post_ffw_norm
         modules.AttentionType.GLOBAL,
     )
 
