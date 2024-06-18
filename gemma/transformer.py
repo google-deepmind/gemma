@@ -38,11 +38,12 @@ class TransformerConfig:
   num_heads: int
   head_dim: int
   num_kv_heads: int
-  logit_softcapping: int | None
+  final_logit_softcap: int | None
   use_post_attn_norm: bool
   use_post_ffw_norm: bool
   attention_types: Iterable[modules.AttentionType]
   max_cache_length: int = 1024
+  attn_logits_soft_cap: float | None = None
   sliding_window_size: int | None = None
 
   @classmethod
@@ -102,7 +103,7 @@ class TransformerConfig:
         num_heads=8,
         head_dim=256,
         num_kv_heads=1,
-        logit_softcapping=None,
+        final_logit_softcap=None,
         attention_types=(modules.AttentionType.GLOBAL,) * num_layers,
         use_post_attn_norm=None,
         use_post_ffw_norm=None,
@@ -120,7 +121,7 @@ class TransformerConfig:
         num_heads=16,
         head_dim=256,
         num_kv_heads=16,
-        logit_softcapping=None,
+        final_logit_softcap=None,
         attention_types=(modules.AttentionType.GLOBAL,) * 28,
         use_post_attn_norm=None,
         use_post_ffw_norm=None,
@@ -138,7 +139,7 @@ class TransformerConfig:
         num_heads=32,
         head_dim=128,
         num_kv_heads=16,
-        logit_softcapping=30,
+        final_logit_softcap=30,
         use_post_attn_norm=True,
         use_post_ffw_norm=True,
         attention_types=(
@@ -147,6 +148,7 @@ class TransformerConfig:
         )
         * int(num_layers / 2),
         max_cache_length=cache_size,
+        attn_logits_soft_cap=50,
         sliding_window_size=4096,
     )
 
@@ -161,7 +163,7 @@ class TransformerConfig:
         num_heads=16,
         head_dim=256,
         num_kv_heads=8,
-        logit_softcapping=50,
+        final_logit_softcap=50,
         attention_types=(
             modules.AttentionType.LOCAL_SLIDING,
             modules.AttentionType.GLOBAL,
@@ -214,6 +216,7 @@ class Transformer(nn.Module):
             sliding_window_size=self.config.sliding_window_size,
             use_post_attn_norm=self.config.use_post_attn_norm,
             use_post_ffw_norm=self.config.use_post_ffw_norm,
+            attn_logits_soft_cap=self.config.attn_logits_soft_cap,
             attn_type=attn_type,
         )
         for i, attn_type in zip(
@@ -262,9 +265,9 @@ class Transformer(nn.Module):
     x = self.final_norm(x)
     logits = self.embedder.decode(x)
 
-    if self.config.logit_softcapping is not None:
-      logits /= self.config.logit_softcapping
-      logits = jnp.tanh(logits) * self.config.logit_softcapping
+    if self.config.final_logit_softcap is not None:
+      logits /= self.config.final_logit_softcap
+      logits = jnp.tanh(logits) * self.config.final_logit_softcap
 
     return logits, cache  # pytype: disable=bad-return-type
 

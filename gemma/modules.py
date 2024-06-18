@@ -60,6 +60,7 @@ class Attention(nn.Module):
   features: int
   head_dim: int
   attn_type: AttentionType
+  attn_logits_soft_cap: float | None = None
   sliding_window_size: int | None = None
 
   @property
@@ -124,6 +125,11 @@ class Attention(nn.Module):
       )
 
     logits = jnp.einsum('BTNH,BSNH->BTNS', query_scaled, key_proj)
+
+    if self.attn_logits_soft_cap is not None:
+      logits = jnp.tanh(logits / self.attn_logits_soft_cap)
+      logits = logits * self.attn_logits_soft_cap
+
     if self.attn_type == AttentionType.LOCAL_SLIDING:
       if self.sliding_window_size is None:
         raise ValueError(
@@ -213,6 +219,7 @@ class Block(nn.Module):
   use_post_attn_norm: bool
   use_post_ffw_norm: bool
   attn_type: AttentionType
+  attn_logits_soft_cap: float | None = None
   sliding_window_size: int | None = None
 
   def setup(self):
@@ -223,6 +230,7 @@ class Block(nn.Module):
         head_dim=self.head_dim,
         num_kv_heads=self.num_kv_heads,
         attn_type=self.attn_type,
+        attn_logits_soft_cap=self.attn_logits_soft_cap,
         sliding_window_size=self.sliding_window_size,
     )
     self.pre_ffw_norm = layers.RMSNorm()
