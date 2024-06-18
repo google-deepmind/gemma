@@ -83,7 +83,7 @@ class TransformerTest(parameterized.TestCase):
         head_dim=head_dim,
         num_kv_heads=num_kv_heads,
         max_cache_length=cache_size,
-        logit_softcapping=None,
+        final_logit_softcap=None,
         attention_types=[modules.AttentionType.GLOBAL] * num_layers,
         use_post_attn_norm=False,
         use_post_ffw_norm=False,
@@ -110,8 +110,13 @@ class TransformerTest(parameterized.TestCase):
     self.assertEqual(outputs.shape, expected_outputs_shape)
     self.assertEqual(cache['layer_0']['v'].shape, expected_cache_shape)
 
-  def test_logit_softcapping(
+  @parameterized.parameters(
+      ('final_logit_softcap',),
+      ('attn_logits_soft_cap',),
+  )
+  def test_logit_softcap(
       self,
+      soft_cap_arg,
   ):
     cache_size = 2
     batch_size = 1
@@ -133,11 +138,20 @@ class TransformerTest(parameterized.TestCase):
         use_post_attn_norm=False,
         use_post_ffw_norm=False,
     )
+
+    no_soft_cap_args = {
+        'final_logit_softcap': None,
+        'attn_logits_soft_cap': None,
+    }
+
+    soft_cap_args = no_soft_cap_args.copy()
+    soft_cap_args[soft_cap_arg] = soft_cap_val
+
     config_soft_cap = transformer_lib.TransformerConfig(
-        **(params | {'logit_softcapping': soft_cap_val})
+        **(params | soft_cap_args)
     )
     config_no_soft_cap = transformer_lib.TransformerConfig(
-        **(params | {'logit_softcapping': None})
+        **(params | no_soft_cap_args)
     )
 
     all_outputs = []
@@ -182,7 +196,7 @@ class TransformerTest(parameterized.TestCase):
               head_dim=4,
               num_kv_heads=3,
               max_cache_length=2,
-              logit_softcapping=None,
+              final_logit_softcap=None,
               attention_types=[modules.AttentionType.GLOBAL] * 2,
               use_post_attn_norm=False,
               use_post_ffw_norm=False,
@@ -211,7 +225,7 @@ class TransformerTest(parameterized.TestCase):
               head_dim=4,
               num_kv_heads=3,
               max_cache_length=6,
-              logit_softcapping=None,
+              final_logit_softcap=None,
               attention_types=[modules.AttentionType.GLOBAL] * 2,
               use_post_attn_norm=False,
               use_post_ffw_norm=False,
@@ -265,7 +279,7 @@ class TransformerTest(parameterized.TestCase):
         head_dim=4,
         num_kv_heads=3,
         max_cache_length=6,
-        logit_softcapping=None,
+        final_logit_softcap=None,
         attention_types=[modules.AttentionType.GLOBAL] * 2,
         use_post_attn_norm=False,
         use_post_ffw_norm=False,
