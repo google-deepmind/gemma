@@ -38,7 +38,7 @@ class TransformerConfig:
   num_heads: int
   head_dim: int
   num_kv_heads: int
-  final_logit_softcap: int | None
+  final_logit_softcap: float | None
   use_post_attn_norm: bool
   use_post_ffw_norm: bool
   attention_types: Iterable[modules.AttentionType]
@@ -139,7 +139,7 @@ class TransformerConfig:
         num_heads=32,
         head_dim=128,
         num_kv_heads=16,
-        final_logit_softcap=30,
+        final_logit_softcap=30.0,
         use_post_attn_norm=True,
         use_post_ffw_norm=True,
         attention_types=(
@@ -163,7 +163,7 @@ class TransformerConfig:
         num_heads=16,
         head_dim=256,
         num_kv_heads=8,
-        final_logit_softcap=50,
+        final_logit_softcap=50.0,
         attention_types=(
             modules.AttentionType.LOCAL_SLIDING,
             modules.AttentionType.GLOBAL,
