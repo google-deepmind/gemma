@@ -105,8 +105,8 @@ class TransformerConfig:
         num_kv_heads=1,
         final_logit_softcap=None,
         attention_types=(modules.AttentionType.GLOBAL,) * num_layers,
-        use_post_attn_norm=True,
-        use_post_ffw_norm=True,
+        use_post_attn_norm=False,
+        use_post_ffw_norm=False,
         max_cache_length=cache_size,
     )
 
@@ -123,8 +123,8 @@ class TransformerConfig:
         num_kv_heads=16,
         final_logit_softcap=None,
         attention_types=(modules.AttentionType.GLOBAL,) * 28,
-        use_post_attn_norm=True,
-        use_post_ffw_norm=True,
+        use_post_attn_norm=False,
+        use_post_ffw_norm=False,
         max_cache_length=cache_size,
     )
 
