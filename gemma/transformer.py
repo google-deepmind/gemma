@@ -148,7 +148,7 @@ class TransformerConfig:
         )
         * int(num_layers / 2),
         max_cache_length=cache_size,
-        attn_logits_soft_cap=50,
+        attn_logits_soft_cap=50.0,
         sliding_window_size=4096,
     )
 
@@ -163,7 +163,7 @@ class TransformerConfig:
         num_heads=16,
         head_dim=256,
         num_kv_heads=8,
-        final_logit_softcap=50.0,
+        final_logit_softcap=30.0,
         attention_types=(
             modules.AttentionType.LOCAL_SLIDING,
             modules.AttentionType.GLOBAL,
@@ -172,6 +172,7 @@ class TransformerConfig:
         use_post_attn_norm=True,
         use_post_ffw_norm=True,
         max_cache_length=cache_size,
+        attn_logits_soft_cap=50.0,
         sliding_window_size=4096,
     )
 
