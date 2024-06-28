@@ -21,10 +21,14 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-jax.config.update('jax_numpy_rank_promotion', 'raise')
-
 
 class TransformerTest(parameterized.TestCase):
+  def setUp(self):
+    self.orig_config = jax.config.jax_numpy_rank_promotion
+    jax.config.update('jax_numpy_rank_promotion', 'raise')
+
+  def tearDown(self):
+    jax.config.update('jax_numpy_rank_promotion', self.orig_config)
 
   @parameterized.parameters(
       dict(
