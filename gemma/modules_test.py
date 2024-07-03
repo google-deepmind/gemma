@@ -14,82 +14,68 @@
 # ============================================================================
 """Tests for transformer modules."""
 
+import logging
+
 from absl.testing import absltest
-from absl.testing import parameterized
 from gemma import modules
 import jax
 import jax.numpy as jnp
 import numpy as np
 
 
-class EmbedderTest(parameterized.TestCase):
+_ATTN_TYPE = modules.AttentionType.GLOBAL
 
-  @parameterized.parameters(
-      dict(
-          vocab_size=10,
-          embed_dim=4,
-          inputs=[2, 3],
-          expected=[[2.0, 2.0, 2.0, 2.0], [2.0, 2.0, 2.0, 2.0]],
-      ),
-  )
-  def test_encodes(self, vocab_size, embed_dim, inputs, expected):
+
+class EmbedderTest(absltest.TestCase):
+
+  def test_encodes(self):
+    vocab_size = 10
+    embed_dim = 4
     embedder = modules.Embedder(vocab_size=vocab_size, embed_dim=embed_dim)
     output = embedder.apply(
         {'params': {'input_embedding': jnp.ones((vocab_size, embed_dim))}},
-        inputs,
+        [2, 3],
         method=modules.Embedder.encode,
     )
+    expected = [[2.0, 2.0, 2.0, 2.0], [2.0, 2.0, 2.0, 2.0]]
     np.testing.assert_array_equal(output, jnp.array(expected))
 
-  @parameterized.parameters(
-      dict(
-          vocab_size=5,
-          embed_dim=2,
-          inputs=[[1, 2]],
-          expected=[[3.0, 3.0, 3.0, 3.0, 3.0]],
-      ),
-  )
-  def test_decodes(self, vocab_size, embed_dim, inputs, expected):
+  def test_decodes(self):
+    vocab_size = 5
+    embed_dim = 2
     embedder = modules.Embedder(vocab_size=vocab_size, embed_dim=embed_dim)
     output = embedder.apply(
         {'params': {'input_embedding': jnp.ones((vocab_size, embed_dim))}},
-        jnp.array(inputs),
+        jnp.array([1, 2]),
         method=modules.Embedder.decode,
     )
+    expected = [3.0, 3.0, 3.0, 3.0, 3.0]
     np.testing.assert_array_equal(output, jnp.array(expected))
 
 
-class AttentionTest(parameterized.TestCase):
+class AttentionTest(absltest.TestCase):
 
-  @parameterized.parameters(
-      dict(
-          num_heads=2,
-          head_dim=4,
-          features=8,
-          segment_pos=0,
-          cache_size=3,
-          batch_size=2,
-          expected_cache_shape=(2, 3, 2, 4),
-          expected_output_shape=(2, 1, 8),
-      ),
-  )
-  def test_attention(
-      self,
-      num_heads,
-      head_dim,
-      features,
-      segment_pos,
-      cache_size,
-      batch_size,
-      expected_cache_shape,
-      expected_output_shape,
-  ):
+  def test_attention(self):
+    num_heads = 2
+    head_dim = 4
+    features = 8
+    segment_pos = 0
+    cache_size = 3
+    batch_size = 2
     attn_mask = jnp.ones((batch_size, 1, cache_size))
     attn = modules.Attention(
-        num_heads, num_heads, features, head_dim, modules.AttentionType.GLOBAL
+        num_heads=num_heads,
+        num_kv_heads=num_heads,
+        features=features,
+        head_dim=head_dim,
+        attn_type=_ATTN_TYPE,
     )
     cache = modules.Attention.init_cache(
-        cache_size, num_heads, head_dim, batch_size, dtype=jnp.float32
+        cache_size=cache_size,
+        num_heads=num_heads,
+        head_dim=head_dim,
+        batch_size=batch_size,
+        dtype=jnp.float32,
     )
     x = jnp.ones((batch_size, 1, features))
     params = attn.init(
@@ -103,15 +89,12 @@ class AttentionTest(parameterized.TestCase):
         params, x, jnp.array([[segment_pos]]), cache, attn_mask
     )
 
+    expected_cache_shape = (2, 3, 2, 4)
+    expected_output_shape = (2, 1, 8)
     self.assertEqual(cache['k'].shape, expected_cache_shape)
     self.assertEqual(output.shape, expected_output_shape)
 
-  @parameterized.parameters(
-      dict(
-          sliding_window_size=2,
-      ),
-  )
-  def test_sliding_window(self, sliding_window_size):
+  def test_sliding_window(self):
     num_heads = 2
     head_dim = 4
     features = 8
@@ -120,11 +103,19 @@ class AttentionTest(parameterized.TestCase):
     batch_size = 2
     attn_mask = jnp.ones((batch_size, 1, cache_size))
     cache = modules.Attention.init_cache(
-        cache_size, num_heads, head_dim, batch_size, dtype=jnp.float32
+        cache_size=cache_size,
+        num_heads=num_heads,
+        head_dim=head_dim,
+        batch_size=batch_size,
+        dtype=jnp.float32,
     )
     x = jnp.ones((batch_size, 1, features))
     attn = modules.Attention(
-        num_heads, num_heads, features, head_dim, modules.AttentionType.GLOBAL
+        num_heads=num_heads,
+        num_kv_heads=num_heads,
+        features=features,
+        head_dim=head_dim,
+        attn_type=_ATTN_TYPE,
     )
     params = attn.init(
         jax.random.PRNGKey(0),
@@ -137,12 +128,12 @@ class AttentionTest(parameterized.TestCase):
         params, x, jnp.array([[segment_pos]]), cache, attn_mask
     )
     sliding_attn = modules.Attention(
-        num_heads,
-        num_heads,
-        features,
-        head_dim,
-        modules.AttentionType.LOCAL_SLIDING,
-        sliding_window_size=sliding_window_size,
+        num_heads=num_heads,
+        num_kv_heads=num_heads,
+        features=features,
+        head_dim=head_dim,
+        attn_type=modules.AttentionType.LOCAL_SLIDING,
+        sliding_window_size=2,
     )
     _, sliding_output = sliding_attn.apply(
         params, x, jnp.array([[segment_pos]]), cache, attn_mask
@@ -151,75 +142,54 @@ class AttentionTest(parameterized.TestCase):
     self.assertFalse((output == sliding_output).all())
 
 
-class FeedForwardTest(parameterized.TestCase):
+class FeedForwardTest(absltest.TestCase):
 
-  @parameterized.parameters(
-      dict(
-          features=2,
-          hidden_dim=3,
-          batch_size=2,
-          expected_val=[11.72758674, 47.99916],
-          expected_shape=(2, 1, 2),
-      ),
-  )
-  def test_ffw(
-      self, features, hidden_dim, batch_size, expected_val, expected_shape
-  ):
-    inputs = jnp.arange(1, batch_size+1)[:, None, None]
+  def test_ffw(self):
+    features = 2
+    hidden_dim = 3
+    batch_size = 2
+    inputs = jnp.arange(1, batch_size + 1)[:, None, None]
     inputs = jnp.repeat(inputs, features, axis=-1)
     ffw = modules.FeedForward(features=features, hidden_dim=hidden_dim)
     params = {
-        'gating_einsum': jnp.ones((2, features, hidden_dim)),
+        'gating_einsum': jnp.ones((batch_size, features, hidden_dim)),
         'linear': jnp.ones((hidden_dim, features)),
     }
 
     outputs = ffw.apply({'params': params}, inputs)
 
+    expected_val = [11.72758674, 47.99916]
+    expected_shape = (2, 1, 2)
     np.testing.assert_array_almost_equal(outputs[:, 0, 0], expected_val)
     self.assertEqual(outputs.shape, expected_shape)
 
 
-class BlockTest(parameterized.TestCase):
+class BlockTest(absltest.TestCase):
 
-  @parameterized.parameters(
-      dict(
-          num_heads=2,
-          embed_dim=4,
-          head_dim=6,
-          cache_size=3,
-          batch_size=2,
-          use_post_attn_norm=False,
-          use_post_ffw_norm=False,
-          expected_cache_shape=(2, 3, 2, 6),
-          expected_output_shape=(2, 1, 4),
-      ),
-  )
-  def test_block(
-      self,
-      num_heads,
-      embed_dim,
-      head_dim,
-      cache_size,
-      batch_size,
-      use_post_attn_norm,
-      use_post_ffw_norm,
-      expected_cache_shape,
-      expected_output_shape,
-  ):
+  def test_block(self):
+    num_heads = 2
+    embed_dim = 4
+    head_dim = 6
+    cache_size = 3
+    batch_size = 2
     inputs = jnp.ones((batch_size, 1, embed_dim))
     cache = modules.Attention.init_cache(
-        cache_size, num_heads, head_dim, batch_size, dtype=jnp.float32
+        cache_size=cache_size,
+        num_heads=num_heads,
+        head_dim=head_dim,
+        batch_size=batch_size,
+        dtype=jnp.float32,
     )
     attn_mask = jnp.ones((batch_size, 1, cache_size))
     block = modules.Block(
-        num_heads,
-        num_heads,
-        embed_dim,
-        head_dim,
-        1,
-        use_post_attn_norm,
-        use_post_ffw_norm,
-        modules.AttentionType.GLOBAL,
+        num_heads=num_heads,
+        num_kv_heads=num_heads,
+        embed_dim=embed_dim,
+        head_dim=head_dim,
+        hidden_dim=1,
+        use_post_attn_norm=False,
+        use_post_ffw_norm=False,
+        attn_type=_ATTN_TYPE,
     )
     params = block.init(
         jax.random.PRNGKey(0), inputs, jnp.array([[0]]), cache, attn_mask
@@ -229,50 +199,46 @@ class BlockTest(parameterized.TestCase):
         params, inputs, jnp.array([[0]]), cache, attn_mask
     )
 
+    expected_cache_shape = (2, 3, 2, 6)
+    expected_output_shape = (2, 1, 4)
     self.assertEqual(new_cache['k'].shape, expected_cache_shape)
     self.assertEqual(outputs.shape, expected_output_shape)
 
-  @parameterized.parameters(
-      dict(
-          num_heads=1,
-          embed_dim=1,
-          head_dim=2,
-          cache_size=1,
-          batch_size=1,
-      ),
-  )
-  def test_post_attention_norm(
-      self,
-      num_heads,
-      embed_dim,
-      head_dim,
-      cache_size,
-      batch_size,
-  ):
+  def test_post_attention_norm_preserves_output(self):
+    num_heads = 1
+    embed_dim = 1
+    head_dim = 2
+    hidden_dim = 1
+    cache_size = 1
+    batch_size = 1
     inputs = jnp.ones((batch_size, 1, embed_dim))
     cache = modules.Attention.init_cache(
-        cache_size, num_heads, head_dim, batch_size, dtype=jnp.float32
+        cache_size=cache_size,
+        num_heads=num_heads,
+        head_dim=head_dim,
+        batch_size=batch_size,
+        dtype=jnp.float32,
     )
     attn_mask = jnp.ones((batch_size, 1, cache_size))
     normed_block = modules.Block(
-        num_heads,
-        num_heads,
-        embed_dim,
-        head_dim,
-        1,
-        True,
-        False,  # use_post_ffw_norm
-        modules.AttentionType.GLOBAL,
+        num_heads=num_heads,
+        num_kv_heads=num_heads,
+        embed_dim=embed_dim,
+        head_dim=head_dim,
+        hidden_dim=hidden_dim,
+        use_post_attn_norm=True,
+        use_post_ffw_norm=False,
+        attn_type=_ATTN_TYPE,
     )
     unnormed_block = modules.Block(
-        num_heads,
-        num_heads,
-        embed_dim,
-        head_dim,
-        1,
-        False,
-        False,  # use_post_ffw_norm
-        modules.AttentionType.GLOBAL,
+        num_heads=num_heads,
+        num_kv_heads=num_heads,
+        embed_dim=embed_dim,
+        head_dim=head_dim,
+        hidden_dim=hidden_dim,
+        use_post_attn_norm=False,
+        use_post_ffw_norm=False,
+        attn_type=_ATTN_TYPE,
     )
 
     all_outputs = []
@@ -287,51 +253,47 @@ class BlockTest(parameterized.TestCase):
       all_outputs.append(outputs)
 
     normed_output, unnormed_output = all_outputs  # pylint: disable=unbalanced-tuple-unpacking
-    print(all_outputs)
+    logging.info('normed_output: %s', normed_output)
+    logging.info('unnormed_output: %s', unnormed_output)
+    # TODO(b/350763078): Fix bug in the attention implementation. Normed and
+    # unnormed outputs should not be equal.
+    np.testing.assert_array_equal(normed_output, unnormed_output)
 
-    self.assertFalse(jnp.not_equal(normed_output, unnormed_output).all())
-
-  @parameterized.parameters(
-      dict(
-          num_heads=1,
-          embed_dim=1,
-          head_dim=2,
-          cache_size=1,
-          batch_size=1,
-      ),
-  )
-  def test_post_ffw_norm(
-      self,
-      num_heads,
-      embed_dim,
-      head_dim,
-      cache_size,
-      batch_size,
-  ):
+  def test_post_ffw_norm_preserves_output(self):
+    num_heads = 1
+    embed_dim = 1
+    head_dim = 2
+    hidden_dim = 1
+    cache_size = 1
+    batch_size = 1
     inputs = jnp.ones((batch_size, 1, embed_dim))
     cache = modules.Attention.init_cache(
-        cache_size, num_heads, head_dim, batch_size, dtype=jnp.float32
+        cache_size=cache_size,
+        num_heads=num_heads,
+        head_dim=head_dim,
+        batch_size=batch_size,
+        dtype=jnp.float32,
     )
     attn_mask = jnp.ones((batch_size, 1, cache_size))
     normed_block = modules.Block(
-        num_heads,
-        num_heads,
-        embed_dim,
-        head_dim,
-        1,
-        True,
-        True,  # use_post_ffw_norm
-        modules.AttentionType.GLOBAL,
+        num_heads=num_heads,
+        num_kv_heads=num_heads,
+        embed_dim=embed_dim,
+        head_dim=head_dim,
+        hidden_dim=hidden_dim,
+        use_post_attn_norm=False,
+        use_post_ffw_norm=True,
+        attn_type=_ATTN_TYPE,
     )
     unnormed_block = modules.Block(
-        num_heads,
-        num_heads,
-        embed_dim,
-        head_dim,
-        1,
-        False,
-        False,  # use_post_ffw_norm
-        modules.AttentionType.GLOBAL,
+        num_heads=num_heads,
+        num_kv_heads=num_heads,
+        embed_dim=embed_dim,
+        head_dim=head_dim,
+        hidden_dim=hidden_dim,
+        use_post_attn_norm=False,
+        use_post_ffw_norm=False,
+        attn_type=_ATTN_TYPE,
     )
 
     all_outputs = []
@@ -346,9 +308,11 @@ class BlockTest(parameterized.TestCase):
       all_outputs.append(outputs)
 
     normed_output, unnormed_output = all_outputs  # pylint: disable=unbalanced-tuple-unpacking
-    print(all_outputs)
-
-    self.assertFalse(jnp.not_equal(normed_output, unnormed_output).all())
+    logging.info('normed_output: %s', normed_output)
+    logging.info('unnormed_output: %s', unnormed_output)
+    # TODO(b/350763078): Fix bug in the attention implementation. Normed and
+    # unnormed outputs should not be equal.
+    np.testing.assert_array_equal(normed_output, unnormed_output)
 
 
 if __name__ == '__main__':
