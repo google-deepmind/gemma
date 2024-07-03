@@ -204,7 +204,7 @@ class BlockTest(absltest.TestCase):
     self.assertEqual(new_cache['k'].shape, expected_cache_shape)
     self.assertEqual(outputs.shape, expected_output_shape)
 
-  def test_post_attention_norm_preserves_output(self):
+  def test_post_attention_norm_modifies_output(self):
     num_heads = 1
     embed_dim = 1
     head_dim = 2
@@ -255,9 +255,12 @@ class BlockTest(absltest.TestCase):
     normed_output, unnormed_output = all_outputs  # pylint: disable=unbalanced-tuple-unpacking
     logging.info('normed_output: %s', normed_output)
     logging.info('unnormed_output: %s', unnormed_output)
-    # TODO(b/350763078): Fix bug in the attention implementation. Normed and
-    # unnormed outputs should not be equal.
-    np.testing.assert_array_equal(normed_output, unnormed_output)
+    np.testing.assert_raises(
+        AssertionError,
+        np.testing.assert_array_equal,
+        normed_output,
+        unnormed_output,
+    )
 
   def test_post_ffw_norm_preserves_output(self):
     num_heads = 1

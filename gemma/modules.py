@@ -233,15 +233,15 @@ class Block(nn.Module):
         attn_logits_soft_cap=self.attn_logits_soft_cap,
         sliding_window_size=self.sliding_window_size,
     )
+    self.post_attn_norm = None
+    if self.use_post_attn_norm:
+      self.post_attn_norm = layers.RMSNorm()
+
     self.pre_ffw_norm = layers.RMSNorm()
     self.mlp = FeedForward(features=self.embed_dim, hidden_dim=self.hidden_dim)
     self.post_ffw_norm = None
     if self.use_post_ffw_norm:
       self.post_ffw_norm = layers.RMSNorm()
-
-    self.post_attn_norm = None
-    if self.use_post_attn_norm:
-      self.post_attn_norm = layers.RMSNorm()
 
   def __call__(
       self,
@@ -257,15 +257,12 @@ class Block(nn.Module):
         cache,
         attn_mask,
     )
-    attn_output += x
-    residual = attn_output
-    attn_output = self.pre_ffw_norm(attn_output)
-
-    if self.use_post_attn_norm:
+    if self.post_attn_norm is not None:
       attn_output = self.post_attn_norm(attn_output)
-
-    outputs = self.mlp(attn_output)
-    if self.use_post_ffw_norm:
+    attn_output += x
+    outputs = self.pre_ffw_norm(attn_output)
+    outputs = self.mlp(outputs)
+    if self.post_ffw_norm is not None:
       outputs = self.post_ffw_norm(outputs)
-    outputs = residual + outputs
+    outputs += attn_output
     return cache, outputs
