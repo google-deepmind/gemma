@@ -60,6 +60,7 @@ class Attention(nn.Module):
   features: int
   head_dim: int
   attn_type: AttentionType
+  query_pre_attn_scalar: float
   attn_logits_soft_cap: float | None = None
   sliding_window_size: int | None = None
 
@@ -104,7 +105,7 @@ class Attention(nn.Module):
         segment_pos,
         head_dim=self.head_dim,
     )
-    query_scaled = query_proj * self.head_dim**-0.5
+    query_scaled = query_proj * self.query_pre_attn_scalar
     key_proj = positional_embeddings.apply_rope(
         key_proj,
         segment_pos,
@@ -219,6 +220,7 @@ class Block(nn.Module):
   use_post_attn_norm: bool
   use_post_ffw_norm: bool
   attn_type: AttentionType
+  query_pre_attn_scalar: float
   attn_logits_soft_cap: float | None = None
   sliding_window_size: int | None = None
 
@@ -230,6 +232,7 @@ class Block(nn.Module):
         head_dim=self.head_dim,
         num_kv_heads=self.num_kv_heads,
         attn_type=self.attn_type,
+        query_pre_attn_scalar=self.query_pre_attn_scalar,
         attn_logits_soft_cap=self.attn_logits_soft_cap,
         sliding_window_size=self.sliding_window_size,
     )
