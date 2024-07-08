@@ -288,6 +288,45 @@ class TransformerTest(parameterized.TestCase):
     cache = config.init_cache(batch_size=1, dtype=jnp.float32)
     self.assertTrue(cache)
 
+  @parameterized.named_parameters([
+      (
+          'by_head_dim',
+          transformer_lib.QueryPreAttentionNormalisation.BY_ONE_OVER_SQRT_HEAD_DIM,
+          0.5,
+      ),
+      (
+          'by_embed_dim_div_num_heads',
+          transformer_lib.QueryPreAttentionNormalisation.BY_EMBED_DIM_DIV_NUM_HEADS,
+          6,
+      ),
+      (
+          'unset',
+          None,
+          0.5,
+      ),
+  ])
+  def test_query_pre_attn_scalar(
+      self,
+      query_pre_attn_norm,
+      expected_scalar,
+  ):
+    num_layers = 2
+    config = transformer_lib.TransformerConfig(
+        num_layers=num_layers,
+        num_embed=4,
+        embed_dim=48,
+        hidden_dim=12,
+        num_heads=8,
+        head_dim=4,
+        num_kv_heads=3,
+        final_logit_softcap=None,
+        use_post_attn_norm=False,
+        use_post_ffw_norm=False,
+        attention_types=[modules.AttentionType.GLOBAL] * num_layers,
+        query_pre_attn_norm=query_pre_attn_norm,
+    )
+    self.assertEqual(config.query_pre_attn_scalar(), expected_scalar)
+
 
 if __name__ == '__main__':
   absltest.main()

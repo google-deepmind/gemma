@@ -55,10 +55,13 @@ class EmbedderTest(absltest.TestCase):
 
 class AttentionTest(absltest.TestCase):
 
-  def test_attention(self):
-    num_heads = 2
-    head_dim = 4
-    features = 8
+  def _get_attn_output(
+      self,
+      num_heads: int,
+      head_dim: int,
+      features: int,
+      query_pre_attn_scalar: float,
+  ) -> tuple[jnp.ndarray, jnp.ndarray]:
     segment_pos = 0
     cache_size = 3
     batch_size = 2
@@ -69,6 +72,7 @@ class AttentionTest(absltest.TestCase):
         features=features,
         head_dim=head_dim,
         attn_type=_ATTN_TYPE,
+        query_pre_attn_scalar=query_pre_attn_scalar,
     )
     cache = modules.Attention.init_cache(
         cache_size=cache_size,
@@ -88,7 +92,17 @@ class AttentionTest(absltest.TestCase):
     cache, output = attn.apply(
         params, x, jnp.array([[segment_pos]]), cache, attn_mask
     )
+    return cache, output
 
+  def test_attention(self):
+    head_dim = 4
+    query_pre_attn_scalar = head_dim**-0.5
+    cache, output = self._get_attn_output(
+        num_heads=2,
+        head_dim=head_dim,
+        features=8,
+        query_pre_attn_scalar=query_pre_attn_scalar,
+    )
     expected_cache_shape = (2, 3, 2, 4)
     expected_output_shape = (2, 1, 8)
     self.assertEqual(cache['k'].shape, expected_cache_shape)
@@ -101,6 +115,7 @@ class AttentionTest(absltest.TestCase):
     segment_pos = 0
     cache_size = 3
     batch_size = 2
+    query_pre_attn_scalar = head_dim**-0.5
     attn_mask = jnp.ones((batch_size, 1, cache_size))
     cache = modules.Attention.init_cache(
         cache_size=cache_size,
@@ -116,6 +131,7 @@ class AttentionTest(absltest.TestCase):
         features=features,
         head_dim=head_dim,
         attn_type=_ATTN_TYPE,
+        query_pre_attn_scalar=query_pre_attn_scalar,
     )
     params = attn.init(
         jax.random.PRNGKey(0),
@@ -134,12 +150,85 @@ class AttentionTest(absltest.TestCase):
         head_dim=head_dim,
         attn_type=modules.AttentionType.LOCAL_SLIDING,
         sliding_window_size=2,
+        query_pre_attn_scalar=query_pre_attn_scalar,
     )
     _, sliding_output = sliding_attn.apply(
         params, x, jnp.array([[segment_pos]]), cache, attn_mask
     )
 
     self.assertFalse((output == sliding_output).all())
+
+  def test_query_pre_attn_scalar_modifies_output(self):
+    num_heads = 2
+    head_dim = 4
+    features = 8
+    query_pre_attn_scalar_by_embed_dim_div_num_heads: float = (
+        features // num_heads
+    )
+    query_pre_attn_scalar_by_head_dim: float = head_dim**-0.5
+    _, output_by_head_dim = self._get_attn_output(
+        num_heads,
+        head_dim,
+        features,
+        query_pre_attn_scalar_by_head_dim,
+    )
+    _, output_by_embed_dim_div_num_heads = self._get_attn_output(
+        num_heads,
+        head_dim,
+        features,
+        query_pre_attn_scalar_by_embed_dim_div_num_heads,
+    )
+    expected_output_by_head_dim = [
+        [[
+            1.1596170e-04,
+            3.0531217e-05,
+            4.5884139e-05,
+            -3.3920849e-05,
+            -5.5468496e-05,
+            8.6856808e-06,
+            -1.5840206e-04,
+            1.0944265e-04,
+        ]],
+        [[
+            1.1596170e-04,
+            3.0531217e-05,
+            4.5884139e-05,
+            -3.3920849e-05,
+            -5.5468496e-05,
+            8.6856808e-06,
+            -1.5840206e-04,
+            1.0944265e-04,
+        ]],
+    ]
+    np.testing.assert_array_almost_equal(
+        output_by_head_dim, expected_output_by_head_dim
+    )
+    expected_output_by_embed_dim_div_num_heads = [
+        [[
+            1.15790164e-04,
+            3.05866670e-05,
+            4.57668611e-05,
+            -3.40082588e-05,
+            -5.54954640e-05,
+            8.75260412e-06,
+            -1.58223527e-04,
+            1.09341796e-04,
+        ]],
+        [[
+            1.15790164e-04,
+            3.05866670e-05,
+            4.57668611e-05,
+            -3.40082588e-05,
+            -5.54954640e-05,
+            8.75260412e-06,
+            -1.58223527e-04,
+            1.09341796e-04,
+        ]],
+    ]
+    np.testing.assert_array_almost_equal(
+        output_by_embed_dim_div_num_heads,
+        expected_output_by_embed_dim_div_num_heads,
+    )
 
 
 class FeedForwardTest(absltest.TestCase):
@@ -190,6 +279,7 @@ class BlockTest(absltest.TestCase):
         use_post_attn_norm=False,
         use_post_ffw_norm=False,
         attn_type=_ATTN_TYPE,
+        query_pre_attn_scalar=head_dim**-0.5,
     )
     params = block.init(
         jax.random.PRNGKey(0), inputs, jnp.array([[0]]), cache, attn_mask
@@ -211,6 +301,7 @@ class BlockTest(absltest.TestCase):
     hidden_dim = 1
     cache_size = 1
     batch_size = 1
+    query_pre_attn_scalar = head_dim**-0.5
     inputs = jnp.ones((batch_size, 1, embed_dim))
     cache = modules.Attention.init_cache(
         cache_size=cache_size,
@@ -229,6 +320,7 @@ class BlockTest(absltest.TestCase):
         use_post_attn_norm=True,
         use_post_ffw_norm=False,
         attn_type=_ATTN_TYPE,
+        query_pre_attn_scalar=query_pre_attn_scalar,
     )
     unnormed_block = modules.Block(
         num_heads=num_heads,
@@ -239,6 +331,7 @@ class BlockTest(absltest.TestCase):
         use_post_attn_norm=False,
         use_post_ffw_norm=False,
         attn_type=_ATTN_TYPE,
+        query_pre_attn_scalar=query_pre_attn_scalar,
     )
 
     all_outputs = []
@@ -269,6 +362,7 @@ class BlockTest(absltest.TestCase):
     hidden_dim = 1
     cache_size = 1
     batch_size = 1
+    query_pre_attn_scalar = head_dim**-0.5
     inputs = jnp.ones((batch_size, 1, embed_dim))
     cache = modules.Attention.init_cache(
         cache_size=cache_size,
@@ -287,6 +381,7 @@ class BlockTest(absltest.TestCase):
         use_post_attn_norm=False,
         use_post_ffw_norm=True,
         attn_type=_ATTN_TYPE,
+        query_pre_attn_scalar=query_pre_attn_scalar,
     )
     unnormed_block = modules.Block(
         num_heads=num_heads,
@@ -297,6 +392,7 @@ class BlockTest(absltest.TestCase):
         use_post_attn_norm=False,
         use_post_ffw_norm=False,
         attn_type=_ATTN_TYPE,
+        query_pre_attn_scalar=query_pre_attn_scalar,
     )
 
     all_outputs = []
