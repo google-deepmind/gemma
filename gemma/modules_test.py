@@ -348,14 +348,12 @@ class BlockTest(absltest.TestCase):
     normed_output, unnormed_output = all_outputs  # pylint: disable=unbalanced-tuple-unpacking
     logging.info('normed_output: %s', normed_output)
     logging.info('unnormed_output: %s', unnormed_output)
-    np.testing.assert_raises(
-        AssertionError,
-        np.testing.assert_array_equal,
-        normed_output,
-        unnormed_output,
-    )
 
-  def test_post_ffw_norm_preserves_output(self):
+    # Normed and unnormed outputs should not be equal.
+    with np.testing.assert_raises(AssertionError):
+      np.testing.assert_array_almost_equal(normed_output, unnormed_output)
+
+  def test_post_ffw_norm_modifies_output(self):
     num_heads = 1
     embed_dim = 1
     head_dim = 2
@@ -397,9 +395,17 @@ class BlockTest(absltest.TestCase):
 
     all_outputs = []
     for block in (normed_block, unnormed_block):
+
       params = block.init(
           jax.random.PRNGKey(0), inputs, jnp.array([[0]]), cache, attn_mask
       )
+
+      # Replace mlp block params with 1s as ffw will initialize with
+      # 0s which will not properly test normalization.
+      for param in ['gating_einsum', 'linear']:
+        params['params']['mlp'][param] = jnp.ones_like(
+            params['params']['mlp'][param]
+        )
 
       _, outputs = block.apply(
           params, inputs, jnp.array([[0]]), cache, attn_mask
@@ -409,9 +415,10 @@ class BlockTest(absltest.TestCase):
     normed_output, unnormed_output = all_outputs  # pylint: disable=unbalanced-tuple-unpacking
     logging.info('normed_output: %s', normed_output)
     logging.info('unnormed_output: %s', unnormed_output)
-    # TODO(b/350763078): Fix bug in the attention implementation. Normed and
-    # unnormed outputs should not be equal.
-    np.testing.assert_array_equal(normed_output, unnormed_output)
+
+    # Normed and unnormed outputs should not be equal.
+    with np.testing.assert_raises(AssertionError):
+      np.testing.assert_array_almost_equal(normed_output, unnormed_output)
 
 
 if __name__ == '__main__':
