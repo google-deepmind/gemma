@@ -69,32 +69,10 @@ class TransformerConfig:
         return self.head_dim**-0.5
 
   @classmethod
-  def from_path(cls, path: str, cache_size: int = 1024) -> 'TransformerConfig':
-    """Creates a TransformerConfig from loaded parameters."""
-    metadata = params_lib.load_metadata(path)
-    params = params_lib.load_params(path)
-
-    try:
-      model = metadata['somewhere in orbax checkpoint']
-
-      if model in ('gemma-2-27-pt', 'gemma-2-27-it'):
-        return cls.gemma_27b(cache_size)
-      elif model in ('gemma-2-9-pt', 'gemma-2-9-it'):
-        return cls.gemma_9b(cache_size)
-    except KeyError:
-      # V1 model that does not include model metadata.
-      # Fall back to previous method
-      return cls.from_params(params, cache_size)
-
-    raise ValueError('Verify checkpoint path is a Gemma checkpoint')
-
-  @classmethod
   def from_params(
       cls, params: params_lib.Params, cache_size: int = 1024
   ) -> 'TransformerConfig':
     """Creates a TransformerConfig from loaded parameters.
-
-    Use for V1 models only.
 
     Args:
       params: Model parameters
@@ -103,22 +81,28 @@ class TransformerConfig:
     Returns:
       TransformerConfig.
     """
-    use_qkv_einsum = 'qkv_einsum' in params['transformer']['layer_0']['attn']
-    if use_qkv_einsum:
-      return cls.gemma_7b((cache_size))
-    elif not use_qkv_einsum:  # And something else
-      return cls.gemma_2b((cache_size))
-    else:
-      raise ValueError(
-          'Params are not a Gemma 2b, or 7b variant. These may be a different'
-          ' Gemma Architecture. Use from_path function to load params.'
-      )
+    layer_names = [
+        name for name in params['transformer'].keys() if 'layer' in name
+    ]
+    layer_names = [name.replace('layer_', '') for name in layer_names]
+    cls.num_layers = max([int(layer) for layer in layer_names]) + 1
+
+    match cls.num_layers:
+      case 18:
+        return cls.gemma_2b(cache_size)
+      case 28:
+        return cls.gemma_7b(cache_size)
+      case 42:
+        return cls.gemma_9b(cache_size)
+      case 46:
+        return cls.gemma_27b(cache_size)
+      case _:
+        raise ValueError('Params are not a Gemma 2b, 7b, 9b, or 27b variant.')
 
   @classmethod
   def gemma_2b(cls, cache_size: int):
-    num_layers = 18
     return cls(
-        num_layers=num_layers,
+        num_layers=cls.num_layers,
         num_embed=256128,
         embed_dim=2048,
         hidden_dim=16384,
@@ -126,7 +110,7 @@ class TransformerConfig:
         head_dim=256,
         num_kv_heads=1,
         final_logit_softcap=None,
-        attention_types=(modules.AttentionType.GLOBAL,) * num_layers,
+        attention_types=(modules.AttentionType.GLOBAL,) * cls.num_layers,
         use_post_attn_norm=False,
         use_post_ffw_norm=False,
         max_cache_length=cache_size,
@@ -134,9 +118,8 @@ class TransformerConfig:
 
   @classmethod
   def gemma_7b(cls, cache_size: int):
-    num_layers = 28
     return cls(
-        num_layers=num_layers,
+        num_layers=cls.num_layers,
         num_embed=256128,
         embed_dim=3072,
         hidden_dim=24576,
@@ -144,7 +127,7 @@ class TransformerConfig:
         head_dim=256,
         num_kv_heads=16,
         final_logit_softcap=None,
-        attention_types=(modules.AttentionType.GLOBAL,) * 28,
+        attention_types=(modules.AttentionType.GLOBAL,) * cls.num_layers,
         use_post_attn_norm=False,
         use_post_ffw_norm=False,
         max_cache_length=cache_size,
@@ -152,9 +135,8 @@ class TransformerConfig:
 
   @classmethod
   def gemma_27b(cls, cache_size: int):
-    num_layers = 46
     return cls(
-        num_layers=num_layers,
+        num_layers=cls.num_layers,
         num_embed=256128,
         embed_dim=4608,
         hidden_dim=72728,
@@ -168,7 +150,7 @@ class TransformerConfig:
             modules.AttentionType.LOCAL_SLIDING,
             modules.AttentionType.GLOBAL,
         )
-        * int(num_layers / 2),
+        * int(cls.num_layers / 2),
         max_cache_length=cache_size,
         query_pre_attn_norm=QueryPreAttentionNormalisation.BY_EMBED_DIM_DIV_NUM_HEADS,
         attn_logits_soft_cap=50.0,
@@ -177,9 +159,8 @@ class TransformerConfig:
 
   @classmethod
   def gemma_9b(cls, cache_size: int):
-    num_layers = 42
     return cls(
-        num_layers=num_layers,
+        num_layers=cls.num_layers,
         num_embed=256128,
         embed_dim=3584,
         hidden_dim=28672,
@@ -191,7 +172,7 @@ class TransformerConfig:
             modules.AttentionType.LOCAL_SLIDING,
             modules.AttentionType.GLOBAL,
         )
-        * int(num_layers / 2),
+        * int(cls.num_layers / 2),
         use_post_attn_norm=True,
         use_post_ffw_norm=True,
         max_cache_length=cache_size,

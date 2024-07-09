@@ -14,6 +14,7 @@
 # ============================================================================
 """Tests for the Gemma transformer."""
 
+from unittest import mock
 from absl.testing import absltest
 from absl.testing import parameterized
 from gemma import modules
@@ -26,6 +27,35 @@ jax.config.update('jax_numpy_rank_promotion', 'raise')
 
 
 class TransformerTest(parameterized.TestCase):
+
+  @parameterized.parameters(
+      dict(
+          num_layers=18,
+          expected_call='gemma_2b',
+      ),
+      dict(
+          num_layers=28,
+          expected_call='gemma_7b',
+      ),
+      dict(
+          num_layers=42,
+          expected_call='gemma_9b',
+      ),
+      dict(
+          num_layers=46,
+          expected_call='gemma_27b',
+      ),
+  )
+  def test_params_load(self, num_layers, expected_call):
+    mock_transformer = {
+        'transformer': {f'layer_{i}': None for i in range(num_layers)}
+    }
+
+    with mock.patch.object(
+        transformer_lib.TransformerConfig, expected_call
+    ) as mock_method:
+      transformer_lib.TransformerConfig.from_params(mock_transformer)
+      mock_method.assert_called_once()
 
   @parameterized.parameters(
       # Prime number to ease shape tracing
