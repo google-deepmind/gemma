@@ -196,9 +196,11 @@ class FeedForward(nn.Module):
     ff_gate = jnp.dot(x, w_gating[0])
     gate_value = nn.gelu(ff_gate)
 
+    # Up projection
     ff1 = jnp.dot(x, w_gating[1])
     activations = gate_value * ff1
 
+    # Down projection
     w_linear = self.param(
         'linear',
         nn.initializers.zeros_init(),
