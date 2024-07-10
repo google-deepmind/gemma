@@ -68,6 +68,10 @@ class Attention(nn.Module):
   def use_qkv_einsum(self):
     return self.num_kv_heads == self.num_heads
 
+  @property
+  def use_gqa(self):
+    return self.num_kv_heads != self.num_heads and self.num_kv_heads > 1
+
   def setup(self):
     self.attn_vec_einsum = layers.Einsum(
         shape=(self.num_heads, self.head_dim, self.features),
@@ -125,7 +129,17 @@ class Attention(nn.Module):
           cache['k'], key_proj, slice_indices
       )
 
-    logits = jnp.einsum('BTNH,BSNH->BTNS', query_scaled, key_proj)
+    if self.use_gqa:
+      # Reshape matrices to enable einsums over groups.
+      b, t, kg, h = query_scaled.shape
+      query_scaled = query_scaled.reshape(
+          (b, t, self.num_kv_heads, int(kg / self.num_kv_heads), h)
+      )
+      logits = jnp.einsum('BTKGH,BSKH->BTKGS', query_scaled, key_proj)
+      b, t, k, g, s = logits.shape
+      logits = logits.reshape((b, t, k * g, s))
+    else:
+      logits = jnp.einsum('BTNH,BSNH->BTNS', query_scaled, key_proj)
 
     if self.attn_logits_soft_cap is not None:
       logits = jnp.tanh(logits / self.attn_logits_soft_cap)
@@ -145,7 +159,17 @@ class Attention(nn.Module):
 
     padded_logits = jnp.where((jnp.expand_dims(attn_mask, -2)), logits, K_MASK)
     probs = jax.nn.softmax(padded_logits, axis=-1).astype(key_proj.dtype)
-    encoded = jnp.einsum('BTNS,BSNH->BTNH', probs, value_proj)
+    if self.use_gqa:
+      # Reshape matrices to enable einsums over groups.
+      b, t, kg, h = probs.shape
+      probs = probs.reshape(
+          (b, t, self.num_kv_heads, int(kg / self.num_kv_heads), h)
+      )
+      encoded = jnp.einsum('BTKGS,BSKH->BTKGH', probs, value_proj)
+      b, t, k, g, h = encoded.shape
+      encoded = encoded.reshape((b, t, k * g, h))
+    else:
+      encoded = jnp.einsum('BTNS,BSNH->BTNH', probs, value_proj)
     attn_output = self.attn_vec_einsum('BTNH,NHD->BTD', encoded)
 
     if cache is not None:
@@ -185,14 +209,23 @@ class FeedForward(nn.Module):
 
   features: int
   hidden_dim: int
+  use_gqa: bool = False
 
   @nn.compact
   def __call__(self, x):
-    w_gating = self.param(
-        'gating_einsum',
-        nn.initializers.zeros_init(),
-        ((2, self.features, self.hidden_dim)),
-    )
+    if self.use_gqa:
+      w_gating = self.param(
+          'gating_einsum',
+          nn.initializers.zeros_init(),
+          ((2, self.hidden_dim, self.features)),
+      )
+      w_gating = w_gating.reshape((2, w_gating.shape[2], -1))
+    else:
+      w_gating = self.param(
+          'gating_einsum',
+          nn.initializers.zeros_init(),
+          ((2, self.features, self.hidden_dim)),
+      )
     ff_gate = jnp.dot(x, w_gating[0])
     gate_value = nn.gelu(ff_gate)
 
@@ -238,12 +271,16 @@ class Block(nn.Module):
         attn_logits_soft_cap=self.attn_logits_soft_cap,
         sliding_window_size=self.sliding_window_size,
     )
-    self.post_attn_norm = None
+    self.post_attention_norm = None
     if self.use_post_attn_norm:
-      self.post_attn_norm = layers.RMSNorm()
+      self.post_attention_norm = layers.RMSNorm()
 
     self.pre_ffw_norm = layers.RMSNorm()
-    self.mlp = FeedForward(features=self.embed_dim, hidden_dim=self.hidden_dim)
+    self.mlp = FeedForward(
+        features=self.embed_dim,
+        hidden_dim=self.hidden_dim,
+        use_gqa=self.attn.use_gqa,
+    )
     self.post_ffw_norm = None
     if self.use_post_ffw_norm:
       self.post_ffw_norm = layers.RMSNorm()
@@ -262,8 +299,8 @@ class Block(nn.Module):
         cache,
         attn_mask,
     )
-    if self.post_attn_norm is not None:
-      attn_output = self.post_attn_norm(attn_output)
+    if self.post_attention_norm is not None:
+      attn_output = self.post_attention_norm(attn_output)
     attn_output += x
     outputs = self.pre_ffw_norm(attn_output)
     outputs = self.mlp(outputs)
