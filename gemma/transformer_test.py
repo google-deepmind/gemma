@@ -26,6 +26,19 @@ import numpy as np
 jax.config.update('jax_numpy_rank_promotion', 'raise')
 
 
+class TransformerConfigTest(parameterized.TestCase):
+
+  @parameterized.parameters(
+      dict(ctor=transformer_lib.TransformerConfig.gemma_2b),
+      dict(ctor=transformer_lib.TransformerConfig.gemma_7b),
+      dict(ctor=transformer_lib.TransformerConfig.gemma_9b),
+      dict(ctor=transformer_lib.TransformerConfig.gemma_27b),
+  )
+  def test_known_architectures(self, ctor):
+    transformer_config = ctor(cache_size=16)
+    self.assertIsInstance(transformer_config, transformer_lib.TransformerConfig)
+
+
 class TransformerTest(parameterized.TestCase):
 
   @parameterized.parameters(
