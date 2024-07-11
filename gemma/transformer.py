@@ -38,6 +38,12 @@ class QueryPreAttentionNormalisation(enum.Enum):
   BY_EMBED_DIM_DIV_NUM_HEADS = enum.auto()
 
 
+_NUM_LAYERS_GEMMA_2B = 18
+_NUM_LAYERS_GEMMA_7B = 28
+_NUM_LAYERS_GEMMA_9B = 42
+_NUM_LAYERS_GEMMA_27B = 46
+
+
 @dataclasses.dataclass(frozen=True)
 class TransformerConfig:
   """Configuration for the gemma transformer."""
@@ -85,24 +91,23 @@ class TransformerConfig:
         name for name in params['transformer'].keys() if 'layer' in name
     ]
     layer_names = [name.replace('layer_', '') for name in layer_names]
-    cls.num_layers = max([int(layer) for layer in layer_names]) + 1
+    num_layers = max([int(layer) for layer in layer_names]) + 1
 
-    match cls.num_layers:
-      case 18:
-        return cls.gemma_2b(cache_size)
-      case 28:
-        return cls.gemma_7b(cache_size)
-      case 42:
-        return cls.gemma_9b(cache_size)
-      case 46:
-        return cls.gemma_27b(cache_size)
-      case _:
-        raise ValueError('Params are not a Gemma 2b, 7b, 9b, or 27b variant.')
+    if num_layers == _NUM_LAYERS_GEMMA_2B:
+      return cls.gemma_2b(cache_size)
+    if num_layers == _NUM_LAYERS_GEMMA_7B:
+      return cls.gemma_7b(cache_size)
+    if num_layers == _NUM_LAYERS_GEMMA_9B:
+      return cls.gemma_9b(cache_size)
+    if num_layers == _NUM_LAYERS_GEMMA_27B:
+      return cls.gemma_27b(cache_size)
+
+    raise ValueError('Params are not a Gemma 2b, 7b, 9b, or 27b variant.')
 
   @classmethod
   def gemma_2b(cls, cache_size: int):
     return cls(
-        num_layers=cls.num_layers,
+        num_layers=_NUM_LAYERS_GEMMA_2B,
         num_embed=256128,
         embed_dim=2048,
         hidden_dim=16384,
@@ -110,7 +115,7 @@ class TransformerConfig:
         head_dim=256,
         num_kv_heads=1,
         final_logit_softcap=None,
-        attention_types=(modules.AttentionType.GLOBAL,) * cls.num_layers,
+        attention_types=(modules.AttentionType.GLOBAL,) * _NUM_LAYERS_GEMMA_2B,
         use_post_attn_norm=False,
         use_post_ffw_norm=False,
         max_cache_length=cache_size,
@@ -119,7 +124,7 @@ class TransformerConfig:
   @classmethod
   def gemma_7b(cls, cache_size: int):
     return cls(
-        num_layers=cls.num_layers,
+        num_layers=_NUM_LAYERS_GEMMA_7B,
         num_embed=256128,
         embed_dim=3072,
         hidden_dim=24576,
@@ -127,7 +132,7 @@ class TransformerConfig:
         head_dim=256,
         num_kv_heads=16,
         final_logit_softcap=None,
-        attention_types=(modules.AttentionType.GLOBAL,) * cls.num_layers,
+        attention_types=(modules.AttentionType.GLOBAL,) * _NUM_LAYERS_GEMMA_7B,
         use_post_attn_norm=False,
         use_post_ffw_norm=False,
         max_cache_length=cache_size,
@@ -136,7 +141,7 @@ class TransformerConfig:
   @classmethod
   def gemma_27b(cls, cache_size: int):
     return cls(
-        num_layers=cls.num_layers,
+        num_layers=_NUM_LAYERS_GEMMA_27B,
         num_embed=256128,
         embed_dim=4608,
         hidden_dim=36864,
@@ -150,7 +155,7 @@ class TransformerConfig:
             modules.AttentionType.LOCAL_SLIDING,
             modules.AttentionType.GLOBAL,
         )
-        * int(cls.num_layers / 2),
+        * int(_NUM_LAYERS_GEMMA_27B / 2),
         max_cache_length=cache_size,
         query_pre_attn_norm=QueryPreAttentionNormalisation.BY_EMBED_DIM_DIV_NUM_HEADS,
         attn_logits_soft_cap=50.0,
@@ -160,7 +165,7 @@ class TransformerConfig:
   @classmethod
   def gemma_9b(cls, cache_size: int):
     return cls(
-        num_layers=cls.num_layers,
+        num_layers=_NUM_LAYERS_GEMMA_9B,
         num_embed=256128,
         embed_dim=3584,
         hidden_dim=14336,
@@ -172,7 +177,7 @@ class TransformerConfig:
             modules.AttentionType.LOCAL_SLIDING,
             modules.AttentionType.GLOBAL,
         )
-        * int(cls.num_layers / 2),
+        * int(_NUM_LAYERS_GEMMA_9B / 2),
         use_post_attn_norm=True,
         use_post_ffw_norm=True,
         max_cache_length=cache_size,
