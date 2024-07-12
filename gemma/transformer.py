@@ -37,6 +37,9 @@ class QueryPreAttentionNormalisation(enum.Enum):
   # Whether to scale the query by `embed_dim // num_heads`
   BY_EMBED_DIM_DIV_NUM_HEADS = enum.auto()
 
+  # Whether to scale the query by `1/sqrt(embed_dim // num_heads)`
+  BY_ONE_OVER_SQRT_EMBED_DIM_DIV_NUM_HEADS = enum.auto()
+
 
 _NUM_LAYERS_GEMMA_2B = 18
 _NUM_LAYERS_GEMMA_7B = 28
@@ -71,6 +74,8 @@ class TransformerConfig:
     match self.query_pre_attn_norm:
       case QueryPreAttentionNormalisation.BY_EMBED_DIM_DIV_NUM_HEADS:
         return self.embed_dim // self.num_heads
+      case QueryPreAttentionNormalisation.BY_ONE_OVER_SQRT_EMBED_DIM_DIV_NUM_HEADS:  # pylint: disable=line-too-long
+        return (self.embed_dim // self.num_heads)**-0.5
       case QueryPreAttentionNormalisation.BY_ONE_OVER_SQRT_HEAD_DIM | _:
         return self.head_dim**-0.5
 
@@ -157,7 +162,7 @@ class TransformerConfig:
         )
         * int(_NUM_LAYERS_GEMMA_27B / 2),
         max_cache_length=cache_size,
-        query_pre_attn_norm=QueryPreAttentionNormalisation.BY_EMBED_DIM_DIV_NUM_HEADS,
+        query_pre_attn_norm=QueryPreAttentionNormalisation.BY_ONE_OVER_SQRT_EMBED_DIM_DIV_NUM_HEADS,
         attn_logits_soft_cap=50.0,
         sliding_window_size=4096,
     )
@@ -181,7 +186,7 @@ class TransformerConfig:
         use_post_attn_norm=True,
         use_post_ffw_norm=True,
         max_cache_length=cache_size,
-        query_pre_attn_norm=QueryPreAttentionNormalisation.BY_EMBED_DIM_DIV_NUM_HEADS,
+        query_pre_attn_norm=QueryPreAttentionNormalisation.BY_ONE_OVER_SQRT_HEAD_DIM,
         attn_logits_soft_cap=50.0,
         sliding_window_size=4096,
     )
