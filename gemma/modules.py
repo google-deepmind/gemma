@@ -219,7 +219,7 @@ class FeedForward(nn.Module):
           nn.initializers.zeros_init(),
           ((2, self.hidden_dim, self.features)),
       )
-      w_gating = w_gating.reshape((2, w_gating.shape[2], -1))
+      w_gating = w_gating.transpose((0, 2, 1))
     else:
       w_gating = self.param(
           'gating_einsum',
