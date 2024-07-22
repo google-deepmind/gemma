@@ -36,7 +36,11 @@ class RMSNorm(nn.Module):
   def __call__(self, x):
     scale = self.param('scale', nn.initializers.zeros_init(), (x.shape[-1]))
     var = jnp.mean(jnp.square(x), axis=-1, keepdims=True)
-    normed_inputs = jnp.asarray(x * jnp.reciprocal(jnp.sqrt(var + 1e-06)))
+
+    # Jax.lax.rsqrt is used because it returns different floats than
+    # jnp.reciprocal(jnp.sqrt(var + 1e-06))
+    normed_inputs = x * jax.lax.rsqrt(var + 1e-06)
+
     # normed_inputs is a rank-K tensor, K > 1 (K is typically 2 or 3). scale is
     # a rank-1 tensor. To avoid implicit rank-promotion, reshape scale to
     # a (1, ..., 1, D) tensor, so the rank of scale matches normed_inputs.
