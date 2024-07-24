@@ -23,8 +23,6 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-jax.config.update('jax_numpy_rank_promotion', 'raise')
-
 
 class TransformerConfigTest(parameterized.TestCase):
 
@@ -133,25 +131,26 @@ class TransformerTest(parameterized.TestCase):
     )
     cache = config.init_cache(batch_size, dtype=jnp.float32)
     attention_mask = jnp.ones((batch_size, 1, cache_size), dtype=jnp.bool)
-    transformer = transformer_lib.Transformer(config=config)
-    params = transformer.init(
-        jax.random.PRNGKey(0),
-        last_tokens=jnp.tile(jnp.arange(sequence_length), (batch_size, 1)),
-        positions=jnp.tile(jnp.arange(sequence_length), (batch_size, 1)),
-        cache=cache,
-        attention_mask=attention_mask,
-    )
+    with jax.numpy_rank_promotion('raise'):
+      transformer = transformer_lib.Transformer(config=config)
+      params = transformer.init(
+          jax.random.PRNGKey(0),
+          last_tokens=jnp.tile(jnp.arange(sequence_length), (batch_size, 1)),
+          positions=jnp.tile(jnp.arange(sequence_length), (batch_size, 1)),
+          cache=cache,
+          attention_mask=attention_mask,
+      )
 
-    outputs, cache = transformer.apply(
-        params,
-        jnp.tile(jnp.arange(sequence_length), (batch_size, 1)),
-        jnp.tile(jnp.arange(sequence_length), (batch_size, 1)),
-        cache,
-        attention_mask,
-    )
+      outputs, cache = transformer.apply(
+          params,
+          jnp.tile(jnp.arange(sequence_length), (batch_size, 1)),
+          jnp.tile(jnp.arange(sequence_length), (batch_size, 1)),
+          cache,
+          attention_mask,
+      )
 
-    self.assertEqual(outputs.shape, expected_outputs_shape)
-    self.assertEqual(cache['layer_0']['v'].shape, expected_cache_shape)
+      self.assertEqual(outputs.shape, expected_outputs_shape)
+      self.assertEqual(cache['layer_0']['v'].shape, expected_cache_shape)
 
   @parameterized.parameters(
       ('final_logit_softcap',),
@@ -199,21 +198,22 @@ class TransformerTest(parameterized.TestCase):
 
     all_outputs = []
     for config in [config_soft_cap, config_no_soft_cap]:
-      cache = config.init_cache(batch_size, dtype=jnp.float32)
-      transformer = transformer_lib.Transformer(config=config)
+      with jax.numpy_rank_promotion('raise'):
+        cache = config.init_cache(batch_size, dtype=jnp.float32)
+        transformer = transformer_lib.Transformer(config=config)
 
-      params = transformer.init(
-          jax.random.PRNGKey(0),
-          last_tokens=jnp.tile(jnp.arange(sequence_length), (batch_size, 1)),
-          positions=jnp.array([[1]]),
-          cache=cache,
-          attention_mask=attention_mask,
-      )
+        params = transformer.init(
+            jax.random.PRNGKey(0),
+            last_tokens=jnp.tile(jnp.arange(sequence_length), (batch_size, 1)),
+            positions=jnp.array([[1]]),
+            cache=cache,
+            attention_mask=attention_mask,
+        )
 
-      outputs, _ = transformer.apply(
-          params, jnp.array([[1]]), jnp.array([[1]]), cache, attention_mask
-      )
-      all_outputs.append(outputs)
+        outputs, _ = transformer.apply(
+            params, jnp.array([[1]]), jnp.array([[1]]), cache, attention_mask
+        )
+        all_outputs.append(outputs)
 
     soft_cap_outputs, no_soft_cap_outputs = all_outputs  # pylint: disable=unbalanced-tuple-unpacking
 
@@ -281,38 +281,39 @@ class TransformerTest(parameterized.TestCase):
       seq_size: int,
       config: transformer_lib.TransformerConfig,
   ):
-
     token_input = jnp.ones((batch_size, seq_size), dtype=jnp.int32)
     empty_cache = config.init_cache(batch_size, dtype=jnp.float32)
-    transformer = transformer_lib.Transformer(config=config)
-    attention_mask = jnp.ones(
-        (batch_size, seq_size, config.max_cache_length), dtype=jnp.bool
-    )
-    positions = transformer_lib.build_positions_from_mask(token_input != 0)
-    params = transformer.init(
-        jax.random.PRNGKey(0),
-        token_input,
-        positions,
-        empty_cache,
-        attention_mask,
-    )
+    with jax.numpy_rank_promotion('raise'):
+      transformer = transformer_lib.Transformer(config=config)
+      attention_mask = jnp.ones(
+          (batch_size, seq_size, config.max_cache_length), dtype=jnp.bool
+      )
+      positions = transformer_lib.build_positions_from_mask(token_input != 0)
+      params = transformer.init(
+          jax.random.PRNGKey(0),
+          token_input,
+          positions,
+          empty_cache,
+          attention_mask,
+      )
 
-    output_cache, _ = transformer.apply(
-        params, token_input, positions, empty_cache, attention_mask
-    )
+      output_cache, _ = transformer.apply(
+          params, token_input, positions, empty_cache, attention_mask
+      )
 
-    attention_mask = jnp.ones((batch_size, seq_size, seq_size), dtype=jnp.bool)
-    output_none, cache_none = transformer.apply(
-        params, token_input, positions, None, attention_mask
-    )
+      attention_mask = jnp.ones(
+          (batch_size, seq_size, seq_size), dtype=jnp.bool
+      )
+      output_none, cache_none = transformer.apply(
+          params, token_input, positions, None, attention_mask
+      )
 
-    self.assertIsNone(cache_none)
-    np.testing.assert_array_almost_equal(output_cache, output_none, 1e-5)
+      self.assertIsNone(cache_none)
+      np.testing.assert_array_almost_equal(output_cache, output_none, 1e-5)
 
   def test_attention_types(
       self,
   ):
-
     config = transformer_lib.TransformerConfig(
         num_layers=2,
         num_embed=4,
