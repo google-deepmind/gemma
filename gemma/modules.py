@@ -209,11 +209,13 @@ class FeedForward(nn.Module):
 
   features: int
   hidden_dim: int
-  use_gqa: bool = False
+  transpose_gating_einsum: bool
 
   @nn.compact
   def __call__(self, x):
-    if self.use_gqa:
+    # Some versions use an alternate parameter ordering that
+    # transposes hidden_dim and features.
+    if self.transpose_gating_einsum:
       w_gating = self.param(
           'gating_einsum',
           nn.initializers.zeros_init(),
@@ -256,6 +258,7 @@ class Block(nn.Module):
   use_post_ffw_norm: bool
   attn_type: AttentionType
   query_pre_attn_scalar: float
+  transpose_gating_einsum: bool
   attn_logits_soft_cap: float | None = None
   sliding_window_size: int | None = None
 
@@ -279,7 +282,7 @@ class Block(nn.Module):
     self.mlp = FeedForward(
         features=self.embed_dim,
         hidden_dim=self.hidden_dim,
-        use_gqa=self.attn.use_gqa,
+        transpose_gating_einsum=self.transpose_gating_einsum,
     )
     self.post_ffw_norm = None
     if self.use_post_ffw_norm:

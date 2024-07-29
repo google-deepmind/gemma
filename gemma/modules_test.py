@@ -251,26 +251,28 @@ class FeedForwardTest(parameterized.TestCase):
 
   @parameterized.parameters(
       dict(
-          use_gqa=False,
+          transpose_gating_einsum=False,
       ),
       dict(
-          use_gqa=True,
+          transpose_gating_einsum=True,
       ),
   )
-  def test_ffw(self, use_gqa: bool):
+  def test_ffw(self, transpose_gating_einsum: bool):
     features = 2
     hidden_dim = 3
     batch_size = 2
     inputs = jnp.arange(1, batch_size + 1)[:, None, None]
     inputs = jnp.repeat(inputs, features, axis=-1)
     ffw = modules.FeedForward(
-        features=features, hidden_dim=hidden_dim, use_gqa=use_gqa
+        features=features,
+        hidden_dim=hidden_dim,
+        transpose_gating_einsum=transpose_gating_einsum,
     )
 
     params = {'linear': jnp.ones((hidden_dim, features))}
 
     # Different checkpoints have params saved in different order
-    if use_gqa:
+    if transpose_gating_einsum:
       params['gating_einsum'] = jnp.ones((batch_size, hidden_dim, features))
     else:
       params['gating_einsum'] = jnp.ones((batch_size, features, hidden_dim))
@@ -310,6 +312,7 @@ class BlockTest(absltest.TestCase):
         use_post_ffw_norm=False,
         attn_type=_ATTN_TYPE,
         query_pre_attn_scalar=head_dim**-0.5,
+        transpose_gating_einsum=False,
     )
     params = block.init(
         jax.random.PRNGKey(0), inputs, jnp.array([[0]]), cache, attn_mask
@@ -351,6 +354,7 @@ class BlockTest(absltest.TestCase):
         use_post_ffw_norm=False,
         attn_type=_ATTN_TYPE,
         query_pre_attn_scalar=query_pre_attn_scalar,
+        transpose_gating_einsum=False,
     )
     unnormed_block = modules.Block(
         num_heads=num_heads,
@@ -362,6 +366,7 @@ class BlockTest(absltest.TestCase):
         use_post_ffw_norm=False,
         attn_type=_ATTN_TYPE,
         query_pre_attn_scalar=query_pre_attn_scalar,
+        transpose_gating_einsum=False,
     )
 
     all_outputs = []
@@ -410,6 +415,7 @@ class BlockTest(absltest.TestCase):
         use_post_ffw_norm=True,
         attn_type=_ATTN_TYPE,
         query_pre_attn_scalar=query_pre_attn_scalar,
+        transpose_gating_einsum=False,
     )
     unnormed_block = modules.Block(
         num_heads=num_heads,
@@ -421,6 +427,7 @@ class BlockTest(absltest.TestCase):
         use_post_ffw_norm=False,
         attn_type=_ATTN_TYPE,
         query_pre_attn_scalar=query_pre_attn_scalar,
+        transpose_gating_einsum=False,
     )
 
     all_outputs = []

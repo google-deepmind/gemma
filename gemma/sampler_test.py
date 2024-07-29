@@ -77,7 +77,7 @@ class SamplerTest(absltest.TestCase):
     vocab = MockVocab()
 
     transformer_config = transformer_lib.TransformerConfig(
-        num_layers=6,
+        num_layers=1,
         num_embed=vocab.GetPieceSize(),
         embed_dim=768,
         hidden_dim=6144,
@@ -113,7 +113,7 @@ class SamplerTest(absltest.TestCase):
   def test_forbidden_tokens(self):
     vocab = MockVocab()
     transformer_config = transformer_lib.TransformerConfig(
-        num_layers=0,
+        num_layers=1,
         num_embed=vocab.GetPieceSize(),
         embed_dim=32,
         hidden_dim=64,

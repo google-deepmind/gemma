@@ -29,8 +29,8 @@ class TransformerConfigTest(parameterized.TestCase):
   @parameterized.parameters(
       dict(ctor=transformer_lib.TransformerConfig.gemma_2b),
       dict(ctor=transformer_lib.TransformerConfig.gemma_7b),
-      dict(ctor=transformer_lib.TransformerConfig.gemma_9b),
-      dict(ctor=transformer_lib.TransformerConfig.gemma_27b),
+      dict(ctor=transformer_lib.TransformerConfig.gemma2_9b),
+      dict(ctor=transformer_lib.TransformerConfig.gemma2_27b),
   )
   def test_known_architectures(self, ctor):
     transformer_config = ctor(cache_size=16)
@@ -41,20 +41,24 @@ class TransformerTest(parameterized.TestCase):
 
   @parameterized.parameters(
       dict(
-          num_layers=18,
+          num_layers=transformer_lib._NUM_LAYERS_GEMMA_2B,
           expected_call='gemma_2b',
       ),
       dict(
-          num_layers=28,
+          num_layers=transformer_lib._NUM_LAYERS_GEMMA_7B,
           expected_call='gemma_7b',
       ),
       dict(
-          num_layers=42,
-          expected_call='gemma_9b',
+          num_layers=transformer_lib._NUM_LAYERS_GEMMA2_2B,
+          expected_call='gemma2_2b',
       ),
       dict(
-          num_layers=46,
-          expected_call='gemma_27b',
+          num_layers=transformer_lib._NUM_LAYERS_GEMMA2_9B,
+          expected_call='gemma2_9b',
+      ),
+      dict(
+          num_layers=transformer_lib._NUM_LAYERS_GEMMA2_27B,
+          expected_call='gemma2_27b',
       ),
   )
   def test_params_load(self, num_layers, expected_call):
