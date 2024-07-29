@@ -43,8 +43,9 @@ class QueryPreAttentionNormalisation(enum.Enum):
 
 _NUM_LAYERS_GEMMA_2B = 18
 _NUM_LAYERS_GEMMA_7B = 28
-_NUM_LAYERS_GEMMA_9B = 42
-_NUM_LAYERS_GEMMA_27B = 46
+_NUM_LAYERS_GEMMA2_2B = 26
+_NUM_LAYERS_GEMMA2_9B = 42
+_NUM_LAYERS_GEMMA2_27B = 46
 
 
 @dataclasses.dataclass(frozen=True)
@@ -68,6 +69,7 @@ class TransformerConfig:
   )
   attn_logits_soft_cap: float | None = None
   sliding_window_size: int | None = None
+  transpose_gating_einsum: bool = False
 
   def query_pre_attn_scalar(self) -> float:
     """Returns the scalar to multiply the query by before attention."""
@@ -102,12 +104,16 @@ class TransformerConfig:
       return cls.gemma_2b(cache_size)
     if num_layers == _NUM_LAYERS_GEMMA_7B:
       return cls.gemma_7b(cache_size)
-    if num_layers == _NUM_LAYERS_GEMMA_9B:
-      return cls.gemma_9b(cache_size)
-    if num_layers == _NUM_LAYERS_GEMMA_27B:
-      return cls.gemma_27b(cache_size)
+    if num_layers == _NUM_LAYERS_GEMMA2_2B:
+      return cls.gemma2_2b(cache_size)
+    if num_layers == _NUM_LAYERS_GEMMA2_9B:
+      return cls.gemma2_9b(cache_size)
+    if num_layers == _NUM_LAYERS_GEMMA2_27B:
+      return cls.gemma2_27b(cache_size)
 
-    raise ValueError('Params are not a Gemma 2b, 7b, 9b, or 27b variant.')
+    raise ValueError(
+        'Params are not a Gemma 2b, 7b, or Gemma 2 2b, 9b, or 27b variant.'
+    )
 
   @classmethod
   def gemma_2b(cls, cache_size: int):
@@ -144,9 +150,58 @@ class TransformerConfig:
     )
 
   @classmethod
-  def gemma_27b(cls, cache_size: int):
+  def gemma2_2b(cls, cache_size: int):
     return cls(
-        num_layers=_NUM_LAYERS_GEMMA_27B,
+        num_layers=_NUM_LAYERS_GEMMA2_2B,
+        num_embed=256128,
+        embed_dim=2304,
+        hidden_dim=9216,
+        num_heads=8,
+        head_dim=256,
+        num_kv_heads=4,
+        final_logit_softcap=30.0,
+        attention_types=(
+            modules.AttentionType.LOCAL_SLIDING,
+            modules.AttentionType.GLOBAL,
+        )
+        * int(_NUM_LAYERS_GEMMA2_2B / 2),
+        use_post_attn_norm=True,
+        use_post_ffw_norm=True,
+        max_cache_length=cache_size,
+        query_pre_attn_norm=QueryPreAttentionNormalisation.BY_ONE_OVER_SQRT_HEAD_DIM,
+        attn_logits_soft_cap=50.0,
+        sliding_window_size=4096,
+    )
+
+  @classmethod
+  def gemma2_9b(cls, cache_size: int):
+    return cls(
+        num_layers=_NUM_LAYERS_GEMMA2_9B,
+        num_embed=256128,
+        embed_dim=3584,
+        hidden_dim=14336,
+        num_heads=16,
+        head_dim=256,
+        num_kv_heads=8,
+        final_logit_softcap=30.0,
+        attention_types=(
+            modules.AttentionType.LOCAL_SLIDING,
+            modules.AttentionType.GLOBAL,
+        )
+        * int(_NUM_LAYERS_GEMMA2_9B / 2),
+        use_post_attn_norm=True,
+        use_post_ffw_norm=True,
+        max_cache_length=cache_size,
+        query_pre_attn_norm=QueryPreAttentionNormalisation.BY_ONE_OVER_SQRT_HEAD_DIM,
+        attn_logits_soft_cap=50.0,
+        sliding_window_size=4096,
+        transpose_gating_einsum=True,
+    )
+
+  @classmethod
+  def gemma2_27b(cls, cache_size: int):
+    return cls(
+        num_layers=_NUM_LAYERS_GEMMA2_27B,
         num_embed=256128,
         embed_dim=4608,
         hidden_dim=36864,
@@ -160,35 +215,12 @@ class TransformerConfig:
             modules.AttentionType.LOCAL_SLIDING,
             modules.AttentionType.GLOBAL,
         )
-        * int(_NUM_LAYERS_GEMMA_27B / 2),
+        * int(_NUM_LAYERS_GEMMA2_27B / 2),
         max_cache_length=cache_size,
         query_pre_attn_norm=QueryPreAttentionNormalisation.BY_ONE_OVER_SQRT_EMBED_DIM_DIV_NUM_HEADS,
         attn_logits_soft_cap=50.0,
         sliding_window_size=4096,
-    )
-
-  @classmethod
-  def gemma_9b(cls, cache_size: int):
-    return cls(
-        num_layers=_NUM_LAYERS_GEMMA_9B,
-        num_embed=256128,
-        embed_dim=3584,
-        hidden_dim=14336,
-        num_heads=16,
-        head_dim=256,
-        num_kv_heads=8,
-        final_logit_softcap=30.0,
-        attention_types=(
-            modules.AttentionType.LOCAL_SLIDING,
-            modules.AttentionType.GLOBAL,
-        )
-        * int(_NUM_LAYERS_GEMMA_9B / 2),
-        use_post_attn_norm=True,
-        use_post_ffw_norm=True,
-        max_cache_length=cache_size,
-        query_pre_attn_norm=QueryPreAttentionNormalisation.BY_ONE_OVER_SQRT_HEAD_DIM,
-        attn_logits_soft_cap=50.0,
-        sliding_window_size=4096,
+        transpose_gating_einsum=True,
     )
 
   def init_cache(
@@ -235,6 +267,7 @@ class Transformer(nn.Module):
             attn_logits_soft_cap=self.config.attn_logits_soft_cap,
             attn_type=attn_type,
             query_pre_attn_scalar=self.config.query_pre_attn_scalar(),
+            transpose_gating_einsum=self.config.transpose_gating_einsum,
         )
         for i, attn_type in zip(
             range(self.config.num_layers), self.config.attention_types
