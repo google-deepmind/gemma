@@ -320,7 +320,7 @@ class SamplerTest(absltest.TestCase):
   def test_compute_attention_mask(self):
     # Check that the input mask is correctly applied when total sampling steps
     # is lower than the max cache length.
-    input_mask = jnp.array([[1, 1, 0, 0, 0], [1, 1, 0, 1, 0]], dtype=jnp.bool_)
+    input_mask = jnp.array([[0, 0, 1, 1, 1], [0, 0, 1, 0, 1]], dtype=jnp.bool_)
     seq_len = 8
     time_step = jnp.asarray(4, dtype=jnp.int32)
     attn_mask = sampler_lib._compute_attention_masks(

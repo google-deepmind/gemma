@@ -35,7 +35,7 @@ def _compute_attention_masks(
   """Computes causal attention mask."""
   bsz = input_mask.shape[0]
   batch_time_step = jnp.full((bsz, 1), time_step, dtype=jnp.uint32)
-  causal_padding = jnp.greater(
+  causal_mask = jnp.less_equal(
       jnp.expand_dims(jnp.arange(seq_len), 0), batch_time_step
   )
   max_seq_len = min(input_mask.shape[-1], seq_len)
@@ -45,15 +45,15 @@ def _compute_attention_masks(
       (bsz, max_seq_len),
   )
   input_mask = (
-      jnp.zeros((bsz, seq_len), dtype=jnp.bool_)
+      jnp.ones((bsz, seq_len), dtype=jnp.bool_)
       .at[:, :max_seq_len]
       .set(input_mask)
   )
 
-  causal_padding = jnp.logical_or(causal_padding, input_mask)
-  attention_mask = causal_padding[:, jnp.newaxis, :].astype(jnp.bool_)
+  causal_mask = jnp.logical_and(causal_mask, input_mask)
+  attention_mask = causal_mask[:, jnp.newaxis, :].astype(jnp.bool_)
 
-  return ~attention_mask
+  return attention_mask
 
 
 @chex.dataclass
@@ -133,7 +133,7 @@ class Sampler:
     batch_size = sampler_state.token_buffer.shape[0]
     decoding_step = jnp.asarray(sampler_state.decoding_step, dtype=jnp.int32)
     last_token = sampler_state.token_buffer[:, decoding_step]
-    input_mask = sampler_state.token_buffer == self.vocab.pad_id()
+    input_mask = sampler_state.token_buffer != self.vocab.pad_id()
     attention_mask = _compute_attention_masks(
         decoding_step, self.transformer.config.max_cache_length, input_mask
     )
