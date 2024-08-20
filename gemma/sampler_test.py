@@ -315,7 +315,7 @@ class SamplerTest(absltest.TestCase):
     )
 
     self.assertListEqual(list(masked_token_buffer[0]), [1, 5, 6, 2, 0, 0])
-    self.assertListEqual(list(masked_token_buffer[0]), [1, 5, 6, 2, 0, 0])
+    self.assertListEqual(list(masked_token_buffer[1]), [1, 3, 4, 2, 0, 0])
 
   def test_compute_attention_mask(self):
     # Check that the input mask is correctly applied when total sampling steps
