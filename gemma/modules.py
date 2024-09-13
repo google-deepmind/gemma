@@ -25,6 +25,37 @@ K_MASK = -2.3819763e38  # Set to a large negative number.
 LayerCache = dict[str, jax.Array]
 
 
+def _create_sliding_mask(
+    segment_pos: jnp.ndarray,
+    end_index: int,
+    cache_len: int,
+    sliding_window_size: int,
+):
+  """Creates mask for sliding window attention."""
+  total_tokens = end_index + segment_pos.shape[1]  # cached + processing tokens
+
+  def _reconstruct_rotated_cache_positions():
+    cache_positions = jnp.arange(cache_len) + total_tokens - cache_len
+    cache_positions = (
+        jnp.zeros_like(cache_positions)
+        # kv were placed at index (position_id % cache_len) in the cache.
+        .at[cache_positions % cache_len].set(cache_positions)
+    )
+    return cache_positions
+
+  # Reconstruct position_ids for cached kv.
+  cache_positions = jax.lax.cond(
+      total_tokens <= cache_len,
+      lambda: jnp.arange(cache_len),
+      _reconstruct_rotated_cache_positions,
+  )
+
+  segment_pos = segment_pos[:, :, None]
+  sliding_mask = (cache_positions > segment_pos - sliding_window_size)
+  sliding_mask *= (cache_positions < segment_pos + sliding_window_size)
+  return sliding_mask
+
+
 class AttentionType(enum.Enum):
   GLOBAL = 1
   LOCAL_SLIDING = 2
@@ -150,12 +181,14 @@ class Attention(nn.Module):
         raise ValueError(
             'Sliding_window_size must be set if Local Sliding attention type'
         )
-
-      all_ones = jnp.ones_like(attn_mask)
-      sliding_mask = jnp.triu(
-          all_ones, -1 * self.sliding_window_size + 1
-      ) * jnp.tril(all_ones, self.sliding_window_size - 1)
-      attn_mask = sliding_mask * attn_mask
+      sliding_mask = _create_sliding_mask(
+          segment_pos,
+          end_index=cache['end_index'][0] if cache is not None else 0,
+          # Derive cache length from attn_mask shape in case cache is None
+          cache_len=attn_mask.shape[-1],
+          sliding_window_size=self.sliding_window_size,
+      )
+      attn_mask *= sliding_mask
 
     padded_logits = jnp.where((jnp.expand_dims(attn_mask, -2)), logits, K_MASK)
     probs = jax.nn.softmax(padded_logits, axis=-1).astype(key_proj.dtype)
