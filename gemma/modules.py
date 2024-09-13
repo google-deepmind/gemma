@@ -218,14 +218,14 @@ class FeedForward(nn.Module):
     if self.transpose_gating_einsum:
       w_gating = self.param(
           'gating_einsum',
-          nn.initializers.zeros_init(),
+          nn.initializers.normal(),
           ((2, self.hidden_dim, self.features)),
       )
       w_gating = w_gating.transpose((0, 2, 1))
     else:
       w_gating = self.param(
           'gating_einsum',
-          nn.initializers.zeros_init(),
+          nn.initializers.normal(),
           ((2, self.features, self.hidden_dim)),
       )
     ff_gate = jnp.dot(x, w_gating[0])

@@ -284,6 +284,40 @@ class FeedForwardTest(parameterized.TestCase):
     np.testing.assert_array_almost_equal(outputs[:, 0, 0], expected_val)
     self.assertEqual(outputs.shape, expected_shape)
 
+  @parameterized.parameters(
+      dict(
+          transpose_gating_einsum=False,
+          expected_grad=[-1.916515e-04, -5.391428e-05, -2.923766e-04],
+      ),
+      dict(
+          transpose_gating_einsum=True,
+          expected_grad=[1.574128e-05, -1.301362e-04, -1.037612e-04],
+      ),
+  )
+  def test_ffw_grad(self, transpose_gating_einsum: bool,
+                    expected_grad: list[float]):
+    features = 2
+    hidden_dim = 3
+    batch_size = 2
+    inputs = jnp.arange(1, batch_size + 1)[:, None, None]
+    inputs = jnp.repeat(inputs, features, axis=-1)
+    ffw = modules.FeedForward(
+        features=features,
+        hidden_dim=hidden_dim,
+        transpose_gating_einsum=transpose_gating_einsum,
+    )
+    loss = lambda params, inputs: jnp.square(
+        ffw.apply(params, inputs) - jnp.ones((batch_size, 1, features))
+    ).mean()
+
+    params = ffw.init(jax.random.PRNGKey(0), inputs)
+
+    grad_loss = jax.grad(loss)
+    grad = grad_loss(params, inputs)
+    np.testing.assert_array_almost_equal(
+        grad['params']['linear'][:, 0], expected_grad
+    )
+
 
 class BlockTest(absltest.TestCase):
 
