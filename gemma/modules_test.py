@@ -54,6 +54,105 @@ class EmbedderTest(absltest.TestCase):
     np.testing.assert_array_equal(output, jnp.array(expected))
 
 
+class SlidingWindowTest(absltest.TestCase):
+
+  def test_create_sliding_mask_decode_none_rotated_cache_pos(self):
+    cache_len = 4
+    end_index = 1
+    segment_pos = jnp.array([[1]])
+
+    sliding_mask = modules._create_sliding_mask(
+        segment_pos, end_index, cache_len, sliding_window_size=1
+    )
+    np.testing.assert_array_equal(
+        sliding_mask,
+        [[[False, True, False, False]]],
+    )
+
+    sliding_mask = modules._create_sliding_mask(
+        segment_pos, end_index, cache_len, sliding_window_size=2
+    )
+    np.testing.assert_array_equal(
+        sliding_mask,
+        [[[True, True, True, False]]],
+    )
+
+    sliding_mask = modules._create_sliding_mask(
+        segment_pos, end_index, cache_len, sliding_window_size=3
+    )
+    np.testing.assert_array_equal(
+        sliding_mask,
+        [[[True, True, True, True]]],
+    )
+
+  def test_create_sliding_mask_decode_rotated_cache_pos(self):
+    cache_len = 4
+    end_index = 5
+    segment_pos = jnp.array([[5]])
+
+    sliding_mask = modules._create_sliding_mask(
+        segment_pos, end_index, cache_len, sliding_window_size=1
+    )
+    np.testing.assert_array_equal(
+        sliding_mask,
+        # cache_positions = [
+        #   4,      5,     2,     3,
+        # ]
+        [[[False, True, False, False]]],
+    )
+
+    sliding_mask = modules._create_sliding_mask(
+        segment_pos, end_index, cache_len, sliding_window_size=2
+    )
+    np.testing.assert_array_equal(
+        sliding_mask,
+        [[[True, True, False, False]]],
+    )
+
+    sliding_mask = modules._create_sliding_mask(
+        segment_pos, end_index, cache_len, sliding_window_size=3
+    )
+    np.testing.assert_array_equal(
+        sliding_mask,
+        [[[True, True, False, True]]],
+    )
+
+  def test_create_sliding_mask_prefill_rotated_cache_pos(self):
+    cache_len = 4
+    end_index = 5
+    segment_pos = jnp.array([[5, 6]])
+
+    sliding_mask = modules._create_sliding_mask(
+        segment_pos, end_index, cache_len, sliding_window_size=1
+    )
+    np.testing.assert_array_equal(
+        sliding_mask,
+        # cache_positions = [
+        #   4,      5,     6,     3,
+        # ]
+        [[[False, True, False, False],
+          [False, False, True, False],]],
+    )
+
+    sliding_mask = modules._create_sliding_mask(
+        segment_pos, end_index, cache_len, sliding_window_size=2
+    )
+    np.testing.assert_array_equal(
+        sliding_mask,
+        [[[True, True, True, False],
+          [False, True, True, False],]],
+    )
+
+    sliding_mask = modules._create_sliding_mask(
+        segment_pos, end_index, cache_len, sliding_window_size=3
+    )
+    np.testing.assert_array_equal(
+        sliding_mask,
+        [[[True, True, True, True],
+          [True, True, True, False],]],
+    )
+
+
 class AttentionTest(absltest.TestCase):
 
   def _get_attn_output(
