@@ -313,13 +313,26 @@ class Transformer(nn.Module):
         cache[layer_name] = layer_cache  # pytype: disable=container-type-mismatch
 
     x = self.final_norm(x)
-    logits = self.embedder.decode(x)
+    baseline_logits = self.embedder.decode(x)
 
+    # Compute logits for each token in isolation
+    single_token_logits = []
+    for token in last_tokens:
+        single_token_x = self.embedder.encode(token.reshape(1, -1))
+        single_token_x = self.final_norm(single_token_x)
+        single_token_logits.append(self.embedder.decode(single_token_x))
+
+    # Normalize and adjust
+    normalized_single_token_logits = jax.nn.softmax(jnp.stack(single_token_logits), axis=-1)
+    normalized_sum = jnp.sum(normalized_single_token_logits, axis=0)
+    adjusted_logits = baseline_logits - normalized_sum
+
+    # Apply softcap if configured
     if self.config.final_logit_softcap is not None:
-      logits /= self.config.final_logit_softcap
-      logits = jnp.tanh(logits) * self.config.final_logit_softcap
+        adjusted_logits /= self.config.final_logit_softcap
+        adjusted_logits = np.tanh(adjusted_logits) * self.config.final_logit_softcap
 
-    return logits, cache  # pytype: disable=bad-return-type
+    return adjusted_logits, cache  # pytype: disable=bad-return-type
 
 
 def make_causal_attn_mask(
