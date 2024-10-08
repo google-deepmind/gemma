@@ -38,19 +38,7 @@ pip install git+https://github.com/google-deepmind/gemma.git
 The model checkpoints are available through Kaggle at
 http://kaggle.com/models/google/gemma. Select one of the **Flax** model
 variations, click the ⤓ button to download the model archive, then extract the
-contents to a local directory. 
-
-Alternatively, visit the [gemma]([https://huggingface.co/models?other=gemma.cpp](https://huggingface.co/models?other=gemma_jax))
-models on the Hugging Face Hub. To download the model, you can run the following code if you have `huggingface_hub` installed:
-
-```
-from huggingface_hub import snapshot_download
-
-local_dir = snapshot_download(repo_id="google/gemma-2b-flax")
-snapshot_download(repo_id="google/gemma-2b-flax", local_dir=local_dir)
-```
-
-In both cases, the archive contains both the model weights and
+contents to a local directory. The archive contains both the model weights and
 the tokenizer, for example the 2b Flax variation contains:
 
 ```
