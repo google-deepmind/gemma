@@ -153,13 +153,11 @@ class Attention(nn.Module):
     query_proj = positional_embeddings.apply_rope(
         query_proj,
         segment_pos,
-        head_dim=self.head_dim,
     )
     query_scaled = query_proj * self.query_pre_attn_scalar
     key_proj = positional_embeddings.apply_rope(
         key_proj,
         segment_pos,
-        head_dim=self.head_dim,
     )
 
     # Cache is left aligned.

@@ -35,34 +35,61 @@ _MAX_WAVELENGTH = 10_000
 
 
 def add_positional_embedding(
-    input_embedding: jax.Array,
-    position: int,
+    inputs: jax.Array,
+    positions: jax.Array,
     max_wavelength: int = _MAX_WAVELENGTH,
 ) -> jax.Array:
-  """Adds positional embeddings to input embeddings."""
-  embed_dim = input_embedding.shape[-1]
-  num_timescales = embed_dim // 2
+  """Adds positional embeddings to inputs.
+
+  Let B denote batch size, L denote sequence length, N denote number of heads,
+  and H denote head dimension. Note that H must be divisible by 2.
+
+  Args:
+    inputs: Array of shape [B, L, N, H].
+    positions:  Array of shape [B, L].
+    max_wavelength: The maximum wavelength.
+
+  Returns:
+    Array of shape [B, L, N, H].
+  """
+  head_dim = inputs.shape[-1]
+  num_timescales = head_dim // 2
   log_timescale_increment = jnp.log(float(max_wavelength)) / jnp.maximum(
       jnp.asarray(num_timescales, dtype=jnp.float32) - 1, 1
   )
   inv_timescales = jnp.exp(
       jnp.arange(num_timescales, dtype=jnp.float32) * -log_timescale_increment
   )
-  scaled_time = position * inv_timescales
-  signal = jnp.concatenate([jnp.sin(scaled_time), jnp.cos(scaled_time)])
-  signal = jnp.pad(signal, [[0, jnp.mod(embed_dim, 2)]])
+  scaled_time = (
+      positions[..., jnp.newaxis] * inv_timescales[jnp.newaxis, jnp.newaxis, :]
+  )
+  scaled_time = scaled_time[..., jnp.newaxis, :]
+  signal = jnp.concatenate(
+      [jnp.sin(scaled_time), jnp.cos(scaled_time)], axis=-1
+  )
   position_embedding = signal.astype(jnp.float32)
-
-  return input_embedding + position_embedding
+  return inputs + position_embedding
 
 
 def apply_rope(
-    inputs: jax.Array,    # [B, L]
-    positions: jax.Array, # [B, L]
-    head_dim: int,
+    inputs: jax.Array,
+    positions: jax.Array,
     max_wavelength: int = _MAX_WAVELENGTH,
 ) -> jax.Array:
-  """Applies RoPE."""
+  """Applies RoPE.
+
+  Let B denote batch size, L denote sequence length, N denote number of heads,
+  and H denote head dimension. Note that H must be divisible by 2.
+
+  Args:
+    inputs: Array of shape [B, L, N, H].
+    positions:  Array of shape [B, L].
+    max_wavelength: The maximum wavelength.
+
+  Returns:
+    Array of shape [B, L, N, H].
+  """
+  head_dim = inputs.shape[-1]
   fraction = 2 * jnp.arange(0, head_dim // 2) / head_dim
   timescale = max_wavelength**fraction
 
