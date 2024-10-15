@@ -39,50 +39,47 @@ class PositionalEmbeddingsTest(parameterized.TestCase):
 
   @parameterized.parameters(
       dict(
-          input_embedding_shape=(2, 1, 1, 5),
-          position=3,
+          input_embedding_shape=(2, 1, 1, 6),
+          positions=[[1], [0]],
           max_wavelength=100,
-          expected=[[[[1.1411201, 1.0299965, 0.0100075, 1.99955, 1.0]]],
-                    [[[1.1411201, 1.0299965, 0.0100075, 1.99955, 1.0]]]]
+          expected=[
+              [[[1.841471, 1.099833, 1.01, 1.540302, 1.995004, 1.99995]]],
+              [[[1.0, 1.0, 1.0, 2.0, 2.0, 2.0]]],
+          ],
       )
   )
-  def test_adds_positional_embeddings(
-      self, input_embedding_shape, position, max_wavelength, expected
+  def test_add_positional_embeddings(
+      self, input_embedding_shape, positions, max_wavelength, expected
   ):
     outputs = positional_embeddings.add_positional_embedding(
-        jnp.ones(input_embedding_shape), position, max_wavelength
+        jnp.ones(input_embedding_shape), jnp.array(positions), max_wavelength
     )
     np.testing.assert_array_almost_equal(outputs, jnp.array(expected))
 
   @parameterized.parameters(
       dict(
           input_embedding_shape=(2, 1, 2, 4),
-          position=3,
-          head_dim=4,
+          positions=[[1], [0]],
           max_wavelength=100,
           expected=[
               [[
-                  [-1.1311126, 0.6598157, -0.8488725, 1.2508571],
-                  [-1.1311126, 0.6598157, -0.8488725, 1.2508571],
+                  [-0.30116868, 0.89517075, 1.3817732, 1.0948375],
+                  [-0.30116868, 0.89517075, 1.3817732, 1.0948375],
               ]],
-              [[
-                  [-1.1311126, 0.6598157, -0.8488725, 1.2508571],
-                  [-1.1311126, 0.6598157, -0.8488725, 1.2508571],
-              ]],
+              [[[1.0, 1.0, 1.0, 1.0], [1.0, 1.0, 1.0, 1.0]]],
           ],
       )
   )
   def test_rope_positional_embeddings(
-      self, input_embedding_shape, position, head_dim, max_wavelength, expected
+      self, input_embedding_shape, positions, max_wavelength, expected
   ):
     outputs = positional_embeddings.apply_rope(
         jnp.ones(input_embedding_shape),
-        jnp.array([[position]]),
-        head_dim,
+        jnp.array(positions),
         max_wavelength,
     )
     np.testing.assert_array_almost_equal(outputs, jnp.array(expected))
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
   absltest.main()
