@@ -390,5 +390,133 @@ class TransformerTest(parameterized.TestCase):
     self.assertEqual(config.query_pre_attn_scalar(), expected_scalar)
 
 
+class TransformerUtilsTest(parameterized.TestCase):
+
+  def test_make_causal_attn_mask(self):
+    input_mask = jnp.array(
+        [[True, True, True, False, False], [True, True, True, True, False]]
+    )
+    causal_attn_mask = transformer_lib.make_causal_attn_mask(input_mask)
+
+    expected_mask_shape = tuple(list(input_mask.shape) + [input_mask.shape[-1]])
+    self.assertEqual(causal_attn_mask.shape, expected_mask_shape)
+    self.assertEqual(causal_attn_mask.dtype, jnp.bool)
+
+    # This reduces the attention mask, to a mask of which tokens are ever (once
+    # or more) attended to. It should be the same as the input mask, if
+    # attention mask is correct.
+    token_ever_attended_mask = jnp.sum(
+        jnp.astype(causal_attn_mask, jnp.int32), axis=1, dtype=jnp.bool
+    )
+    np.testing.assert_array_equal(input_mask, token_ever_attended_mask)
+
+    # Iterate over sequences in batch.
+    for i in range(causal_attn_mask.shape[0]):
+
+      last_number_of_tokens_attended = 0
+      # Iterate over tokens in sequence.
+      for j in range(causal_attn_mask.shape[1]):
+        if not input_mask[i, j]:
+          break
+        number_of_tokens_attended = jnp.sum(
+            jnp.astype(causal_attn_mask[i, j, :], jnp.int32)
+        )
+        # Each token in the sequence pays attention to one more token than the
+        # previous token in the sequence.
+        self.assertEqual(
+            number_of_tokens_attended, last_number_of_tokens_attended + 1
+        )
+        last_number_of_tokens_attended = number_of_tokens_attended
+
+  def test_make_causal_attn_mask_fails_with_bad_input_mask_shape(self):
+    bad_input_mask = jnp.array([[[True]]])
+    with self.assertRaises(ValueError):
+      transformer_lib.make_causal_attn_mask(bad_input_mask)
+
+  def test_make_causal_with_prefix_attn_mask(self):
+    input_mask = jnp.array(
+        [[True, True, True, False, False], [True, True, True, True, False]]
+    )
+    prefix_mask = jnp.array(
+        [[True, True, False, False, False], [True, True, False, False, False]]
+    )
+    causal_with_prefix_attn_mask = (
+        transformer_lib.make_causal_with_prefix_attn_mask(
+            input_mask, prefix_mask
+        )
+    )
+
+    expected_mask_shape = tuple(list(input_mask.shape) + [input_mask.shape[-1]])
+    self.assertEqual(causal_with_prefix_attn_mask.shape, expected_mask_shape)
+    self.assertEqual(causal_with_prefix_attn_mask.dtype, jnp.bool)
+
+    # This reduces the attention mask, to a mask of which tokens are ever (once
+    # or more) attended to. It should be the same as the input mask, if
+    # attention mask is correct.
+    token_ever_attended_mask = jnp.sum(
+        jnp.astype(causal_with_prefix_attn_mask, jnp.int32),
+        axis=1,
+        dtype=jnp.bool,
+    )
+    np.testing.assert_array_equal(input_mask, token_ever_attended_mask)
+
+    # This reduces the attention mask, to a mask of which tokens are *always*
+    # attended to. It should be the same as the prefix mask, if attention mask
+    # is correct.
+    token_always_attended_mask = jnp.prod(
+        jnp.astype(causal_with_prefix_attn_mask, jnp.int32),
+        axis=1,
+        dtype=jnp.bool,
+    )
+    np.testing.assert_array_equal(prefix_mask, token_always_attended_mask)
+
+    # Iterate over sequences in batch.
+    for i in range(causal_with_prefix_attn_mask.shape[0]):
+
+      last_number_of_tokens_attended = 0
+      # Iterate over tokens in sequence.
+      for j in range(causal_with_prefix_attn_mask.shape[1]):
+        if not input_mask[i, j]:
+          break
+        number_of_tokens_attended = jnp.sum(
+            jnp.astype(causal_with_prefix_attn_mask[i, j, :], jnp.int32)
+        )
+
+        if prefix_mask[i, j]:
+          # Each token in the prefix part of the sequence pays attention to all
+          # the tokens in the prefix part of the sequence.
+          self.assertEqual(
+              number_of_tokens_attended, jnp.sum(prefix_mask[i, :])
+          )
+        else:
+          # Each token in the non-prefix part of the sequence pays attention to
+          # one more token than the previous token in the sequence.
+          self.assertEqual(
+              number_of_tokens_attended, last_number_of_tokens_attended + 1
+          )
+
+        last_number_of_tokens_attended = number_of_tokens_attended
+
+  def test_make_causal_with_prefix_attn_mask_fails_with_bad_input_mask_shape(
+      self,
+  ):
+    bad_input_mask = jnp.array([[[True]]])
+    prefix_mask = jnp.array([[True], [True]])
+    with self.assertRaises(ValueError):
+      transformer_lib.make_causal_with_prefix_attn_mask(
+          bad_input_mask, prefix_mask
+      )
+
+  def test_make_causal_with_prefix_attn_mask_fails_with_bad_prefix_mask_shape(
+      self,
+  ):
+    input_mask = jnp.array([[True], [True]])
+    bad_prefix_mask = jnp.array([[[True]]])
+    with self.assertRaises(ValueError):
+      transformer_lib.make_causal_with_prefix_attn_mask(
+          input_mask, bad_prefix_mask
+      )
+
+
 if __name__ == '__main__':
   absltest.main()
