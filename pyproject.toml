@@ -1,37 +1,80 @@
-[tool.poetry]
+[project]
+# Project metadata. Available keys are documented at:
+# https://packaging.python.org/en/latest/specifications/declaring-project-metadata
 name = "gemma"
-version = "1.0.0"
 description = "Open weights large language model (LLM) from Google DeepMind."
-authors = [
-  "Alek Andreev <alekandreev@google.com>",
-  "Armand Joulin <ajoulin@google.com>",
-  "Cassidy Hardin <cassidyhardin@google.com>",
-  "Juliette Love <juliettelove@google.com>",
-  "Kathleen Kenealy <kkenealy@google.com>",
-  "Laurent Sifre <sifre@google.com>",
-  "Léonard Hussenot <hussenot@google.com>",
-  "Michelle Casbon <michellecasbon@google.com>",
-  "Mihir Sanjay Kale <mihirkale@google.com>",
-  "Morgane Riviere <mriviere@google.com>",
-  "Ravin Kumar <ravink@google.com>",
-  "Robert Dadashi <dadashi@google.com>",
-  "Shreya Pathak <shreyapa@google.com>",
-  "Surya Bhupatiraju <sbhupatiraju@google.com>",
-  "Thomas Mesnard <mesnard@google.com>"
-]
-python-version = "3.10"
-license = "Apache-2.0"
 readme = "README.md"
+requires-python = ">=3.10"
+license = {file = "LICENSE"}
+authors = [
+    {name = "Alek Andreev", email="alekandreev@google.com"},
+    {name = "Armand Joulin", email="ajoulin@google.com"},
+    {name = "Cassidy Hardin", email="cassidyhardin@google.com"},
+    {name = "Juliette Love", email="juliettelove@google.com"},
+    {name = "Kathleen Kenealy", email="kkenealy@google.com"},
+    {name = "Laurent Sifre", email="sifre@google.com"},
+    {name = "Léonard Hussenot", email="hussenot@google.com"},
+    {name = "Michelle Casbon", email="michellecasbon@google.com"},
+    {name = "Mihir Sanjay Kale", email="mihirkale@google.com"},
+    {name = "Morgane Riviere", email="mriviere@google.com"},
+    {name = "Ravin Kumar", email="ravink@google.com"},
+    {name = "Robert Dadashi", email="dadashi@google.com"},
+    {name = "Shreya Pathak", email="shreyapa@google.com"},
+    {name = "Surya Bhupatiraju", email="sbhupatiraju@google.com"},
+    {name = "Thomas Mesnard", email="mesnard@google.com"},
+]
+classifiers = [  # List of https://pypi.org/classifiers/
+    "License :: OSI Approved :: Apache Software License",
+    "Intended Audience :: Science/Research",
+]
+keywords = []
 
-[tool.poetry.dependencies]
-absl-py = "^2.1.0"
-sentencepiece = "^0.1.99"
-flax = ">=0.8"
-pytest = {version = "^8.0.0", optional = true}
+# pip dependencies of the project
+# Installed locally with `pip install -e .`
+dependencies = [
+    "absl-py",
+    "sentencepiece",
+    "flax",
+]
 
-[tool.poetry.extras]
-test = ["pytest"]
+# `version` is automatically set by flit to use `gemma.__version__`
+dynamic = ["version"]
+
+[project.urls]
+homepage = "https://github.com/google-deepmind/gemma"
+repository = "https://github.com/google-deepmind/gemma"
+changelog = "https://github.com/google-deepmind/gemma/blob/main/CHANGELOG.md"
+# documentation = ""
+
+[project.optional-dependencies]
+# Development deps (unittest, linting, formating,...)
+# Installed through `pip install -e .[dev]`
+dev = [
+    "pytest",
+    "pytest-xdist",
+    "pylint>=2.6.0",
+    "pyink",
+]
+
+[tool.pyink]
+# Formatting configuration to follow Google style-guide
+line-length = 80
+unstable = true
+pyink-indentation = 2
+pyink-use-majority-quotes = true
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+# Build system specify which backend is used to build/install the project (flit,
+# poetry, setuptools,...). All backends are supported by `pip install`
+requires = ["flit_core >=3.8,<4"]
+build-backend = "flit_core.buildapi"
+
+[tool.flit.sdist]
+# Flit specific options (files to exclude from the PyPI package).
+# If using another build backend (setuptools, poetry), you can remove this
+# section.
+exclude = [
+  # Do not release tests files on PyPI
+  "**/*_test.py",
+  "testdata/**",
+]

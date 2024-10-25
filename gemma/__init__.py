@@ -26,3 +26,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ============================================================================
+
+"""gemma API."""
+
+# A new PyPI release will be pushed every time `__version__` is increased.
+# When changing this, also update the CHANGELOG.md.
+__version__ = '1.0.0'
