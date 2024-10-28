@@ -12,20 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Copyright 2024 DeepMind Technologies Limited.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#    http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or  implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-# ============================================================================
 r"""An example showing how to load a checkpoint and sample from it.
 
 Getting Started with Gemma Sampling:
@@ -42,8 +28,9 @@ Here's how to run the sampling.py script:
 
 python sampling.py --path_checkpoint=${PATH_TO_THE_GEMMA_CHECKPOINT} \
     --path_tokenizer=${PATH_TO_THE_GEMMA_TOKENIZER} \
-    --string_to_sample="Where is Paris?" 
+    --string_to_sample="Where is Paris?"
 """
+
 from typing import Sequence
 
 from absl import app
@@ -91,7 +78,7 @@ def _load_and_sample(
   vocab.Load(path_tokenizer)
   transformer_config = transformer_lib.TransformerConfig.from_params(
       parameters,
-      cache_size=cache_size
+      cache_size=cache_size,
   )
   transformer = transformer_lib.Transformer(transformer_config)
   sampler = sampler_lib.Sampler(
