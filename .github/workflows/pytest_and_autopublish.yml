@@ -1,0 +1,56 @@
+name: Unittests & Auto-publish
+
+# Allow to trigger the workflow manually (e.g. when deps changes)
+on: [push, workflow_dispatch]
+
+jobs:
+  pytest-job:
+    if: false  # TODO(epot): Restore once external tests are fixed
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}
+      cancel-in-progress: true
+
+    steps:
+    - uses: actions/checkout@v4
+
+    # Install deps
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.10"
+        # Uncomment to cache of pip dependencies (if tests too slow)
+        # cache: pip
+        # cache-dependency-path: '**/pyproject.toml'
+
+    - run: pip --version
+    - run: pip install -e .[dev]
+    - run: pip freeze
+
+    # Run tests (in parallel)
+    - name: Run core tests
+      run: pytest -vv -n auto
+
+  # Auto-publish when version is increased
+  publish-job:
+    if: false  # TODO(epot): Restore once publishing is ready
+    # Only try to publish if:
+    # * Repo is self (prevents running from forks)
+    # * Branch is `main`
+    # if: |
+    #   github.repository == 'google-deepmind/gemma'
+    #   && github.ref == 'refs/heads/main'
+    needs: pytest-job  # Only publish after tests are successful
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    timeout-minutes: 30
+
+    steps:
+    # Publish the package (if local `__version__` > pip version)
+    - uses: etils-actions/pypi-auto-publish@v1
+      with:
+        pypi-token: ${{ secrets.PYPI_API_TOKEN }}
+        gh-token: ${{ secrets.GITHUB_TOKEN }}
+        parse-changelog: true
