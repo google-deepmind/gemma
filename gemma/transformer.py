@@ -22,6 +22,7 @@ from flax import linen as nn
 from gemma import layers
 from gemma import modules
 from gemma import params as params_lib
+from gemma import sow_lib
 import jax
 import jax.numpy as jnp
 
@@ -243,11 +244,65 @@ class TransformerConfig:
     }
     return cache
 
+  def init_intermediates(
+      self,
+      batch_size: int,
+      buffer_size: int,
+      sow_config: sow_lib.SowModule,
+      dtype: jnp.dtype = jnp.float32,
+  ) -> sow_lib.TransformerIntermediates:
+    """Initializes the intermediate activations that will be filled."""
+    intermediates = sow_lib.TransformerIntermediates()
+    residual_stream_dummy = jnp.zeros(
+        (batch_size, buffer_size, self.embed_dim),
+        dtype=dtype,
+    )
+    if sow_config.embeddings:
+      intermediates.embeddings = residual_stream_dummy
+    for _ in range(self.num_layers):
+      block_intermediates = sow_lib.BlockIntermediates()
+      if sow_config.rs_after_attention:
+        block_intermediates.rs_after_attention = residual_stream_dummy
+      if sow_config.rs_after_ffw:
+        block_intermediates.rs_after_ffw = residual_stream_dummy
+      if sow_config.attn_logits_topk:
+        shape = (
+            batch_size,
+            buffer_size,
+            self.num_heads,
+            sow_config.attn_logits_topk,
+        )
+        block_intermediates.attn_logits_topk_values = jnp.zeros(
+            shape,
+            dtype=dtype,
+        )
+        block_intermediates.attn_logits_topk_indices = jnp.zeros(
+            shape,
+            dtype=jnp.int32,
+        )
+      if sow_config.ffw_hidden_topk:
+        shape = (
+            batch_size,
+            buffer_size,
+            sow_config.ffw_hidden_topk,
+        )
+        block_intermediates.ffw_hidden_topk_values = jnp.zeros(
+            shape,
+            dtype=dtype,
+        )
+        block_intermediates.ffw_hidden_topk_indices = jnp.zeros(
+            shape,
+            dtype=jnp.int32,
+        )
+      intermediates.layers.append(block_intermediates)
+    return intermediates
+
 
 class Transformer(nn.Module):
   """Gemma transformer."""
 
   config: TransformerConfig
+  sow: sow_lib.SowModule = sow_lib.SowModule()
 
   def setup(self):
     self.embedder = modules.Embedder(
@@ -270,6 +325,7 @@ class Transformer(nn.Module):
             attn_type=attn_type,
             query_pre_attn_scalar=self.config.query_pre_attn_scalar(),
             transpose_gating_einsum=self.config.transpose_gating_einsum,
+            sow=self.sow,
         )
         for i, attn_type in zip(
             range(self.config.num_layers), self.config.attention_types
@@ -283,6 +339,7 @@ class Transformer(nn.Module):
       positions: jax.Array,  # [B, L]
       cache: Cache | None,  # (sequence length L')
       attention_mask: jax.Array,  # [B, L, L']
+      intermediates: sow_lib.TransformerIntermediates | None = None,
   ) -> tuple[jax.Array, Cache | None]:
     """Transformer forward pass.
 
@@ -294,6 +351,7 @@ class Transformer(nn.Module):
       positions: input absolute positions.
       cache: Attention KV cache or None.
       attention_mask: transformer input mask.
+      intermediates: If not None, intermediate activations will be stored here.
 
     Returns:
       predicted_logits, new_cache
@@ -302,17 +360,24 @@ class Transformer(nn.Module):
       new_cache: updated cache if the input cache is not None, None elsewhere.
     """
     x = self.embedder.encode(last_tokens)
+    self.sow.maybe_sow_embeddings(x, intermediates)
     for i, block in enumerate(self.blocks):
       layer_name = f'layer_{i}'
       layer_cache = cache[layer_name] if cache else None
+      layer_intermediates = (
+          sow_lib.BlockIntermediates() if intermediates else None
+      )
       layer_cache, x = block(
           x,
           positions,
           layer_cache,
           attention_mask,
+          intermediates=layer_intermediates,
       )
       if cache is not None:
         cache[layer_name] = layer_cache  # pytype: disable=container-type-mismatch
+      if intermediates is not None:
+        intermediates.layers.append(layer_intermediates)
 
     x = self.final_norm(x)
     logits = self.embedder.decode(x)
