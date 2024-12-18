@@ -248,32 +248,31 @@ class FeedForward(nn.Module):
     # Some versions use an alternate parameter ordering that
     # transposes hidden_dim and features.
     if self.transpose_gating_einsum:
-      w_gating = self.param(
-          'gating_einsum',
-          nn.initializers.normal(),
-          ((2, self.hidden_dim, self.features)),
+      eq = '...F,NHF->...NH'
+      gating = layers.Einsum(
+          shape=(2, self.hidden_dim, self.features),
+          weight_name='gating_einsum',
       )
-      w_gating = w_gating.transpose((0, 2, 1))
     else:
-      w_gating = self.param(
-          'gating_einsum',
-          nn.initializers.normal(),
-          ((2, self.features, self.hidden_dim)),
+      eq = '...F,NFH->...NH'
+      gating = layers.Einsum(
+          shape=(2, self.features, self.hidden_dim),
+          weight_name='gating_einsum',
       )
-    ff_gate = jnp.dot(x, w_gating[0])
-    gate_value = nn.gelu(ff_gate)
 
-    # Up projection
-    ff1 = jnp.dot(x, w_gating[1])
-    activations = gate_value * ff1
+    # Use the same scope for backwards compatibility with existing checkpoints
+    # created before using `layers.Einsum` here.
+    nn.share_scope(self, gating)
+    gate = gating(eq, x)
+    activations = nn.gelu(gate[..., 0, :]) * gate[..., 1, :]
 
     # Down projection
-    w_linear = self.param(
-        'linear',
-        nn.initializers.zeros_init(),
-        (self.hidden_dim, self.features),
+    linear = layers.Einsum(
+        shape=(self.hidden_dim, self.features),
+        weight_name='linear',
     )
-    outputs = jnp.dot(activations, w_linear)
+    nn.share_scope(self, linear)
+    outputs = linear('...H,HF->...F', activations)
 
     return outputs
 
