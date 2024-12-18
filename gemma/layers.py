@@ -22,10 +22,11 @@ import jax.numpy as jnp
 class Einsum(nn.Module):
   """Einsum is a convenience module for parameterized tensor multiplication."""
   shape: tuple[int, ...]
+  weight_name: str = 'w'
 
   @nn.compact
   def __call__(self, eqn: str, x: jax.Array) -> jax.Array:
-    w = self.param('w', nn.initializers.normal(), self.shape)
+    w = self.param(self.weight_name, nn.initializers.normal(), self.shape)
     return jnp.einsum(eqn, x, w)
 
 
