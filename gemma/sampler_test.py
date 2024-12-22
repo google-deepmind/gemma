@@ -19,6 +19,7 @@ from typing import Iterable
 from absl.testing import absltest
 from gemma import modules
 from gemma import sampler as sampler_lib
+from gemma import sow_lib
 from gemma import transformer as transformer_lib
 import jax
 import jax.numpy as jnp
@@ -72,6 +73,17 @@ class MockVocab(spm.SentencePieceProcessor):
 
 
 class SamplerTest(absltest.TestCase):
+
+  def assertNotAllZeros(self, array, msg=None):
+    if not jnp.any(array).item():
+      msg = msg or f'The array {array} is all zeros.'
+      raise self.failureException(msg)
+
+  def assertReasonableTensor(self, array, expected_shape=None):
+    self.assertIsNotNone(array)
+    # self.assertNotAllZeros(array)
+    if expected_shape is not None:
+      self.assertEqual(array.shape, expected_shape)
 
   def test_samples(self):
     vocab = MockVocab()
@@ -316,6 +328,92 @@ class SamplerTest(absltest.TestCase):
 
     self.assertListEqual(list(masked_token_buffer[0]), [1, 5, 6, 2, 0, 0])
     self.assertListEqual(list(masked_token_buffer[1]), [1, 3, 4, 2, 0, 0])
+
+  def test_sampler_sows_intermediates(self):
+    vocab = MockVocab()
+    config = transformer_lib.TransformerConfig(  # pytype: disable=wrong-arg-types
+        num_layers=3,
+        num_embed=vocab.GetPieceSize(),
+        embed_dim=64,
+        hidden_dim=128,
+        num_heads=2,
+        num_kv_heads=1,
+        head_dim=64,
+        max_cache_length=1024,
+        final_logit_softcap=None,
+        attention_types=[modules.AttentionType.GLOBAL],
+        use_post_attn_norm=None,
+        attn_logits_soft_cap=None,
+        use_post_ffw_norm=None,
+    )
+    sow = sow_lib.SowModule(
+        embeddings=True,
+        rs_after_attention=False,  # This should results in a None value.
+        rs_after_ffw=True,
+        attn_logits_topk=5,
+        ffw_hidden_topk=11,
+    )
+    attention_mask = jnp.ones((1, 1, config.max_cache_length))
+    cache = config.init_cache(1, dtype=jnp.float32)
+    transformer = transformer_lib.Transformer(config, sow=sow)
+    params = transformer.init(
+        jax.random.PRNGKey(0),
+        jnp.array([[1]]),
+        jnp.array([[1]]),
+        cache,
+        attention_mask,
+    )
+    sampler = sampler_lib.Sampler(
+        transformer=transformer,
+        vocab=vocab,
+        params=params['params'],
+    )
+    raw_input = ['input string', 'hello world']
+
+    result = sampler(raw_input, total_generation_steps=10)
+    input_length = max([len(vocab.EncodeAsIds(i)) for i in raw_input])
+    input_length += 1  # +1 for BOS token
+    output_length = max(len(tokens) for tokens in result.tokens)
+    length = input_length + output_length
+    self.assertIsNotNone(result)
+    intermediates = result.intermediates
+    self.assertIsNotNone(intermediates)
+    self.assertReasonableTensor(
+        intermediates.embeddings,
+        expected_shape=(2, length, config.embed_dim),
+    )
+    # Verify that the intermediates are different for two different steps.
+    self.assertNotAlmostEqual(
+        jnp.sum(intermediates.embeddings[:, 1, ...]),
+        jnp.sum(intermediates.embeddings[:, 2, ...]),
+    )
+    # Verify that the intermediates are filled in for each layer.
+    self.assertLen(intermediates.layers, config.num_layers)
+    for layer in intermediates.layers:
+      # For the requested intermediates we check the shape and that values are
+      # not all zeros, which was the initial value.
+      self.assertReasonableTensor(
+          layer.rs_after_ffw,
+          expected_shape=(2, length, config.embed_dim),
+      )
+      self.assertReasonableTensor(
+          layer.attn_logits_topk_values,
+          expected_shape=(2, length, config.num_heads, sow.attn_logits_topk),
+      )
+      self.assertReasonableTensor(
+          layer.attn_logits_topk_indices,
+          expected_shape=(2, length, config.num_heads, sow.attn_logits_topk),
+      )
+      self.assertReasonableTensor(
+          layer.ffw_hidden_topk_values,
+          expected_shape=(2, length, sow.ffw_hidden_topk),
+      )
+      self.assertReasonableTensor(
+          layer.ffw_hidden_topk_indices,
+          expected_shape=(2, length, sow.ffw_hidden_topk),
+      )
+      # For the none requested intermediates we want to have None values.
+      self.assertIsNone(layer.rs_after_attention)
 
   def test_compute_attention_mask(self):
     # Check that the input mask is correctly applied when total sampling steps

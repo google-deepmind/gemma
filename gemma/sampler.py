@@ -23,6 +23,7 @@ import dataclasses
 import chex
 from gemma import modules
 from gemma import params as params_lib
+from gemma import sow_lib
 from gemma import transformer as transformer_lib
 import jax
 import jax.numpy as jnp
@@ -88,9 +89,13 @@ class _SamplingState:
   # List of tokens that are forbidden to be generated.
   forbidden_token_ids: Sequence[int] | None = None
 
+  # Intermediate activations from the model if requested.
+  intermediates: sow_lib.TransformerIntermediates | None = None
+
 
 @dataclasses.dataclass
 class SamplerOutput:
+  """Output of the sampler."""
 
   # Decoded samples from the model.
   text: list[str]
@@ -100,6 +105,9 @@ class SamplerOutput:
 
   # Tokens corresponding to the generated samples.
   tokens: list[list[int]]
+
+  # Intermediate activations from the model if requested.
+  intermediates: sow_lib.TransformerIntermediates | None = None
 
 
 class Sampler:
@@ -142,6 +150,7 @@ class Sampler:
         sampler_state.positions[:, decoding_step], -1
     )
     last_token = last_token.reshape((batch_size, 1))
+    step_intermediates = sow_lib.TransformerIntermediates()
 
     logits, cache = self.transformer.apply(
         {'params': params},
@@ -149,6 +158,7 @@ class Sampler:
         step_positions,
         sampler_state.cache,
         attention_mask,
+        step_intermediates,
     )
     if sampler_state.forbidden_token_ids:
       logits = logits.at[:, :, sampler_state.forbidden_token_ids].set(-jnp.inf)
@@ -174,6 +184,9 @@ class Sampler:
     else:
       logits_buffer = sampler_state.logits_buffer
 
+    if sampler_state.intermediates is not None:
+      sampler_state.intermediates.merge(decoding_step, step_intermediates)
+
     done = sampler_state.done | jnp.equal(
         token_buffer[:, decoding_step + 1], self.vocab.eos_id()
     )
@@ -188,11 +201,20 @@ class Sampler:
         done=done,
         total_sampling_steps=sampler_state.total_sampling_steps,
         forbidden_token_ids=sampler_state.forbidden_token_ids,
+        intermediates=sampler_state.intermediates,
     )
 
   def init_cache(self, bsz) -> dict[str, modules.LayerCache]:
     """Initializes the attention cache for each layer."""
     return self.transformer.config.init_cache(bsz, dtype=self.dtype)
+
+  def init_intermediates(
+      self, bsz, buffer_size
+  ) -> sow_lib.TransformerIntermediates:
+    """Initializes the intermediate activations that will be filled."""
+    return self.transformer.config.init_intermediates(
+        bsz, buffer_size, self.transformer.sow
+    )
 
   def init_sample_state(
       self,
@@ -244,6 +266,7 @@ class Sampler:
         done=done,
         total_sampling_steps=total_sampling_steps,
         forbidden_token_ids=forbidden_token_ids,
+        intermediates=self.init_intermediates(bsz, buffer_size),
     )
 
   def tokenize(self, input_string: str) -> jax.Array:
@@ -358,9 +381,13 @@ class Sampler:
 
     decoded_outputs = [self.vocab.DecodeIds(tokens) for tokens in out_tokens]
 
+    if sampling_state.intermediates is not None:
+      sampling_state.intermediates.trim(total_sampling_steps)
+
     result = SamplerOutput(
         text=decoded_outputs,
         logits=out_logits,
         tokens=out_tokens,
+        intermediates=sampling_state.intermediates,
     )
     return result
