@@ -19,6 +19,7 @@ An example of a sampling class for a Gemma model.
 
 from collections.abc import Sequence
 import dataclasses
+import warnings
 
 import chex
 from gemma import modules
@@ -110,6 +111,8 @@ class Sampler:
       transformer: transformer_lib.Transformer,
       vocab: spm.SentencePieceProcessor,
       params: params_lib.Params,
+      *,
+      cache_length: int | None = None,
   ):
     """Initializes a sampler for a Gemma model.
 
@@ -117,11 +120,22 @@ class Sampler:
       transformer: an instance of the Gemma transformer.
       vocab: vocabulary of the given model.
       params: weights of the model.
+      cache_length: Max length of the cache.
     """
     self.transformer = transformer
     self.vocab = vocab
     self.params = params
     self._compiled_sample_fn = jax.jit(self._sample_fn)
+    if cache_length is None:
+      warnings.warn(
+          'TransformerConfig.max_cache_length is deprecated and will be'
+          ' REMOVED!!! Instead, set the `cache_length` in the `Sampler` class.',
+          DeprecationWarning,
+          stacklevel=2,
+      )
+    self.cache_length = cache_length or transformer.config.max_cache_length
+    if self.cache_length is None:
+      raise ValueError('Sampler `cache_length` should be set.')
 
   @property
   def dtype(self) -> jnp.dtype:
@@ -136,7 +150,7 @@ class Sampler:
     last_token = sampler_state.token_buffer[:, decoding_step]
     input_mask = sampler_state.token_buffer != self.vocab.pad_id()
     attention_mask = _compute_attention_masks(
-        decoding_step, self.transformer.config.max_cache_length, input_mask
+        decoding_step, self.cache_length, input_mask
     )
     step_positions = jnp.expand_dims(
         sampler_state.positions[:, decoding_step], -1
@@ -192,7 +206,11 @@ class Sampler:
 
   def init_cache(self, bsz) -> dict[str, modules.LayerCache]:
     """Initializes the attention cache for each layer."""
-    return self.transformer.config.init_cache(bsz, dtype=self.dtype)
+    return self.transformer.config.init_cache(
+        bsz,
+        dtype=self.dtype,
+        cache_length=self.cache_length,
+    )
 
   def init_sample_state(
       self,

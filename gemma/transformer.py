@@ -227,13 +227,18 @@ class TransformerConfig:
       self,
       batch_size: int,
       dtype: jnp.dtype = jnp.bfloat16,
+      *,
+      cache_length: int | None = None,
   ) -> Cache:
     """Initializes a new Transformer cache."""
-    if self.max_cache_length is None:
-      raise ValueError('max_cache_length must be set to initialize cache.')
+    cache_length = cache_length or self.max_cache_length
+    if cache_length is None:
+      raise ValueError(
+          'Missing `cache_length=` kwarg when calling `init_cache()`.'
+      )
     cache = {
         f'layer_{i}': modules.Attention.init_cache(
-            self.max_cache_length,
+            cache_length,
             self.num_kv_heads,
             self.head_dim,
             batch_size,
