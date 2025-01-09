@@ -18,6 +18,7 @@ import enum
 from flax import linen as nn
 from gemma import layers
 from gemma import positional_embeddings
+from gemma import sow_lib
 import jax
 import jax.numpy as jnp
 
@@ -52,8 +53,8 @@ def _create_sliding_mask(
 
   cache_positions = cache_positions[None, None, :]  # [1, 1, cache_len]
   segment_pos = segment_pos[:, :, None]  # [B, seq_len, 1]
-  sliding_mask = (cache_positions > segment_pos - sliding_window_size)
-  sliding_mask *= (cache_positions < segment_pos + sliding_window_size)
+  sliding_mask = cache_positions > segment_pos - sliding_window_size
+  sliding_mask *= cache_positions < segment_pos + sliding_window_size
   return sliding_mask
 
 
@@ -95,6 +96,7 @@ class Attention(nn.Module):
   query_pre_attn_scalar: float
   attn_logits_soft_cap: float | None = None
   sliding_window_size: int | None = None
+  sow: sow_lib.SowModule = sow_lib.SowModule()
 
   @property
   def use_qkv_einsum(self):
@@ -127,6 +129,7 @@ class Attention(nn.Module):
       segment_pos: jax.Array,
       cache: LayerCache | None,
       attn_mask: jax.Array,
+      intermediates: sow_lib.BlockIntermediates | None = None,
   ) -> tuple[LayerCache | None, jax.Array]:
     seq_len = x.shape[1]
 
@@ -190,6 +193,7 @@ class Attention(nn.Module):
       attn_mask *= sliding_mask
 
     padded_logits = jnp.where((jnp.expand_dims(attn_mask, -2)), logits, K_MASK)
+    self.sow.maybe_sow_attn_logits_topk(padded_logits, intermediates)
     probs = jax.nn.softmax(padded_logits, axis=-1).astype(key_proj.dtype)
     if self.use_gqa:
       # Reshape matrices to enable einsums over groups.
@@ -242,9 +246,10 @@ class FeedForward(nn.Module):
   features: int
   hidden_dim: int
   transpose_gating_einsum: bool
+  sow: sow_lib.SowModule = sow_lib.SowModule()
 
   @nn.compact
-  def __call__(self, x):
+  def __call__(self, x, intermediates=None):
     # Some versions use an alternate parameter ordering that
     # transposes hidden_dim and features.
     if self.transpose_gating_einsum:
@@ -265,6 +270,8 @@ class FeedForward(nn.Module):
     nn.share_scope(self, gating)
     gate = gating(eq, x)
     activations = nn.gelu(gate[..., 0, :]) * gate[..., 1, :]
+
+    self.sow.maybe_sow_ffw_hidden_topk(activations, intermediates)
 
     # Down projection
     linear = layers.Einsum(
@@ -292,6 +299,7 @@ class Block(nn.Module):
   transpose_gating_einsum: bool
   attn_logits_soft_cap: float | None = None
   sliding_window_size: int | None = None
+  sow: sow_lib.SowModule = sow_lib.SowModule()
 
   def setup(self):
     self.pre_attention_norm = layers.RMSNorm()
@@ -304,6 +312,7 @@ class Block(nn.Module):
         query_pre_attn_scalar=self.query_pre_attn_scalar,
         attn_logits_soft_cap=self.attn_logits_soft_cap,
         sliding_window_size=self.sliding_window_size,
+        sow=self.sow,
     )
     self.post_attention_norm = None
     if self.use_post_attn_norm:
@@ -314,6 +323,7 @@ class Block(nn.Module):
         features=self.embed_dim,
         hidden_dim=self.hidden_dim,
         transpose_gating_einsum=self.transpose_gating_einsum,
+        sow=self.sow,
     )
     self.post_ffw_norm = None
     if self.use_post_ffw_norm:
@@ -325,6 +335,7 @@ class Block(nn.Module):
       segment_pos: jax.Array,
       cache: LayerCache | None,
       attn_mask: jax.Array,
+      intermediates: sow_lib.BlockIntermediates | None = None,
   ) -> tuple[LayerCache | None, jax.Array]:
     inputs_normalized = self.pre_attention_norm(x)
     cache, attn_output = self.attn(
@@ -332,13 +343,16 @@ class Block(nn.Module):
         segment_pos,
         cache,
         attn_mask,
+        intermediates,
     )
     if self.post_attention_norm is not None:
       attn_output = self.post_attention_norm(attn_output)
     attn_output += x
+    self.sow.maybe_sow_rs_after_attention(attn_output, intermediates)
     outputs = self.pre_ffw_norm(attn_output)
-    outputs = self.mlp(outputs)
+    outputs = self.mlp(outputs, intermediates)
     if self.post_ffw_norm is not None:
       outputs = self.post_ffw_norm(outputs)
     outputs += attn_output
+    self.sow.maybe_sow_rs_after_ffw(outputs, intermediates)
     return cache, outputs
