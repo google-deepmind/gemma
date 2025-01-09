@@ -14,7 +14,7 @@ Model (LLM) by [Google DeepMind](https://deepmind.google/), based on Gemini
 research and technology.
 
 This repository contains an inference implementation and examples, based on the
-[Flax](https://github.com/google/flax) and [JAX](https://github.com/google/jax).
+[Flax](https://github.com/google/flax) and [JAX](https://github.com/jax-ml/jax).
 
 ### Learn more about Gemma
 
