@@ -14,8 +14,9 @@
 
 """Tests for transformer params."""
 
-from absl.testing import absltest
-from absl.testing import parameterized
+import os
+import pathlib
+
 from gemma import params as params_lib
 import jax
 import jax.numpy as jnp
@@ -58,20 +59,14 @@ def _mock_params():
   )
 
 
-class ParamsTest(parameterized.TestCase):
+def test_save_params(tmp_path: pathlib.Path):
+  params = _mock_params()
 
-  def test_save_params(self):
-    params = _mock_params()
+  # Create a temporary empty directory for this unit test
+  temp_dir = os.fspath(tmp_path)
 
-    # Create a temporary empty directory for this unit test
-    temp_dir = self.create_tempdir().full_path
+  params_lib.format_and_save_params(params, temp_dir + '/checkpoint')
+  params_loaded = params_lib.load_and_format_params(temp_dir + '/checkpoint')
 
-    params_lib.format_and_save_params(params, temp_dir + '/checkpoint')
-    params_loaded = params_lib.load_and_format_params(temp_dir + '/checkpoint')
-
-    # Compare original with round-tripped params
-    jax.tree_util.tree_map(np.testing.assert_array_equal, params, params_loaded)
-
-
-if __name__ == '__main__':
-  absltest.main()
+  # Compare original with round-tripped params
+  jax.tree_util.tree_map(np.testing.assert_array_equal, params, params_loaded)
