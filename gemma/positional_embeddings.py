@@ -17,13 +17,13 @@
 import jax
 import jax.numpy as jnp
 
-_MAX_WAVELENGTH = 10_000
+BASE_FREQUENCY = 10_000
 
 
 def add_positional_embedding(
     inputs: jax.Array,
     positions: jax.Array,
-    max_wavelength: int = _MAX_WAVELENGTH,
+    max_wavelength: int = BASE_FREQUENCY,
 ) -> jax.Array:
   """Adds positional embeddings to inputs.
 
@@ -60,7 +60,7 @@ def add_positional_embedding(
 def apply_rope(
     inputs: jax.Array,
     positions: jax.Array,
-    max_wavelength: int = _MAX_WAVELENGTH,
+    max_wavelength: int = BASE_FREQUENCY,
 ) -> jax.Array:
   """Applies RoPE.
 
