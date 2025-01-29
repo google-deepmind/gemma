@@ -96,6 +96,7 @@ class Attention(nn.Module):
   attn_logits_soft_cap: float | None = None
   sliding_window_size: int | None = None
   use_qk_norm: bool = False
+  rope_base_frequency: int = positional_embeddings.BASE_FREQUENCY
 
   @property
   def use_qkv_einsum(self):
@@ -147,6 +148,7 @@ class Attention(nn.Module):
     query_proj = positional_embeddings.apply_rope(
         query_proj,
         segment_pos,
+        max_wavelength=self.rope_base_frequency,
     )
     query_scaled = query_proj * self.query_pre_attn_scalar
     key_proj = positional_embeddings.apply_rope(
@@ -301,6 +303,7 @@ class Block(nn.Module):
   attn_logits_soft_cap: float | None = None
   sliding_window_size: int | None = None
   use_qk_norm: bool = False
+  rope_base_frequency: int = positional_embeddings.BASE_FREQUENCY
 
   def setup(self):
     self.pre_attention_norm = layers.RMSNorm()
@@ -314,6 +317,7 @@ class Block(nn.Module):
         attn_logits_soft_cap=self.attn_logits_soft_cap,
         sliding_window_size=self.sliding_window_size,
         use_qk_norm=self.use_qk_norm,
+        rope_base_frequency=self.rope_base_frequency,
     )
     self.post_attention_norm = None
     if self.use_post_attn_norm:
