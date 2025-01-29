@@ -95,6 +95,7 @@ class Attention(nn.Module):
   query_pre_attn_scalar: float
   attn_logits_soft_cap: float | None = None
   sliding_window_size: int | None = None
+  use_qk_norm: bool = False
 
   @property
   def use_qkv_einsum(self):
@@ -120,6 +121,9 @@ class Attention(nn.Module):
       self.kv_einsum = layers.Einsum(
           shape=(2, self.num_kv_heads, self.features, self.head_dim),
       )
+    if self.use_qk_norm:
+      self._query_norm = layers.RMSNorm()
+      self._key_norm = layers.RMSNorm()
 
   def __call__(
       self,
@@ -135,6 +139,10 @@ class Attention(nn.Module):
     else:
       query_proj = self.q_einsum('BTD,NDH->BTNH', x)
       key_proj, value_proj = self.kv_einsum('BSD,CKDH->CBSKH', x)
+
+    if self.use_qk_norm:
+      query_proj = self._query_norm(query_proj)
+      key_proj = self._key_norm(key_proj)
 
     query_proj = positional_embeddings.apply_rope(
         query_proj,
@@ -292,6 +300,7 @@ class Block(nn.Module):
   transpose_gating_einsum: bool
   attn_logits_soft_cap: float | None = None
   sliding_window_size: int | None = None
+  use_qk_norm: bool = False
 
   def setup(self):
     self.pre_attention_norm = layers.RMSNorm()
@@ -304,6 +313,7 @@ class Block(nn.Module):
         query_pre_attn_scalar=self.query_pre_attn_scalar,
         attn_logits_soft_cap=self.attn_logits_soft_cap,
         sliding_window_size=self.sliding_window_size,
+        use_qk_norm=self.use_qk_norm,
     )
     self.post_attention_norm = None
     if self.use_post_attn_norm:
