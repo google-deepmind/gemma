@@ -1,13 +1,8 @@
 # Gemma
 
-<!--
-
-TODO(epot): Restore
-
+<!-- TODO(epot): Add doc badge -->
 [![Unittests](https://github.com/google-deepmind/gemma/actions/workflows/pytest_and_autopublish.yml/badge.svg)](https://github.com/google-deepmind/gemma/actions/workflows/pytest_and_autopublish.yml)
 [![PyPI version](https://badge.fury.io/py/gemma.svg)](https://badge.fury.io/py/gemma)
-
--->
 
 [Gemma](https://ai.google.dev/gemma) is a family of open-weights Large Language
 Model (LLM) by [Google DeepMind](https://deepmind.google/), based on Gemini
