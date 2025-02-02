@@ -12,8 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""gemma API."""
+"""Sharding utilities."""
 
-# A new PyPI release will be pushed every time `__version__` is increased.
-# When changing this, also update the CHANGELOG.md.
-__version__ = '2.0.0'
+# pylint: disable=g-importing-member,g-import-not-at-top
+
+from etils import epy as _epy
+
+
+with _epy.lazy_api_imports(globals()):
+  pass

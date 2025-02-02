@@ -12,8 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""gemma API."""
+"""Text processing utilities."""
 
-# A new PyPI release will be pushed every time `__version__` is increased.
-# When changing this, also update the CHANGELOG.md.
-__version__ = '2.0.0'
+
+from etils import epy as _epy
+
+# pylint: disable=g-import-not-at-top,g-importing-member
+
+with _epy.lazy_api_imports(globals()):
+  from gemma.gm.text._tokenizer import Gemma2Tokenizer
+  from gemma.gm.text._tokenizer import Tokenizer
+  from gemma.gm.text._sampler import Sampler

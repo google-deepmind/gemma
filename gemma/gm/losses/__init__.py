@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""gemma API."""
+"""Losses."""
 
-# A new PyPI release will be pushed every time `__version__` is increased.
-# When changing this, also update the CHANGELOG.md.
-__version__ = '2.0.0'
+from gemma.gm.losses._dpo import DpoLoss

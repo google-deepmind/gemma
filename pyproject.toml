@@ -4,7 +4,7 @@
 name = "gemma"
 description = "Open weights large language model (LLM) from Google DeepMind."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = {file = "LICENSE"}
 authors = [
     {name = "Alek Andreev", email="alekandreev@google.com"},
@@ -33,8 +33,15 @@ keywords = []
 # Installed locally with `pip install -e .`
 dependencies = [
     "absl-py",
-    "sentencepiece",
+    "etils[enp,epath,epy]",
+    "grain",
+    "jax",
+    "jaxtyping",
+    "kauldron",
     "flax",
+    "numpy",
+    "orbax-checkpoint",
+    "sentencepiece",
 ]
 
 # `version` is automatically set by flit to use `gemma.__version__`

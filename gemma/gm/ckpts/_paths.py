@@ -12,8 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""gemma API."""
+"""Checkpoint paths."""
 
-# A new PyPI release will be pushed every time `__version__` is increased.
-# When changing this, also update the CHANGELOG.md.
-__version__ = '2.0.0'
+import enum
+
+
+class CheckpointPath(enum.StrEnum):
+  """Hardcoded paths to Gemma checkpoints.
+
+  Format: `{VERSION}_{SIZE}_{VARIANT}`.
+
+  * `PT`: Pre-trained
+  * `IT`: Instruction Tuned
+
+  For example, `GEMMA2_27B_IT` is Gemma V2, 27 Billion parameters, instruction
+  tuned.
+  """
+
+  # TODO(epot): Add other versions.
+  GEMMA2_2B_PT = 'gs://gemma-data/checkpoints/gemma2-2b-pt/'
+  GEMMA2_2B_IT = 'gs://gemma-data/checkpoints/gemma2-2b-it/'
