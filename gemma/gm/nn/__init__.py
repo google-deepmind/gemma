@@ -12,8 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""gemma API."""
+"""Gemma models."""
 
-# A new PyPI release will be pushed every time `__version__` is increased.
-# When changing this, also update the CHANGELOG.md.
-__version__ = '2.0.0'
+# pylint: disable=g-importing-member,g-import-not-at-top
+
+from etils import epy as _epy
+
+
+with _epy.lazy_api_imports(globals()):
+  # Gemma models
+  from gemma.gm.nn._transformer import Gemma2_2B
+  from gemma.gm.nn._transformer import Gemma2_9B
+  from gemma.gm.nn._transformer import Gemma2_27B
+
+  from gemma.gm.nn._lora import LoRAWrapper
+  from gemma.gm.nn._policy import AnchoredPolicy
+  from gemma.gm.nn._transformer import Transformer
+
+  # Model outputs
+  from gemma.gm.nn._transformer import Output
+  from gemma.gm.nn._policy import AnchoredPolicyOutput

@@ -12,8 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""gemma API."""
+"""PEFT utils for `flax.linen`."""
 
-# A new PyPI release will be pushed every time `__version__` is increased.
-# When changing this, also update the CHANGELOG.md.
-__version__ = '2.0.0'
+# pylint: disable=g-importing-member
+
+from gemma.peft._interceptors import Interceptor
+from gemma.peft._interceptors import ModuleInterceptor
+from gemma.peft._lora import LoRADense
+from gemma.peft._lora import LoRADenseAdapter
+from gemma.peft._lora import LoRAEinsum
+from gemma.peft._lora import LoRAEinsumAdapter
+from gemma.peft._tree_utils import fuse_params
+from gemma.peft._tree_utils import merge_params
+from gemma.peft._tree_utils import split_params
+from gemma.peft._tree_utils import unfuse_params

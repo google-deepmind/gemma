@@ -12,8 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""gemma API."""
+"""Kauldron API for Gemma."""
 
-# A new PyPI release will be pushed every time `__version__` is increased.
-# When changing this, also update the CHANGELOG.md.
-__version__ = '2.0.0'
+from etils import epy as _epy
+
+# pylint: disable=g-import-not-at-top
+
+with _epy.lazy_api_imports(globals()):
+  # API match the `kd` namespace.
+  from gemma.gm import ckpts
+  from gemma.gm import data
+  from gemma.gm import evals
+  from gemma.gm import losses
+  from gemma.gm import nn
+  from gemma.gm import text
+  from gemma.gm import sharding

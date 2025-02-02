@@ -33,13 +33,12 @@ jobs:
 
   # Auto-publish when version is increased
   publish-job:
-    if: false  # TODO(epot): Restore once publishing is ready
     # Only try to publish if:
     # * Repo is self (prevents running from forks)
     # * Branch is `main`
-    # if: |
-    #   github.repository == 'google-deepmind/gemma'
-    #   && github.ref == 'refs/heads/main'
+    if: |
+      github.repository == 'google-deepmind/gemma'
+      && github.ref == 'refs/heads/main'
     needs: pytest-job  # Only publish after tests are successful
     runs-on: ubuntu-latest
     permissions:
