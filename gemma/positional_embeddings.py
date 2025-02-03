@@ -17,13 +17,11 @@
 import jax
 import jax.numpy as jnp
 
-_MAX_WAVELENGTH = 10_000
-
 
 def add_positional_embedding(
     inputs: jax.Array,
     positions: jax.Array,
-    max_wavelength: int = _MAX_WAVELENGTH,
+    max_wavelength: int,
 ) -> jax.Array:
   """Adds positional embeddings to inputs.
 
@@ -60,7 +58,7 @@ def add_positional_embedding(
 def apply_rope(
     inputs: jax.Array,
     positions: jax.Array,
-    max_wavelength: int = _MAX_WAVELENGTH,
+    base_frequency: int,
 ) -> jax.Array:
   """Applies RoPE.
 
@@ -70,14 +68,14 @@ def apply_rope(
   Args:
     inputs: Array of shape [B, L, N, H].
     positions:  Array of shape [B, L].
-    max_wavelength: The maximum wavelength.
+    base_frequency: Base frequency used to compute rotations.
 
   Returns:
     Array of shape [B, L, N, H].
   """
   head_dim = inputs.shape[-1]
   fraction = 2 * jnp.arange(0, head_dim // 2) / head_dim
-  timescale = max_wavelength**fraction
+  timescale = base_frequency**fraction
 
   sinusoid_inp = (
       positions[..., jnp.newaxis] / timescale[jnp.newaxis, jnp.newaxis, :]
