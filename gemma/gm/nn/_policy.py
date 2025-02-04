@@ -24,7 +24,7 @@ from kauldron import kontext
 
 @flax.struct.dataclass
 class AnchoredPolicyOutput:
-  """Output of the `gm.nn.Policy`."""
+  """Output of the `gm.nn.AnchoredPolicy`."""
 
   policy: Any
   anchor: Any
@@ -66,9 +66,9 @@ class AnchoredPolicy(nn.Module):
     """Kauldron keys when calling `kontext.get_from_keys_obj`."""
     # Forward the keys from the policy model.
     # This allow to define the config as:
-    # gm.nn.Policy(
+    # gm.nn.AnchoredPolicy(
     #   policy=MyModel(
-    #     input='batch.input',  # keys propagated to the `Policy`
+    #     input='batch.input',  # keys propagated to the `AnchoredPolicy`
     #   ),
     # )
     return kontext.get_keypaths(self.policy)

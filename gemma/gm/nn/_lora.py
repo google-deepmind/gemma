@@ -67,11 +67,11 @@ class LoRAWrapper(nn.Module):
 
   def __kontext_keys__(self) -> dict[str, str]:
     """Kauldron keys when calling `kontext.get_from_keys_obj`."""
-    # Forward the keys from the policy model.
+    # Forward the keys from the wrapped model.
     # This allow to define the config as:
-    # gm.nn.Policy(
-    #   policy=MyModel(
-    #     input='batch.input',  # keys propagated to the `Policy`
+    # gm.nn.LoRAWrapper(
+    #   model=MyModel(
+    #     input='batch.input',  # keys propagated to the `LoRAWrapper`
     #   ),
     # )
     return kontext.get_keypaths(self.model)

@@ -24,7 +24,7 @@ from kauldron import kd
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
 class AnchoredPolicyLoader(kd.ckpts.AbstractPartialLoader):
-  """Loader for `gm.nn.Policy` models.
+  """Loader for `gm.nn.AnchoredPolicy` models.
 
   Loaded load policy and anchor separately by providing
   sub-transforms.
