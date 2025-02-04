@@ -19,7 +19,6 @@ from __future__ import annotations
 import dataclasses
 import enum
 import functools
-import os
 import typing
 from typing import ClassVar
 
@@ -193,17 +192,18 @@ class Tokenizer:
   @functools.cached_property
   def _sp(self) -> spm.SentencePieceProcessor:
     sp = spm.SentencePieceProcessor()
-    if not self.custom_tokens:
-      sp.Load(os.fspath(self.path))
-    else:
-      sp.LoadFromSerializedProto(self._model_proto.SerializeToString())
+    model_proto = epath.Path(self.path).read_bytes()
+
+    if self.custom_tokens:
+      model_proto = self._add_custom_tokens(model_proto)
+
+    sp.LoadFromSerializedProto(model_proto)
     return sp
 
-  @functools.cached_property
-  def _model_proto(self) -> sentencepiece_model_pb2.ModelProto:
-    """Load the proto and update the custom tokens."""
+  def _add_custom_tokens(self, serialized_proto: bytes) -> bytes:
+    """Update the custom tokens of the proto."""
     proto = sentencepiece_model_pb2.ModelProto()
-    proto.ParseFromString(epath.Path(self.path).read_bytes())
+    proto.ParseFromString(serialized_proto)
 
     for i, token in self.custom_tokens.items():
       if i < 0 or i > 98:
@@ -232,7 +232,7 @@ class Tokenizer:
             ' user_defined_symbols, but it was not found.'
         )
       proto.trainer_spec.user_defined_symbols[index] = token
-    return proto
+    return proto.SerializeToString()
 
   def plot_logits(
       self,
@@ -280,7 +280,7 @@ class Gemma2Tokenizer(Tokenizer):
   # bucket (e.g. in `~/.gemma/<tokenizer_name>`). Could be customized
   # through some `GEMMA_CACHE_DIR` environment variable.
   path: epath.PathLike = (
-      'gs://gemma-data/tokenizers/tokenizer_gemma2.model',
+      'gs://gemma-data/tokenizers/tokenizer_gemma2.model'
   )
 
   special_tokens = _Gemma2SpecialTokens

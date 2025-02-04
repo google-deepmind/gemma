@@ -14,7 +14,7 @@ import kagglehub
 
 kagglehub.login()
 
-weights_dir = kagglehub.model_download(f'google/gemma-2/flax/2b-it')
+weights_dir = kagglehub.model_download(f'google/gemma-2/flax/gemma2-2b-it')
 ```
 
 ### v2
