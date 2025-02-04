@@ -23,3 +23,7 @@ poetry.lock
 
 # PyCharm
 .idea
+
+# Ignore generated docs
+docs/_build
+docs/api
