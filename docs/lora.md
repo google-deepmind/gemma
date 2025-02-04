@@ -1,5 +1,12 @@
 # LoRA
 
+## Standalone
+
+```{eval-rst}
+.. include:: colab_lora.ipynb
+   :parser: myst_nb.docutils_
+```
+
 ## In the configs
 
 For an end-to-end example, see
@@ -40,5 +47,3 @@ You can use LoRA on any config example with 3 simple changes:
         mask=kd.optim.select("lora"),
     )
     ```
-
-## Standalone

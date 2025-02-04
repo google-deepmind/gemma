@@ -27,8 +27,18 @@ import apitree
 
 
 apitree.make_project(
-    # TODO(epot): Add api
-    modules={},
-    includes_paths={},
+    modules={
+        'gm': 'gemma.gm',
+        'peft': 'gemma.peft',
+    },
+    # TODO(epot): Support mkdir parent for the destination, to support
+    # `'colab/finetuning.ipynb'` as output.
+    includes_paths={
+        'colabs/finetuning.ipynb': 'colab_finetuning.ipynb',
+        'colabs/lora.ipynb': 'colab_lora.ipynb',
+        'colabs/sampling.ipynb': 'colab_sampling.ipynb',
+        'colabs/tokenizer.ipynb': 'colab_tokenizer.ipynb',
+        'gemma/peft/README.md': 'peft.md',
+    },
     globals=globals(),
 )
