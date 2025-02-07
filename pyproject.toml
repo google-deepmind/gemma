@@ -42,6 +42,7 @@ dependencies = [
     "numpy",
     "orbax-checkpoint",
     "sentencepiece",
+    "treescope",
 ]
 
 # `version` is automatically set by flit to use `gemma.__version__`
