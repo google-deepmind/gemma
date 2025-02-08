@@ -23,7 +23,6 @@ from typing import TypeVar
 from etils import epath
 from gemma import params as params_lib
 import jax
-import jax.numpy as jnp
 from kauldron import kd
 from orbax import checkpoint as ocp
 
@@ -83,8 +82,19 @@ def load_params(
   """
   ckpt = ocp.StandardCheckpointer()
 
+  metadata = ckpt.metadata(path)
+  is_legacy = _is_legacy_layout(metadata.tree)
+
   if donate and params is not None:
     params = release_memory(params)
+
+  if params is None:
+    # If the params are not provided, we create a dummy tree matching the
+    # checkpoint structure, so orbax restore as bfloat16 jax.Array, rather than
+    # numpy arrays.
+    params = jax.tree.map(_as_shape_dtype_struct, metadata.tree)
+    if is_legacy:
+      params = _reformat_params(params)
 
   restore_fn = ckpt.restore
 
@@ -94,13 +104,11 @@ def load_params(
 
   # * Normalize the params to match the checkpoint layout.
   # TODO(epot): Should update the checkpoints to the new layout.
-  if _is_legacy_layout(ckpt.metadata(path)):
+  if is_legacy:
     restore_fn = _unformat_format_params(restore_fn)
 
   params = restore_fn(path, params)
 
-  # By default, Orbax restore as numpy rather than jax.
-  params = jax.tree.map(jnp.asarray, params)
   return params
 
 
@@ -145,3 +153,11 @@ def _release_memory(x):
 def _is_legacy_layout(params: params_lib.Params) -> bool:
   """Returns True is the structure is the legacy one."""
   return all(k.startswith('transformer/') for k in params.keys())
+
+
+def _as_shape_dtype_struct(x) -> jax.ShapeDtypeStruct:
+  """Converts orbax ArrayMetadata to a jax.ShapeDtypeStruct."""
+  return jax.ShapeDtypeStruct(
+      dtype=x.dtype,
+      shape=x.shape,
+  )
