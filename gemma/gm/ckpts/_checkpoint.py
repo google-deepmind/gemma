@@ -83,7 +83,7 @@ def load_params(
   ckpt = ocp.StandardCheckpointer()
 
   metadata = ckpt.metadata(path)
-  is_legacy = _is_legacy_layout(metadata.tree)
+  is_legacy = _is_legacy_layout(metadata)
 
   if donate and params is not None:
     params = release_memory(params)
@@ -92,7 +92,7 @@ def load_params(
     # If the params are not provided, we create a dummy tree matching the
     # checkpoint structure, so orbax restore as bfloat16 jax.Array, rather than
     # numpy arrays.
-    params = jax.tree.map(_as_shape_dtype_struct, metadata.tree)
+    params = jax.tree.map(_as_shape_dtype_struct, metadata)
     if is_legacy:
       params = _reformat_params(params)
 
