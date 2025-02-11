@@ -49,7 +49,7 @@ dependencies = [
 dynamic = ["version"]
 
 [project.urls]
-homepage = "https://github.com/google-deepmind/gemma"
+homepage = "https://gemma-llm.readthedocs.io/en/latest/"
 repository = "https://github.com/google-deepmind/gemma"
 changelog = "https://github.com/google-deepmind/gemma/blob/main/CHANGELOG.md"
 # documentation = ""
