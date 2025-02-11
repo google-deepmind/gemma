@@ -99,12 +99,12 @@ def make_next_token_prediction_fields(
     The input, target and mask, all of length `prompt_len + response_len - 1`.
   """
   # Concatenate the prompt and response tokens.
-  sequence = np.concat([prompt, response])
+  sequence = np.concatenate([prompt, response])
 
   # Create the loss mask.
-  target_mask = np.concat([
-      np.zeros((len(prompt) - 1,), dtype=np.bool),
-      np.ones((len(response),), dtype=np.bool),
+  target_mask = np.concatenate([
+      np.zeros((len(prompt) - 1,), dtype=np.bool_),
+      np.ones((len(response),), dtype=np.bool_),
   ])
 
   return NextTokenPredictionFields(
