@@ -17,6 +17,7 @@
 
     GitHub <https://github.com/google-deepmind/gemma>
     Issues <https://github.com/google-deepmind/gemma/issues>
+    Ecosystem <https://ai.google.dev/gemma>
 
 .. toctree::
     :hidden:
