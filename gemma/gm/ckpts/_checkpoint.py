@@ -160,4 +160,7 @@ def _as_shape_dtype_struct(x) -> jax.ShapeDtypeStruct:
   return jax.ShapeDtypeStruct(
       dtype=x.dtype,
       shape=x.shape,
+      # Set sharding so orbax restore the weights as `jax.Array` rather than
+      # numpy.
+      sharding=kd.sharding.REPLICATED,
   )
