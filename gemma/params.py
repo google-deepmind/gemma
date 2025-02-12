@@ -25,6 +25,19 @@ import orbax.checkpoint
 Params = Mapping[str, Any]
 
 
+def load_siglip_params(checkpoint_path: str) -> Params:
+  """Loads SigLIP parameters."""
+  params = load_params(checkpoint_path)['donated_carry']['params']
+  out_params = {}
+  for key in params:
+    new_key = str(key).replace('SigLiPFromPatches_0/', '')
+    if 'MlpBlock' in new_key:
+      new_key = new_key.replace('Dense', 'DenseGeneral')
+    new_key = '/' + new_key
+    out_params[new_key] = params[key]
+  return nest_params(out_params)
+
+
 def load_and_format_params(path: str) -> Params:
   """Loads parameters and formats them for compatibility."""
   params = load_params(path)
