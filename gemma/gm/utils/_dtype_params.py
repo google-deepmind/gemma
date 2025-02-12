@@ -1,0 +1,75 @@
+# Copyright 2024 DeepMind Technologies Limited.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Training property."""
+
+from collections.abc import Iterator
+import contextlib
+import dataclasses
+import functools
+
+from etils import edc
+from etils.epy import _internal
+from flax import linen as nn
+import jax
+
+_DType = jax.typing.DTypeLike
+
+
+@edc.dataclass
+@dataclasses.dataclass
+class _Context:
+  """Context for the dtype stack."""
+
+  dtypes: edc.ContextVar[list[_DType]] = dataclasses.field(default_factory=list)
+
+
+_context = _Context()
+
+
+@contextlib.contextmanager
+def initialize_param_with_dtype(dtype: _DType) -> Iterator[None]:
+  """Set the params dtype to the given value.
+
+  Inside the contextmanager, `self.param()` will use the given dtype.
+
+  Args:
+    dtype: The dtype to use.
+
+  Yields:
+    None
+  """
+  try:
+    _context.dtypes.append(dtype)
+    yield
+  finally:
+    _context.dtypes.pop()
+
+
+@functools.cache
+def _mock_flax_module_param() -> None:
+  """Mock `nn.Module.params` method to convert the params to dtype."""
+  param = _internal.unwrap_on_reload(nn.Module.param)  # pylint: disable=protected-access
+
+  @_internal.wraps_with_reload(param)
+  def decorated(self: nn.Module, *args, **kwargs):
+    if self.is_initializing() and _context.dtypes:
+      return param(self, *args, **kwargs, dtype=_context.dtypes[-1])
+    else:
+      return param(self, *args, **kwargs)
+
+  nn.Module.param = decorated
+
+
+_mock_flax_module_param()
