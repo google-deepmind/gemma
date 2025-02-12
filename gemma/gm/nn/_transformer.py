@@ -21,6 +21,7 @@ import functools
 import flax
 from flax import linen as nn
 from gemma import transformer
+from gemma.gm.utils import _dtype_params
 from gemma.gm.utils import _jax_utils
 import jax.numpy as jnp
 from kauldron import kontext
@@ -49,9 +50,12 @@ class Transformer(transformer.Transformer):
   Attributes:
     return_last_only: If `True`, only compute and return the last token.
       Otherwise, return all logits. Default to `False`
+    dtype: The parameter dtype. Default to `jnp.bfloat16`.
   """
 
   return_last_only: bool | None = None
+
+  dtype: jnp.dtype = jnp.bfloat16
 
   # Keys to specify in the config which inputs to pass to the `__call__`
   # function (e.g. `tokens='batch.tokens'`).
@@ -132,21 +136,22 @@ class Transformer(transformer.Transformer):
     if attention_mask is None:
       attention_mask = transformer.make_causal_attn_mask(inputs_mask)
 
-    x = self.embedder.encode(tokens)
+    with _dtype_params.initialize_param_with_dtype(self.dtype):
+      x = self.embedder.encode(tokens)
 
-    old_cache = cache or {}
-    new_cache = {}
-    for i, block in enumerate(self.blocks):
-      layer_name = f'layer_{i}'
-      layer_cache, x = block(
-          x,
-          positions,
-          old_cache.get(layer_name),
-          attention_mask,
-      )
-      new_cache[layer_name] = layer_cache  # pytype: disable=container-type-mismatch
+      old_cache = cache or {}
+      new_cache = {}
+      for i, block in enumerate(self.blocks):
+        layer_name = f'layer_{i}'
+        layer_cache, x = block(
+            x,
+            positions,
+            old_cache.get(layer_name),
+            attention_mask,
+        )
+        new_cache[layer_name] = layer_cache  # pytype: disable=container-type-mismatch
 
-    x = self.final_norm(x)
+      x = self.final_norm(x)
 
     if return_last_only:
       last_input_token_idx = jnp.sum(inputs_mask, axis=-1) - 1
