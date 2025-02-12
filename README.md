@@ -44,11 +44,12 @@ To download the model weights. See
 
 ## Examples
 
-Our documentation contain various Colabs and tutorial for:
+Our documentation contain various Colabs and tutorial, including:
 
 * [Sampling](https://gemma-llm.readthedocs.io/en/latest/colab_sampling.html)
 * [Fine-tuning](https://gemma-llm.readthedocs.io/en/latest/colab_finetuning.html)
-* [LoRA](https://gemma-llm.readthedocs.io/en/latest/lora.html)
+* [LoRA](https://gemma-llm.readthedocs.io/en/latest/colab_lora_sampling.html)
+* ...
 
 Additionally, our
 [examples/](https://github.com/google-deepmind/gemma/tree/main/examples) folder
