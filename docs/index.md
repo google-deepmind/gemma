@@ -7,7 +7,8 @@
     colab_finetuning
     colab_sampling
     colab_tokenizer
-    lora
+    colab_lora_sampling
+    colab_lora_finetuning
     peft
     checkpoints
 

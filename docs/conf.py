@@ -35,7 +35,8 @@ apitree.make_project(
     # `'colab/finetuning.ipynb'` as output.
     includes_paths={
         'colabs/finetuning.ipynb': 'colab_finetuning.ipynb',
-        'colabs/lora.ipynb': 'colab_lora.ipynb',
+        'colabs/lora_sampling.ipynb': 'colab_lora_sampling.ipynb',
+        'colabs/lora_finetuning.ipynb': 'colab_lora_finetuning.ipynb',
         'colabs/sampling.ipynb': 'colab_sampling.ipynb',
         'colabs/tokenizer.ipynb': 'colab_tokenizer.ipynb',
         'gemma/peft/README.md': 'peft.md',
