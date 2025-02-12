@@ -22,8 +22,13 @@ class CheckpointPath(enum.StrEnum):
 
   Format: `{VERSION}_{SIZE}_{VARIANT}`.
 
+  Variants:
+
   * `PT`: Pre-trained
   * `IT`: Instruction Tuned
+
+  * `MM`: Multimodal (vision encoder)
+  * `TEXT`: Text-only
 
   For example, `GEMMA2_27B_IT` is Gemma V2, 27 Billion parameters, instruction
   tuned.
@@ -32,3 +37,9 @@ class CheckpointPath(enum.StrEnum):
   # TODO(epot): Add other versions.
   GEMMA2_2B_PT = 'gs://gemma-data/checkpoints/gemma2-2b-pt/'
   GEMMA2_2B_IT = 'gs://gemma-data/checkpoints/gemma2-2b-it/'
+
+  GEMMA2_9B_PT = 'gs://gemma-data/checkpoints/gemma2-9b-pt'
+  GEMMA2_9B_IT = 'gs://gemma-data/checkpoints/gemma2-9b-it'
+
+  GEMMA2_27B_PT = 'gs://gemma-data/checkpoints/gemma2-27b-pt'
+  GEMMA2_27B_IT = 'gs://gemma-data/checkpoints/gemma2-27b-it'
