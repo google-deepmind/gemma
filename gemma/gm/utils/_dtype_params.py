@@ -32,14 +32,16 @@ _DType = jax.typing.DTypeLike
 class _Context:
   """Context for the dtype stack."""
 
-  dtypes: edc.ContextVar[list[_DType]] = dataclasses.field(default_factory=list)
+  dtypes: edc.ContextVar[list[_DType | None]] = dataclasses.field(
+      default_factory=list
+  )
 
 
 _context = _Context()
 
 
 @contextlib.contextmanager
-def initialize_param_with_dtype(dtype: _DType) -> Iterator[None]:
+def initialize_param_with_dtype(dtype: _DType | None) -> Iterator[None]:
   """Set the params dtype to the given value.
 
   Inside the contextmanager, `self.param()` will use the given dtype.
@@ -64,7 +66,14 @@ def _mock_flax_module_param() -> None:
 
   @_internal.wraps_with_reload(param)
   def decorated(self: nn.Module, *args, **kwargs):
-    if self.is_initializing() and _context.dtypes:
+    if (
+        self.is_initializing()
+        and _context.dtypes
+        # LoRA modules provide the dtype as kwargs
+        and 'dtype' not in kwargs
+        # If `None` is provided, use the default dtype
+        and _context.dtypes[-1] is not None
+    ):
       return param(self, *args, **kwargs, dtype=_context.dtypes[-1])
     else:
       return param(self, *args, **kwargs)
