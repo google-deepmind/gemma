@@ -21,9 +21,9 @@ from etils import epy as _epy
 
 with _epy.lazy_api_imports(globals()):
   # Gemma models
-  from gemma.gm.nn._transformer import Gemma2_2B
-  from gemma.gm.nn._transformer import Gemma2_9B
-  from gemma.gm.nn._transformer import Gemma2_27B
+  from gemma.gm.nn._gemma import Gemma2_2B
+  from gemma.gm.nn._gemma import Gemma2_9B
+  from gemma.gm.nn._gemma import Gemma2_27B
 
   from gemma.gm.nn._lora import LoRAWrapper
   from gemma.gm.nn._policy import AnchoredPolicy

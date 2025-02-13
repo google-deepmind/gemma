@@ -168,27 +168,3 @@ class Transformer(transformer.Transformer):
         logits=logits,
         cache=None if cache is None else new_cache,
     )
-
-
-class Gemma2_2B(Transformer):  # pylint: disable=invalid-name
-  """Gemma2 transformer architecture."""
-
-  config: transformer.TransformerConfig = (
-      transformer.TransformerConfig.gemma2_2b(cache_size=None)
-  )
-
-
-class Gemma2_9B(Transformer):  # pylint: disable=invalid-name
-  """Gemma2 transformer architecture."""
-
-  config: transformer.TransformerConfig = (
-      transformer.TransformerConfig.gemma2_9b(cache_size=None)
-  )
-
-
-class Gemma2_27B(Transformer):  # pylint: disable=invalid-name
-  """Gemma2 transformer architecture."""
-
-  config: transformer.TransformerConfig = (
-      transformer.TransformerConfig.gemma2_27b(cache_size=None)
-  )
