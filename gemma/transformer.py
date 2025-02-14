@@ -80,7 +80,7 @@ class TransformerConfig:
       case QueryPreAttentionNormalisation.BY_EMBED_DIM_DIV_NUM_HEADS:
         return self.embed_dim // self.num_heads
       case QueryPreAttentionNormalisation.BY_ONE_OVER_SQRT_EMBED_DIM_DIV_NUM_HEADS:  # pylint: disable=line-too-long
-        return (self.embed_dim // self.num_heads)**-0.5
+        return (self.embed_dim // self.num_heads) ** -0.5
       case QueryPreAttentionNormalisation.BY_ONE_OVER_SQRT_HEAD_DIM | _:
         return self.head_dim**-0.5
 
