@@ -28,6 +28,18 @@ import jax.numpy as jnp
 Cache = dict[str, modules.LayerCache]
 
 
+def _make_attention_type_from_pattern(
+    pattern: tuple[modules.AttentionType, ...],
+    num_layers: int,
+) -> tuple[modules.AttentionType, ...]:
+
+  pattern_size = len(pattern)
+  out = pattern * (num_layers // pattern_size)
+  if num_layers % pattern_size != 0:
+    out += pattern[: num_layers % pattern_size]
+  return out
+
+
 class QueryPreAttentionNormalisation(enum.Enum):
   """Initialization strategy."""
 
