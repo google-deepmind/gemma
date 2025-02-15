@@ -40,7 +40,17 @@ with epy.lazy_imports():
 _WHITESPACE_CHAR = '▁'  # Note this is NOT a undescore (▁ != _)
 
 
-class _SpecialTokens(enum.IntEnum):
+class _DisplayEnumType(enum.EnumType):
+  """Metaclass which displays the enum values when the class is printed."""
+
+  def __repr__(cls):
+    return epy.Lines.make_block(
+        header=cls.__name__,
+        content={value.name: value.value for value in cls},
+    )
+
+
+class _SpecialTokens(enum.IntEnum, metaclass=_DisplayEnumType):
   """Special tokens ids."""
 
   PAD: ClassVar[int]
@@ -223,15 +233,17 @@ class Tokenizer:
 
       # Update the user_defined_symbols
       # The user_defined_symbols do not have the same ids as the pieces.
-      for index, symbol in enumerate(proto.trainer_spec.user_defined_symbols):
-        if symbol == f'<unused{i}>':
-          break
-      else:
-        raise AssertionError(
-            f'Expected custom token id {i} for {token!r} to be in'
-            ' user_defined_symbols, but it was not found.'
-        )
-      proto.trainer_spec.user_defined_symbols[index] = token
+      # Gemma3 tokenizer do not have `user_defined_symbols`.
+      if proto.trainer_spec.user_defined_symbols:
+        for index, symbol in enumerate(proto.trainer_spec.user_defined_symbols):
+          if symbol == f'<unused{i}>':
+            break
+        else:
+          raise AssertionError(
+              f'Expected custom token id {i} for {token!r} to be in'
+              ' user_defined_symbols, but it was not found.'
+          )
+        proto.trainer_spec.user_defined_symbols[index] = token
     return proto.SerializeToString()
 
   def plot_logits(
@@ -272,7 +284,7 @@ class Tokenizer:
     return fig
 
 
-@dataclasses.dataclass(frozen=True, kw_only=True)
+@dataclasses.dataclass(frozen=True)
 class Gemma2Tokenizer(Tokenizer):
   """Tokenizer for Gemma 2."""
 
