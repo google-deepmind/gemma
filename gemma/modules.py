@@ -22,7 +22,6 @@ import jax
 import jax.numpy as jnp
 
 K_MASK = -2.3819763e38  # Set to a large negative number.
-DEFAULT_ROPE_BASE_FREQUENCY = 10_000
 LayerCache = dict[str, jax.Array]
 
 
@@ -94,7 +93,6 @@ class Attention(nn.Module):
   head_dim: int
   attn_type: AttentionType
   query_pre_attn_scalar: float
-  rope_base_frequency: int = DEFAULT_ROPE_BASE_FREQUENCY
   attn_logits_soft_cap: float | None = None
   sliding_window_size: int | None = None
   use_qk_norm: bool = False
@@ -149,13 +147,11 @@ class Attention(nn.Module):
     query_proj = positional_embeddings.apply_rope(
         query_proj,
         segment_pos,
-        base_frequency=self.rope_base_frequency,
     )
     query_scaled = query_proj * self.query_pre_attn_scalar
     key_proj = positional_embeddings.apply_rope(
         key_proj,
         segment_pos,
-        base_frequency=self.rope_base_frequency,
     )
 
     # Cache is left aligned.
@@ -302,7 +298,6 @@ class Block(nn.Module):
   attn_type: AttentionType
   query_pre_attn_scalar: float
   transpose_gating_einsum: bool
-  rope_base_frequency: int = DEFAULT_ROPE_BASE_FREQUENCY
   attn_logits_soft_cap: float | None = None
   sliding_window_size: int | None = None
   use_qk_norm: bool = False
@@ -316,7 +311,6 @@ class Block(nn.Module):
         num_kv_heads=self.num_kv_heads,
         attn_type=self.attn_type,
         query_pre_attn_scalar=self.query_pre_attn_scalar,
-        rope_base_frequency=self.rope_base_frequency,
         attn_logits_soft_cap=self.attn_logits_soft_cap,
         sliding_window_size=self.sliding_window_size,
         use_qk_norm=self.use_qk_norm,

@@ -83,8 +83,6 @@ class TransformerConfig:
   sliding_window_size: int | None = None
   transpose_gating_einsum: bool = False
   use_qk_norm: bool = False
-  local_base_frequency: int = modules.DEFAULT_ROPE_BASE_FREQUENCY
-  global_base_frequency: int = modules.DEFAULT_ROPE_BASE_FREQUENCY
 
   def query_pre_attn_scalar(self) -> float:
     """Returns the scalar to multiply the query by before attention."""
@@ -291,9 +289,6 @@ class Transformer(nn.Module):
             query_pre_attn_scalar=self.config.query_pre_attn_scalar(),
             transpose_gating_einsum=self.config.transpose_gating_einsum,
             use_qk_norm=self.config.use_qk_norm,
-            rope_base_frequency=self.config.local_base_frequency
-            if attn_type == modules.AttentionType.LOCAL_SLIDING
-            else self.config.global_base_frequency,
         )
         for i, attn_type in zip(
             range(self.config.num_layers), self.config.attention_types
