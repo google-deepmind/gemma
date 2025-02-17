@@ -68,12 +68,14 @@ class Embedder(nn.Module):
 
   vocab_size: int
   embed_dim: int
+  dtype: jnp.dtype = jnp.bfloat16
 
   def setup(self):
     self.input_embedding_table = self.param(
         'input_embedding',
         nn.initializers.normal(),
         (self.vocab_size, self.embed_dim),
+        self.dtype,
     )
 
   def encode(self, x: jax.Array) -> jax.Array:
