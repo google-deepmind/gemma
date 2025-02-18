@@ -17,11 +17,13 @@
 import jax
 import jax.numpy as jnp
 
+_DEFAULT_ROPE_BASE_FREQUENCY = 10_000
+
 
 def add_positional_embedding(
     inputs: jax.Array,
     positions: jax.Array,
-    max_wavelength: int,
+    max_wavelength: int = _DEFAULT_ROPE_BASE_FREQUENCY,
 ) -> jax.Array:
   """Adds positional embeddings to inputs.
 
