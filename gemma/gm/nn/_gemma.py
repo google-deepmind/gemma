@@ -17,8 +17,9 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import ClassVar
+from typing import Any, ClassVar
 
+from flax import linen as nn
 from gemma import transformer
 from gemma.gm.nn import _transformer
 
