@@ -78,6 +78,7 @@ class SamplerOutput:
 class Sampler:
   """Sampler for gemma transformer."""
 
+  # TODO(epot): Add sharding.
   def __init__(
       self,
       *,
@@ -173,8 +174,8 @@ class Sampler:
 
   def init_cache(self, bsz) -> dict[str, modules.LayerCache]:
     """Initializes the attention cache for each layer."""
-    return self.transformer.config.init_cache(
-        bsz,
+    return self.transformer.init_cache(
+        batch_size=bsz,
         dtype=self.dtype,
         cache_length=self.cache_length,
     )
@@ -282,7 +283,7 @@ class Sampler:
       input_strings: Sequence[str],
       total_generation_steps: int,
       echo: bool = False,
-      return_logits: bool = True,
+      return_logits: bool = False,
       forbidden_tokens: Sequence[str] | None = None,
   ) -> SamplerOutput:
     """Samples a completion of the input string.
