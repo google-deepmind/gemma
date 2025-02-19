@@ -14,6 +14,11 @@
 
 """Gemma models."""
 
+from __future__ import annotations
+
+from collections.abc import Callable
+from typing import ClassVar
+
 from gemma import transformer
 from gemma.gm.nn import _transformer
 
