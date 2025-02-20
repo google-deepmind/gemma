@@ -25,7 +25,9 @@ import orbax.checkpoint
 Params = Mapping[str, Any]
 
 
-def load_and_format_params(path: str) -> Params:
+def load_and_format_params(
+    path: str,
+) -> Params:
   """Loads parameters and formats them for compatibility."""
   params = load_params(path)
   param_state = jax.tree_util.tree_map(jnp.array, params)

@@ -53,8 +53,8 @@ def _create_sliding_mask(
 
   cache_positions = cache_positions[None, None, :]  # [1, 1, cache_len]
   segment_pos = segment_pos[:, :, None]  # [B, seq_len, 1]
-  sliding_mask = (cache_positions > segment_pos - sliding_window_size)
-  sliding_mask *= (cache_positions < segment_pos + sliding_window_size)
+  sliding_mask = cache_positions > segment_pos - sliding_window_size
+  sliding_mask *= cache_positions < segment_pos + sliding_window_size
   return sliding_mask
 
 
@@ -77,7 +77,8 @@ class Embedder(nn.Module):
     )
 
   def encode(self, x: jax.Array) -> jax.Array:
-    x = self.input_embedding_table[(x,)]
+    embed_table = self.input_embedding_table
+    x = embed_table[(x,)]
     x *= jnp.sqrt(self.embed_dim).astype(x.dtype)
     return x
 

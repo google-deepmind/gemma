@@ -17,7 +17,7 @@
 import dataclasses
 import enum
 from typing import Iterable
-
+import einops
 from flax import linen as nn
 from gemma import layers
 from gemma import modules
@@ -318,6 +318,7 @@ class Transformer(nn.Module):
       positions: input absolute positions.
       cache: Attention KV cache or None.
       attention_mask: transformer input mask.
+      patches: visual data.
 
     Returns:
       predicted_logits, new_cache
