@@ -14,6 +14,8 @@
 
 """Utils to load pre-trained weights."""
 
+from __future__ import annotations
+
 import dataclasses
 import operator
 import sys
@@ -67,6 +69,7 @@ def load_params(
     *,
     params: params_lib.Params | None = None,
     donate: bool = True,
+    text_only: bool = False,
 ) -> params_lib.Params:
   """Restore the params from a checkpoint.
 
@@ -76,6 +79,8 @@ def load_params(
       params with the correct sharding.
     donate: If `True` and `params` is provided, the memory from params will be
       released.
+    text_only: If `True`, only the text params are restored, and the multimodal
+      params are ignored.
 
   Returns:
     The restored params.
@@ -83,6 +88,9 @@ def load_params(
   ckpt = ocp.StandardCheckpointer()
 
   metadata = ckpt.metadata(path)
+
+  # TODO(epot): Split the logic into `is_legacy` and not legacy.
+  # Would be simpler.
   is_legacy = _is_legacy_layout(metadata)
 
   if donate and params is not None:
@@ -116,8 +124,7 @@ def _unformat_format_params(fn):
   """Decorator which unformat and format the params."""
 
   def decorator(path, params):
-    if params is not None:
-      params = _unreformat_params(params)
+    params = _unreformat_params(params)
     params = fn(path, params)
     params = _reformat_params(params)
     return params
@@ -152,15 +159,21 @@ def _release_memory(x):
 
 def _is_legacy_layout(params: params_lib.Params) -> bool:
   """Returns True is the structure is the legacy one."""
-  return all(k.startswith('transformer/') for k in params.keys())
+  return all(
+      k.startswith(('transformer/', 'SigLiPFromPatches_0/'))
+      for k in params.keys()
+  )
 
 
-def _as_shape_dtype_struct(x) -> jax.ShapeDtypeStruct:
+def _as_shape_dtype_struct(tree):
   """Converts orbax ArrayMetadata to a jax.ShapeDtypeStruct."""
-  return jax.ShapeDtypeStruct(
-      dtype=x.dtype,
-      shape=x.shape,
-      # Set sharding so orbax restore the weights as `jax.Array` rather than
-      # numpy.
-      sharding=kd.sharding.REPLICATED,
+  return jax.tree.map(
+      lambda x: jax.ShapeDtypeStruct(
+          dtype=x.dtype,
+          shape=x.shape,
+          # Set sharding so orbax restore the weights as `jax.Array` rather than
+          # numpy.
+          sharding=kd.sharding.REPLICATED,
+      ),
+      tree,
   )
