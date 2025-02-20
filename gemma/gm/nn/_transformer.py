@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import functools
+from typing import Any
 
 import flax
 from flax import linen as nn
@@ -167,4 +168,17 @@ class Transformer(transformer.Transformer):
     return Output(
         logits=logits,
         cache=None if cache is None else new_cache,
+    )
+
+  def init_cache(
+      self,
+      *,
+      batch_size: int,
+      dtype: jnp.dtype[Any],
+      cache_length: int,
+  ) -> transformer.Cache:
+    return self.config.init_cache(
+        batch_size=batch_size,
+        dtype=dtype,
+        cache_length=cache_length,
     )
