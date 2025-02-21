@@ -6,6 +6,7 @@
 
     colab_finetuning
     colab_sampling
+    colab_sharding
     colab_tokenizer
     colab_lora_sampling
     colab_lora_finetuning

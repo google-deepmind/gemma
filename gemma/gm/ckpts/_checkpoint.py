@@ -70,6 +70,7 @@ def load_params(
     params: params_lib.Params | None = None,
     donate: bool = True,
     text_only: bool = False,
+    sharding: kd.sharding.ShardingTree | None = None,
 ) -> params_lib.Params:
   """Restore the params from a checkpoint.
 
@@ -81,10 +82,15 @@ def load_params(
       released.
     text_only: If `True`, only the text params are restored, and the multimodal
       params are ignored.
+    sharding: If provided, the params will be restored with this sharding. This
+      is mutually exclusive with `params`.
 
   Returns:
     The restored params.
   """
+  if sharding is not None and params is not None:
+    raise ValueError('`sharding` and `params` are mutually exclusive.')
+
   ckpt = ocp.StandardCheckpointer()
 
   metadata = ckpt.metadata(path)
@@ -101,6 +107,8 @@ def load_params(
     # checkpoint structure, so orbax restore as bfloat16 jax.Array, rather than
     # numpy arrays.
     params = jax.tree.map(_as_shape_dtype_struct, metadata)
+    if sharding is not None:
+      params = kd.sharding.with_sharding_constraint(params, sharding)
     if is_legacy:
       params = _reformat_params(params)
 
