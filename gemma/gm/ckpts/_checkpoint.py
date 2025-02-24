@@ -93,11 +93,12 @@ def load_params(
 
   ckpt = ocp.StandardCheckpointer()
 
-  metadata = ckpt.metadata(path)
+  metadata, path = _get_metadata_and_path(ckpt, path)
 
   # TODO(epot): Split the logic into `is_legacy` and not legacy.
   # Would be simpler.
   is_legacy = _is_legacy_layout(metadata)
+  is_kauldron = _is_kauldron_layout(metadata)
 
   if donate and params is not None:
     params = release_memory(params)
@@ -107,6 +108,8 @@ def load_params(
     # checkpoint structure, so orbax restore as bfloat16 jax.Array, rather than
     # numpy arrays.
     params = jax.tree.map(_as_shape_dtype_struct, metadata)
+    if is_kauldron:
+      params = params['params']
     if sharding is not None:
       params = kd.sharding.with_sharding_constraint(params, sharding)
     if is_legacy:
@@ -122,6 +125,9 @@ def load_params(
   # TODO(epot): Should update the checkpoints to the new layout.
   if is_legacy:
     restore_fn = _unformat_format_params(restore_fn)
+
+  if is_kauldron:
+    restore_fn = _add_remove_kauldron_params(restore_fn, metadata)
 
   params = restore_fn(path, params)
 
@@ -153,6 +159,25 @@ def _reformat_params(params: params_lib.Params) -> params_lib.Params:
   return params
 
 
+def _add_remove_kauldron_params(fn, metadata):
+  """Decorator for compatibility with Kauldron checkpoints."""
+
+  def decorator(path, params):
+    # Add Kauldron params
+    # TODO(epot): Should use orbax partial loading instead when open-sourced.
+    kauldron_params = _as_shape_dtype_struct(dict(metadata))
+    kauldron_params['params'] = params
+
+    kauldron_params = fn(path, kauldron_params)
+
+    # Remove Kauldron params
+    params = kauldron_params.pop('params')
+    release_memory(kauldron_params)
+    return params
+
+  return decorator
+
+
 def release_memory(x):
   """Deletes and releases the memory of a Jax array."""
   return jax.tree.map(_release_memory, x)
@@ -171,6 +196,30 @@ def _is_legacy_layout(params: params_lib.Params) -> bool:
       k.startswith(('transformer/', 'SigLiPFromPatches_0/'))
       for k in params.keys()
   )
+
+
+def _is_kauldron_layout(params: params_lib.Params) -> bool:
+  """Returns True is the structure is the Kauldron one."""
+  return set(params) == {'collections', 'opt_state', 'params', 'step'}
+
+
+def _get_metadata_and_path(
+    ckpt: ocp.StandardCheckpointer,
+    path: epath.PathLike,
+):
+  """Returns the metadata of the checkpoint."""
+  path = epath.Path(path)
+  try:
+    metadata = ckpt.metadata(path)
+  except FileNotFoundError:
+    # Kauldron checkpoints structure is different, so the params are contained
+    # in a sub-directory
+    if path.joinpath('_CHECKPOINT_METADATA').exists():
+      path = path / 'default'
+      metadata = ckpt.metadata(path)
+    else:
+      raise
+  return metadata, path
 
 
 def _as_shape_dtype_struct(tree):
