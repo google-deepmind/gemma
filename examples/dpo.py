@@ -99,7 +99,7 @@ def _make_dataset(training: bool) -> kd.data.Pipeline:
       batch_size=batch_size,
       transforms=[
           # Create the model inputs and loss mask.
-          gm.data.AddContrastiveFields(
+          gm.data.ContrastiveTask(
               in_prompt="input",
               in_chosen="chosen",
               in_rejected="rejected",
@@ -111,7 +111,5 @@ def _make_dataset(training: bool) -> kd.data.Pipeline:
               # TODO(epot): Run stats (how many examples are we dropping?)
               truncate=True,
           ),
-          # Only keep the fields we need.
-          kd.data.Elements(keep=["tokens", "mask"]),
       ],
   )

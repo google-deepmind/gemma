@@ -16,18 +16,21 @@
 
 from etils import enp
 import flax
-from kauldron.typing import Array, Bool, Int  # pylint: disable=g-multiple-import,g-importing-member
+import jax
+from kauldron.typing import Array, Bool, Int, PyTree  # pylint: disable=g-multiple-import,g-importing-member
 import numpy as np
 
 
 # Do not @typechecked as `element` can be `list` too.
 def pad(
-    element: Array["sequence"],
+    element: PyTree[Array["sequence"]],
     *,
     max_length: int,
     truncate: bool = False,
-) -> Array["max_length"]:
+) -> PyTree[Array["max_length"]]:
   """Add zeros to the end of the sequence to reach the max length.
+
+  Supports padding multiple arrays at once.
 
   Args:
     element: The sequence to pad.
@@ -38,6 +41,20 @@ def pad(
   Returns:
     The padded sequence of length `max_length`.
   """
+  return jax.tree.map(
+      lambda x: _pad(x, max_length=max_length, truncate=truncate),
+      element,
+      is_leaf=_is_list_array,  # Also supports `[0, 1, ...]`
+  )
+
+
+def _pad(
+    element: Array["sequence"],
+    *,
+    max_length: int,
+    truncate: bool = False,
+) -> Array["max_length"]:
+  """Inner padding implementation."""
   # Use `xnp` so it supports both `np` and `jnp`.
   xnp = enp.lazy.get_xnp(element, strict=False)
 
@@ -112,3 +129,8 @@ def make_next_token_prediction_fields(
       target=sequence[1:],
       target_mask=target_mask,
   )
+
+
+def _is_list_array(x) -> bool:
+  """Returns `True` if `x` is a list of ints, like `[0, 1, ...]`."""
+  return isinstance(x, list | tuple) and all(isinstance(x, int) for x in x)

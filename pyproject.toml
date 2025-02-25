@@ -34,6 +34,7 @@ keywords = []
 dependencies = [
     "absl-py",
     "etils[enp,epath,epy]",
+    "einops",
     "grain",
     "jax",
     "jaxtyping",

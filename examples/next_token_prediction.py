@@ -20,34 +20,19 @@ Input:
 
 ```
 <start_of_turn>user
-You are a helpful assistant with access to the following functions. Use them if required -
-{
-    "name": "search_recipes",
-    "description": "Search for recipes based on ingredients",
-    "parameters": {
-        ...
-    }
-}
-{
-    "name": "get_movie_details",
-    "description": "Get details about a movie",
-    "parameters": {
-        ...
-    }
-}
-
-I have some chicken, broccoli, and cheese. Can you find me a recipe?
+Hello! I would love to visit France.<end_of_turn>
 <start_of_turn>model
 ```
 
 Output:
 
 ```
-{"name": "search_recipes", "arguments": '{"ingredients": ["chicken", "broccoli", "cheese"]}'}<end_of_turn>
+Bonjour ! J'adorerais visiter la France.<end_of_turn>
 ```
 
 The `<start_of_turn>` and `<end_of_turn>` are special tokens used to specify
-which of the user or model is speaking.
+which of the user or model is speaking. Those are automatically added by the
+`Seq2SeqTask` transform.
 
 Train locally with:
 
@@ -116,21 +101,9 @@ def get_config():
           # test set.
           "sampling": gm.evals.SamplerEvaluator(
               run=kd.evals.EveryNSteps(1000),
-              # Sampling parameters
-              tokenizer=gm.text.Gemma2Tokenizer(),
-              max_new_tokens=50,
-              # Which examples to use for sampling
-              # The prompt and response indicates the fields to use within each
-              # dataset example.
-              prompt="prompt",
-              response="response",
+              max_new_tokens=50,  # Sampling parameters
               num_examples=1,  # Only predict a single example
-              ds=kd.data.py.Json(
-                  shuffle=False,
-                  num_epochs=1,
-                  batch_size=None,
-                  num_workers=0,
-              ),
+              ds=_make_dataset(training=False, sampling=True),
           ),
       },
   )
@@ -139,41 +112,36 @@ def get_config():
 def _make_dataset(
     *,
     training: bool,
-    batch_size: int,
-    max_length: int,
+    sampling: bool = False,
+    batch_size: int | None = None,
+    max_length: int | None = None,
 ):
   tokenizer = gm.text.Gemma2Tokenizer()
 
-  split = "train" if training else "test"
-
-  return kd.data.py.Json(
+  return kd.data.py.Tfds(
+      name="mtnt/en-fr",
+      split="train" if training else "test",
       shuffle=True if training else False,
       num_epochs=None if training else 1,
-      batch_size=batch_size,
+      batch_size=None if sampling else batch_size,
       num_workers=4,
       transforms=[
-          gm.data.Tokenize(key="prompt", tokenizer=tokenizer, add_bos=True),
-          gm.data.Tokenize(key="response", tokenizer=tokenizer, add_eos=True),
           # Create the model inputs/targets/loss_mask.
-          gm.data.AddNextTokenPredictionFields(
-              in_prompt="prompt",
-              in_response="response",
+          gm.data.Seq2SeqTask(
+              # Select which field from the dataset to use.
+              # https://www.tensorflow.org/datasets/catalog/mtnt
+              in_prompt="src",
+              in_response="dst",
+              # Output batch is {"input": ..., "target": ..., "loss_mask": ...}
               out_input="input",
               out_target="target",
               out_target_mask="loss_mask",
-          ),
-          # Only keep the fields we need.
-          kd.data.Elements(keep=["input", "target", "loss_mask"]),
-          # Pad the sequences to support batching.
-          gm.data.Pad(
-              key=["input", "target", "loss_mask"],
-              max_length=max_length,
+              tokenizer=tokenizer,
+              # Padding parameters
+              max_length=None if sampling else max_length,
               # In this dataset, ~1% of examples are longer than 512 tokens.
               truncate=True,
-          ),
-          # For shape compatibility with the loss
-          kd.data.Rearrange(
-              key=["target", "loss_mask"], pattern="... -> ... 1"
+              sampling=sampling,
           ),
       ],
   )
