@@ -22,19 +22,8 @@ import textwrap
 from gemma.gm.data import _functional
 from gemma.gm.text import _tokenizer
 from grain import python as grain
-import jax
 from kauldron import kd
 from kauldron.typing import Array  # pylint: disable=g-multiple-import,g-importing-member
-import numpy as np
-
-
-# Note: The template end by `\n`
-_PROMPT_TEMPLATE = """\
-<start_of_turn>user
-{}<end_of_turn>
-<start_of_turn>model
-"""
-_ANSWER_TEMPLATE = "{}<end_of_turn>"
 
 
 @dataclasses.dataclass(kw_only=True, frozen=True)
@@ -174,7 +163,6 @@ class AddNextTokenPredictionFields(grain.MapTransform):
 
   # Should we allow to customize the last-token to allow `MASKED`, `EOS` or
   # `TRUNCATED` ?
-  # Add an option to drop the input keys ?
 
   def map(self, element):
     # Extract the values from the `dict` example.
@@ -193,103 +181,4 @@ class AddNextTokenPredictionFields(grain.MapTransform):
     kd.kontext.set_by_path(element, self.out_input, out.input)
     kd.kontext.set_by_path(element, self.out_target, out.target)
     kd.kontext.set_by_path(element, self.out_target_mask, out.target_mask)
-    return element
-
-
-@dataclasses.dataclass(kw_only=True, frozen=True)
-class AddContrastiveFields(grain.MapTransform):
-  """Creates the contrastive model inputs for DPO-like loss.
-
-  Input:
-
-  ```python
-  {
-      'prompt': 'How much are 2+2 ?',
-      'chosen': 'Yes, this is 4.',
-      'rejected': 'Of course, 2+2 is 42.',
-  }
-  ```
-
-  Output:
-
-  ```python
-  {
-      'tokens': i32['2 max_length'],
-      'mask': bool['2 max_length'],
-  }
-  ```
-
-  In the output, `[chosen, rejected]` token ids are stacked (in that order).
-
-  Attributes:
-    in_prompt: Input key
-    in_chosen: Input key
-    in_rejected: Input key
-    out_tokens: Output key (will be added to the example dict)
-    out_mask: Output key (will be added to the example dict)
-    tokenizer: The tokenizer to use.
-    max_length: The max length of the sequence (examples will be
-      padded/truncated to this length).
-    truncate: Whether to truncate the sequence to the max length. If `False`,
-      sequences longer than the `max_length` will raise an error.
-  """
-  in_prompt: kd.kontext.Key  # e.g. `'input'`
-  in_chosen: kd.kontext.Key  # e.g. `'chosen'`
-  in_rejected: kd.kontext.Key  # e.g. `'rejected'`
-
-  out_tokens: kd.kontext.Key  # e.g. `'tokens'`
-  out_mask: kd.kontext.Key  # e.g. `'mask'`
-
-  tokenizer: _tokenizer.Tokenizer
-
-  max_length: int
-  truncate: bool = False
-
-  def map(self, element):
-    prompt = kd.kontext.get_by_path(element, self.in_prompt)
-    chosen = kd.kontext.get_by_path(element, self.in_chosen)
-    rejected = kd.kontext.get_by_path(element, self.in_rejected)
-
-    # Format the input to match the expected dialog template.
-    prompt = _PROMPT_TEMPLATE.format(prompt)
-    chosen = _ANSWER_TEMPLATE.format(chosen)
-    rejected = _ANSWER_TEMPLATE.format(rejected)
-
-    # Tokenize the input and the responses.
-    # Note: Input should start with begin-of-sequence token.
-    prompt = self.tokenizer.encode(prompt, add_bos=True)
-    chosen = self.tokenizer.encode(chosen)
-    rejected = self.tokenizer.encode(rejected)
-
-    next_token_chosen = _functional.make_next_token_prediction_fields(
-        prompt=prompt,
-        response=chosen,
-    )
-    next_token_rejected = _functional.make_next_token_prediction_fields(
-        prompt=prompt,
-        response=rejected,
-    )
-
-    # Add padding.
-    (next_token_chosen, next_token_rejected) = jax.tree.map(
-        lambda x: _functional.pad(
-            x,
-            max_length=self.max_length,
-            truncate=self.truncate,
-        ),
-        (next_token_chosen, next_token_rejected),
-    )
-
-    # Stack the input and target.
-    out = jax.tree.map(
-        lambda x, y: np.stack([x, y], axis=0),
-        next_token_chosen,
-        next_token_rejected,
-    )
-
-    # Add the fields to the output `dict`.
-    # Equivalent to `element[self.out_input] = ...`
-    kd.kontext.set_by_path(element, self.out_tokens, out.input)
-    kd.kontext.set_by_path(element, self.out_mask, out.target)
-
     return element

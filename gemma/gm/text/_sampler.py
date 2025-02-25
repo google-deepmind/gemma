@@ -23,6 +23,7 @@ from gemma import params as params_lib
 from gemma.gm.nn import _transformer
 from gemma.gm.text import _sampler_impl
 from gemma.gm.text import _tokenizer
+import numpy as np
 
 
 # TODO(epot):
@@ -93,6 +94,10 @@ class Sampler:
     Returns:
       The sampled output.
     """
+    if _is_str_array(prompt):  # Supports batched input array
+      assert isinstance(prompt, np.ndarray)
+      prompt = prompt.tolist()
+
     if isinstance(prompt, str):
       is_single_prompt = True
       prompt = [prompt]
@@ -119,3 +124,9 @@ class Sampler:
         # when the sequence is smaller.
         cache_length=1024,
     )
+
+
+def _is_str_array(x) -> bool:
+  if not isinstance(x, np.ndarray):
+    return False
+  return np.dtype(x.dtype).type in {np.object_, np.str_}

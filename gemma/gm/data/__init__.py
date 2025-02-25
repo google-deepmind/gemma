@@ -20,7 +20,8 @@
 from gemma.gm.data._parquet import Parquet
 
 # `transforms=`
-from gemma.gm.data._transforms import AddContrastiveFields
+from gemma.gm.data._tasks import ContrastiveTask
+from gemma.gm.data._tasks import Seq2SeqTask
 from gemma.gm.data._transforms import AddNextTokenPredictionFields
 from gemma.gm.data._transforms import DecodeBytes
 from gemma.gm.data._transforms import FormatText
