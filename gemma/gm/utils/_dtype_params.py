@@ -65,7 +65,15 @@ def _mock_flax_module_param() -> None:
   param = _internal.unwrap_on_reload(nn.Module.param)  # pylint: disable=protected-access
 
   @_internal.wraps_with_reload(param)
-  def decorated(self: nn.Module, *args, **kwargs):
+  def decorated(
+      self: nn.Module,
+      name: str,
+      init_fn,  # : Callable[..., Any],
+      shape: tuple[int, ...],
+      dtype: _DType | None = None,
+      **kwargs,
+  ):
+    # TODO(epot): DO NOT SUBMIT: Check this do not break LoRA
     if (
         self.is_initializing()
         and _context.dtypes
@@ -74,9 +82,12 @@ def _mock_flax_module_param() -> None:
         # If `None` is provided, use the default dtype
         and _context.dtypes[-1] is not None
     ):
-      return param(self, *args, **kwargs, dtype=_context.dtypes[-1])
+      del dtype  # The dtype is overwritten by the contextmanager
+      return param(
+          self, name, init_fn, shape, **kwargs, dtype=_context.dtypes[-1]
+      )
     else:
-      return param(self, *args, **kwargs)
+      return param(self, name, init_fn, shape, dtype, **kwargs)
 
   nn.Module.param = decorated
 
