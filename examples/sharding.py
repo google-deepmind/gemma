@@ -14,7 +14,7 @@
 
 r"""Example of Gemma finetuning for a prompt -> response task.
 
-This is a fork of the next_token_prediction example, but with sharding.
+This is a fork of the seq2seq example, but with sharding.
 The only difference is the `sharding=kd.sharding.ShardingStrategy()`
 
 Train locally with:

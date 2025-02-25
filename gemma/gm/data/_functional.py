@@ -70,7 +70,7 @@ def _pad(
 
 
 @flax.struct.dataclass
-class NextTokenPredictionFields:
+class Seq2SeqFields:
   """Fields for next token prediction."""
 
   input: Int["*b l"]
@@ -81,10 +81,10 @@ class NextTokenPredictionFields:
 # Note: There's no `batch` dimension here. It wouldn't make much sense as
 # each example has a different length, so batching can only be applied
 # after the output is padded.
-def make_next_token_prediction_fields(
+def make_seq2seq_fields(
     prompt: Int["prompt_len"],
     response: Int["response_len"],
-) -> NextTokenPredictionFields:
+) -> Seq2SeqFields:
   """Create the model `input`, `target` and `loss_mask`.
 
   From prompt and response token ids, generate the model `input`, `target` and
@@ -124,7 +124,7 @@ def make_next_token_prediction_fields(
       np.ones((len(response),), dtype=np.bool_),
   ])
 
-  return NextTokenPredictionFields(
+  return Seq2SeqFields(
       input=sequence[:-1],
       target=sequence[1:],
       target_mask=target_mask,

@@ -18,8 +18,8 @@ from gemma import gm
 import numpy as np
 
 
-def test_add_next_token_prediction():
-  tr = gm.data.AddNextTokenPredictionFields(
+def test_add_seq2seq():
+  tr = gm.data.AddSeq2SeqFields(
       in_prompt="prompt",
       in_response="response",
       out_input="input",

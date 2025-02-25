@@ -119,7 +119,7 @@ class MapInts(kd.data.ElementWiseTransform):
 
 
 @dataclasses.dataclass(kw_only=True, frozen=True)
-class AddNextTokenPredictionFields(grain.MapTransform):
+class AddSeq2SeqFields(grain.MapTransform):
   """Adds the model `input`, `target` and `loss_mask`.
 
   From prompt and response token ids, generate the model `input`, `target` and
@@ -171,7 +171,7 @@ class AddNextTokenPredictionFields(grain.MapTransform):
     prompt_tokens = kd.kontext.get_by_path(element, self.in_prompt)
     response_tokens = kd.kontext.get_by_path(element, self.in_response)
 
-    out = _functional.make_next_token_prediction_fields(
+    out = _functional.make_seq2seq_fields(
         prompt=prompt_tokens,
         response=response_tokens,
     )
