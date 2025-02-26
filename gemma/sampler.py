@@ -30,32 +30,7 @@ import jax.numpy as jnp
 
 import sentencepiece as spm
 
-
-def _compute_attention_masks(
-    time_step: jax.Array, seq_len: int, input_mask: jax.Array
-) -> jax.Array:
-  """Computes causal attention mask."""
-  bsz = input_mask.shape[0]
-  batch_time_step = jnp.full((bsz, 1), time_step, dtype=jnp.uint32)
-  causal_mask = jnp.less_equal(
-      jnp.expand_dims(jnp.arange(seq_len), 0), batch_time_step
-  )
-  max_seq_len = min(input_mask.shape[-1], seq_len)
-  input_mask = jax.lax.dynamic_slice(
-      input_mask,
-      (0, jnp.maximum(time_step - seq_len + 1, 0)),
-      (bsz, max_seq_len),
-  )
-  input_mask = (
-      jnp.ones((bsz, seq_len), dtype=jnp.bool_)
-      .at[:, :max_seq_len]
-      .set(input_mask)
-  )
-
-  causal_mask = jnp.logical_and(causal_mask, input_mask)
-  attention_mask = causal_mask[:, jnp.newaxis, :].astype(jnp.bool_)
-
-  return attention_mask
+_compute_attention_masks = transformer_lib.compute_attention_masks
 
 
 @chex.dataclass
@@ -129,7 +104,8 @@ class Sampler:
     if cache_length is None:
       warnings.warn(
           'TransformerConfig.max_cache_length is deprecated and will be'
-          ' REMOVED!!! Instead, set the `cache_length` in the `Sampler` class.',
+          ' REMOVED!!! Instead, set the `cache_length` in the `Sampler`'
+          ' class.',
           DeprecationWarning,
           stacklevel=2,
       )
@@ -146,17 +122,16 @@ class Sampler:
   ) -> _SamplingState:
     """Performs a single sampling step."""
     batch_size = sampler_state.token_buffer.shape[0]
+    input_mask = sampler_state.token_buffer != self.vocab.pad_id()
     decoding_step = jnp.asarray(sampler_state.decoding_step, dtype=jnp.int32)
     last_token = sampler_state.token_buffer[:, decoding_step]
-    input_mask = sampler_state.token_buffer != self.vocab.pad_id()
-    attention_mask = _compute_attention_masks(
+    attention_mask = transformer_lib.compute_attention_masks(
         decoding_step, self.cache_length, input_mask
     )
     step_positions = jnp.expand_dims(
         sampler_state.positions[:, decoding_step], -1
     )
     last_token = last_token.reshape((batch_size, 1))
-
     logits, cache = self.transformer.apply(
         {'params': params},
         last_token,
@@ -225,12 +200,7 @@ class Sampler:
     buffer_size = total_sampling_steps + 1
 
     token_buffer = jnp.full(
-        (
-            bsz,
-            buffer_size,
-        ),
-        self.vocab.pad_id(),
-        dtype=jnp.int32,
+        (bsz, buffer_size), self.vocab.pad_id(), dtype=jnp.int32
     )
     input_mask = jnp.ones_like(token_buffer, dtype=jnp.bool_)
     for i, (input_ids, num_tokens) in enumerate(
@@ -240,25 +210,61 @@ class Sampler:
       input_mask = input_mask.at[i, :num_tokens].set(
           input_ids != self.vocab.pad_id()
       )
+
     positions = transformer_lib.build_positions_from_mask(input_mask)
 
     done = jnp.zeros((bsz,), dtype=jnp.bool_)
+    num_input_tokens = jnp.array(num_input_tokens, dtype=jnp.int32)
 
+    input_mask = token_buffer != self.vocab.pad_id()
+    decoding_step = num_input_tokens[0]
+    logits, cache = self.transformer.apply(
+        {'params': self.params},
+        jax.lax.dynamic_slice(token_buffer, (0, 0), (bsz, decoding_step)),
+        positions[:, :decoding_step],
+        self.init_cache(bsz),
+        transformer_lib.compute_sequence_attention_mask(
+            time_step=decoding_step,
+            seq_len=self.cache_length,
+            input_mask=input_mask,
+        ),
+    )
     if include_logits:
-      logits_buffer = jnp.zeros(
-          (bsz, buffer_size, self.transformer.config.num_embed),
-          dtype=jnp.float32,
+      logits_buffer = jnp.concatenate(
+          [
+              jnp.zeros(
+                  (bsz, 1, self.transformer.config.num_embed),
+                  dtype=jnp.float32,
+              ),
+              logits,
+              jnp.zeros(
+                  (
+                      bsz,
+                      buffer_size - decoding_step - 1,
+                      self.transformer.config.num_embed,
+                  ),
+                  dtype=jnp.float32,
+              ),
+          ],
+          axis=1,
       )
     else:
       logits_buffer = None
 
+    # We decoded one token here:
+    if forbidden_token_ids:
+      logits = logits.at[:, :, forbidden_token_ids].set(-jnp.inf)
+    next_token_candidate = jnp.argmax(logits, axis=-1)
+    next_token_candidate = next_token_candidate[:, -1]
+    token_buffer = token_buffer.at[:, decoding_step].set(next_token_candidate)
+
     return _SamplingState(
-        decoding_step=0,
-        num_input_tokens=jnp.array(num_input_tokens, dtype=jnp.int32),
+        decoding_step=decoding_step,
+        num_input_tokens=num_input_tokens,
         token_buffer=token_buffer,
         positions=positions,
         logits_buffer=logits_buffer,
-        cache=self.init_cache(bsz),
+        cache=cache,
         done=done,
         total_sampling_steps=total_sampling_steps,
         forbidden_token_ids=forbidden_token_ids,
@@ -284,7 +290,7 @@ class Sampler:
     mask = jnp.less_equal(
         jnp.arange(token_buffer.shape[-1]), eos_indices[:, None]
     )
-    masked_token_buffer = token_buffer * mask + self.vocab.pad_id()*(1 - mask)
+    masked_token_buffer = token_buffer * mask + self.vocab.pad_id() * (1 - mask)
 
     return masked_token_buffer
 
@@ -373,9 +379,7 @@ class Sampler:
         out_logits.append(
             logits_buffer[start_idx:total_sampling_steps].tolist()
         )
-
     decoded_outputs = [self.vocab.DecodeIds(tokens) for tokens in out_tokens]
-
     result = SamplerOutput(
         text=decoded_outputs,
         logits=out_logits,

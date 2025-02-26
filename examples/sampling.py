@@ -54,7 +54,7 @@ _TOTAL_GENERATION_STEPS = flags.DEFINE_integer(
 )
 _STRING_TO_SAMPLE = flags.DEFINE_string(
     "string_to_sample",
-    "Where is Paris ?",
+    "Where is Paris?",
     help="Input string to sample.",
 )
 
@@ -71,7 +71,9 @@ def _load_and_sample(
 ) -> None:
   """Loads and samples a string from a checkpoint."""
   print(f"Loading the parameters from {path_checkpoint}")
-  parameters = params_lib.load_and_format_params(path_checkpoint)
+  parameters = params_lib.load_and_format_params(
+      path_checkpoint,
+  )
   print("Parameters loaded.")
   # Create a sampler with the right param shapes.
   vocab = spm.SentencePieceProcessor()
@@ -85,6 +87,7 @@ def _load_and_sample(
       transformer=transformer,
       vocab=vocab,
       params=parameters["transformer"],
+      cache_length=_CACHE_SIZE,
   )
   sampled_str = sampler(
       input_strings=[input_string],

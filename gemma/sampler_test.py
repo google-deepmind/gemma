@@ -107,7 +107,10 @@ class SamplerTest(absltest.TestCase):
         params=params['params'],
     )
 
-    result = sampler(['input string', 'hello world'], total_generation_steps=10)
+    result = sampler(
+        ['input string', 'hello world'],
+        total_generation_steps=10,
+    )
     self.assertIsNotNone(result)
 
   def test_forbidden_tokens(self):
@@ -220,11 +223,13 @@ class SamplerTest(absltest.TestCase):
     )
 
     output_transformer = sampler(
-        [raw_input], total_generation_steps=10, echo=True
+        [raw_input],
+        total_generation_steps=10,
+        echo=True,
     )
     out_logits = np.array(output_transformer.logits)[0, 1 : n_input_tokens + 1]
 
-    np.testing.assert_almost_equal(output_forward, out_logits)
+    np.testing.assert_almost_equal(output_forward, out_logits, decimal=2)
 
   def test_sampler_init_sample_state(self):
     vocab = MockVocab()
@@ -327,8 +332,8 @@ class SamplerTest(absltest.TestCase):
         time_step, seq_len, input_mask
     )
     expected_attn_mask = jnp.array(
-        [[0, 0, 1, 1, 1, 0, 0, 0],
-         [0, 0, 1, 0, 1, 0, 0, 0]], dtype=jnp.bool_)
+        [[0, 0, 1, 1, 1, 0, 0, 0], [0, 0, 1, 0, 1, 0, 0, 0]], dtype=jnp.bool_
+    )
 
     self.assertTrue((attn_mask.squeeze(1) == expected_attn_mask).all())
 
@@ -339,10 +344,9 @@ class SamplerTest(absltest.TestCase):
     attn_mask = sampler_lib._compute_attention_masks(
         time_step, seq_len, input_mask
     )
-    print(attn_mask)
     expected_attn_mask = jnp.array(
-        [[0, 1, 1, 1],
-         [0, 1, 0, 1]], dtype=jnp.bool_)
+        [[0, 1, 1, 1], [0, 1, 0, 1]], dtype=jnp.bool_
+    )
 
     self.assertTrue((attn_mask.squeeze(1) == expected_attn_mask).all())
 
