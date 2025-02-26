@@ -17,3 +17,11 @@
 # A new PyPI release will be pushed every time `__version__` is increased.
 # When changing this, also update the CHANGELOG.md.
 __version__ = '2.0.8'
+
+
+def __getattr__(name: str):  # pylint: disable=invalid-name
+  """Catches `import gemma as gm` errors."""
+  del name
+  raise AttributeError(
+      'Please use "from gemma import gm", NOT "import gemma as gm".'
+  )
