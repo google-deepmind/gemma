@@ -349,6 +349,69 @@ class Transformer(nn.Module):
     return logits, cache  # pytype: disable=bad-return-type
 
 
+def compute_sequence_attention_mask(
+    time_step: jax.Array,
+    *,
+    seq_len: int,
+    input_mask: jax.Array,
+    bi_directional_mask: jax.Array | None = None,
+) -> jax.Array:
+  """Computes sequence attention mask."""
+  bsz = input_mask.shape[0]
+  attention_mask = jnp.tile(
+      jnp.expand_dims(jnp.tri(N=int(time_step), M=int(seq_len)), axis=0),
+      (bsz, 1, 1),
+  )
+  if bi_directional_mask is not None:
+    bi_directional_mask = jnp.expand_dims(
+        jnp.concatenate([
+            bi_directional_mask[0],
+            jnp.zeros((seq_len - len(bi_directional_mask))),
+        ]),
+        axis=0,
+    )
+    bi_directional_mask = jnp.tile(
+        jnp.expand_dims(
+            jnp.outer(bi_directional_mask, bi_directional_mask)[
+                :time_step, :seq_len
+            ],
+            axis=0,
+        ),
+        (bsz, 1, 1),
+    ).astype(jnp.bool_)
+    attention_mask = jnp.logical_or(attention_mask, bi_directional_mask).astype(
+        jnp.bool_
+    )
+  return attention_mask
+
+
+def compute_attention_masks(
+    time_step: jax.Array, seq_len: int, input_mask: jax.Array
+) -> jax.Array:
+  """Computes causal attention mask."""
+  bsz = input_mask.shape[0]
+  batch_time_step = jnp.full((bsz, 1), time_step, dtype=jnp.uint32)
+  causal_mask = jnp.less_equal(
+      jnp.expand_dims(jnp.arange(seq_len), 0), batch_time_step
+  )
+  max_seq_len = min(input_mask.shape[-1], seq_len)
+  input_mask = jax.lax.dynamic_slice(
+      input_mask,
+      (0, jnp.maximum(time_step - seq_len + 1, 0)),
+      (bsz, max_seq_len),
+  )
+  input_mask = (
+      jnp.ones((bsz, seq_len), dtype=jnp.bool_)
+      .at[:, :max_seq_len]
+      .set(input_mask)
+  )
+
+  causal_mask = jnp.logical_and(causal_mask, input_mask)
+  attention_mask = causal_mask[:, jnp.newaxis, :].astype(jnp.bool_)
+
+  return attention_mask
+
+
 def make_causal_attn_mask(
     input_mask: jax.Array,  # Shape [B, L]
 ) -> jax.Array:
