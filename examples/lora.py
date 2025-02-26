@@ -14,7 +14,7 @@
 
 r"""Example of Gemma finetuning using LoRA.
 
-This example is based on the `next_token_prediction.py` example. See the
+This example is based on the `seq2seq.py` example. See the
 docstring of that file for more details.
 
 The changes to use LoRA are:

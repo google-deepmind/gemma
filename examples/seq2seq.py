@@ -38,7 +38,7 @@ Train locally with:
 
 ```sh
 python -m kauldron.main \
-    --cfg=examples/next_token_prediction.py \
+    --cfg=examples/seq2seq.py \
     --cfg.workdir=/tmp/kauldron_oss/workdir
 ```
 
