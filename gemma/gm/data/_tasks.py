@@ -135,7 +135,7 @@ class Seq2SeqTask(grain.MapTransform):
     response = self.tokenizer.encode(response, add_eos=True)
 
     # Create the model inputs/targets/loss_mask.
-    out = _functional.make_next_token_prediction_fields(
+    out = _functional.make_seq2seq_fields(
         prompt=prompt,
         response=response,
     )
@@ -234,11 +234,11 @@ class ContrastiveTask(grain.MapTransform):
     chosen = self.tokenizer.encode(chosen)
     rejected = self.tokenizer.encode(rejected)
 
-    next_token_chosen = _functional.make_next_token_prediction_fields(
+    next_token_chosen = _functional.make_seq2seq_fields(
         prompt=prompt,
         response=chosen,
     )
-    next_token_rejected = _functional.make_next_token_prediction_fields(
+    next_token_rejected = _functional.make_seq2seq_fields(
         prompt=prompt,
         response=rejected,
     )

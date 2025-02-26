@@ -35,9 +35,9 @@ def test_pad():
   )
 
 
-def test_next_token_prediction():
+def test_seq2seq():
 
-  out = gm.data.make_next_token_prediction_fields(
+  out = gm.data.make_seq2seq_fields(
       prompt=[10, 11, 12, 13, 14],
       response=[20, 21, 1],  # Response ends with EOS token.
   )
