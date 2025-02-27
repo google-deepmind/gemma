@@ -23,3 +23,9 @@ with _epy.lazy_api_imports(globals()):
   from gemma.gm.text._tokenizer import Gemma2Tokenizer
   from gemma.gm.text._tokenizer import Tokenizer
   from gemma.gm.text._sampler import Sampler
+
+  # Sampling methods
+  # TODO(epot): Add `TopK`,...
+  from gemma.gm.text._sampling import SamplingMethod
+  from gemma.gm.text._sampling import Greedy
+  from gemma.gm.text._sampling import RandomSampling

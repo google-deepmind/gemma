@@ -17,11 +17,13 @@
 from collections.abc import Sequence
 import dataclasses
 import functools
+import random as py_random
 import typing
 
 from gemma import params as params_lib
 from gemma.gm.nn import _transformer
 from gemma.gm.text import _sampler_impl
+from gemma.gm.text import _sampling
 from gemma.gm.text import _tokenizer
 import numpy as np
 
@@ -51,12 +53,19 @@ class Sampler:
     model: Gemma transformer model.
     params: Model parameters.
     tokenizer: Tokenizer.
-    cache_length: Size of the attention cache.
+    sampling: Sampling method to use. Default to greedy sampling.
+    seed: Seed to use for sampling.
   """
 
   model: _transformer.Transformer
   params: params_lib.Params
   tokenizer: _tokenizer.Tokenizer
+  sampling: _sampling.SamplingMethod = dataclasses.field(
+      default_factory=_sampling.Greedy
+  )
+  seed: int = dataclasses.field(
+      default_factory=lambda: py_random.randint(0, 1000000000)
+  )
 
   # TODO(epot): Add a `max_length` argument to the `sample()` method.
   @typing.overload
@@ -65,6 +74,7 @@ class Sampler:
       prompt: str,
       *,
       max_new_tokens: int = ...,
+      sampling: _sampling.SamplingMethod = ...,
   ) -> str:
     ...
 
@@ -74,6 +84,7 @@ class Sampler:
       prompt: Sequence[str],
       *,
       max_new_tokens: int = ...,
+      sampling: _sampling.SamplingMethod = ...,
   ) -> list[str]:
     ...
 
@@ -82,6 +93,7 @@ class Sampler:
       prompt,
       *,
       max_new_tokens=200,
+      sampling: _sampling.SamplingMethod | None = None,
   ):
     """Samples a string from the model.
 
@@ -90,10 +102,14 @@ class Sampler:
         strings.
       max_new_tokens: Maximum number of new tokens to generate. The transformer
         will process `input_length + max_new_tokens`.
+      sampling: Sampling method to use. If given, will override the default
+        sampling method.
 
     Returns:
       The sampled output.
     """
+    sampling = sampling or self.sampling
+
     if _is_str_array(prompt):  # Supports batched input array
       assert isinstance(prompt, np.ndarray)
       prompt = prompt.tolist()
@@ -104,7 +120,11 @@ class Sampler:
     else:
       is_single_prompt = False
 
-    output = self._sampler(prompt, total_generation_steps=max_new_tokens)
+    output = self._sampler(
+        prompt,
+        sampling=sampling,
+        total_generation_steps=max_new_tokens,
+    )
     output = output.text
 
     if is_single_prompt:
@@ -123,6 +143,7 @@ class Sampler:
         # `max_length=` in `def sample()` ? No need to allocate extra memory
         # when the sequence is smaller.
         cache_length=1024,
+        seed=self.seed,
     )
 
 
