@@ -25,12 +25,14 @@ from gemma import modules
 from gemma import params as params_lib
 from gemma import transformer as transformer_lib
 from gemma.gm.nn import _transformer
+from gemma.gm.text import _sampling
 from gemma.gm.text import _tokenizer
 import jax
 import jax.numpy as jnp
+from kauldron import random
 
 
-@flax.struct.dataclass
+@flax.struct.dataclass(kw_only=True)
 class _SamplingState:
   """Internal sampling state."""
 
@@ -61,6 +63,8 @@ class _SamplingState:
   # List of tokens that are forbidden to be generated.
   forbidden_token_ids: Sequence[int] | None = None
 
+  rng: random.PRNGKey
+
 
 @dataclasses.dataclass
 class SamplerOutput:
@@ -86,6 +90,7 @@ class Sampler:
       tokenizer: _tokenizer.Tokenizer,
       params: params_lib.Params,
       cache_length: int = 1024,
+      seed: int,
   ):
     """Initializes a sampler for a Gemma model.
 
@@ -94,19 +99,27 @@ class Sampler:
       tokenizer: tokenizer of the given model.
       params: weights of the model.
       cache_length: Max length of the cache.
+      seed: Random seed for the sampler.
     """
     self.transformer = transformer
     self.tokenizer = tokenizer
     self.params = params
     self.cache_length = cache_length
-    self._compiled_sample_fn = jax.jit(self._sample_fn)
+    self._compiled_sample_fn = jax.jit(
+        self._sample_fn, static_argnames=('sampling',)
+    )
+    self._rng = random.PRNGKey(seed)
 
   @property
   def dtype(self) -> jnp.dtype:
     return jax.tree_util.tree_leaves(self.params)[0].dtype
 
   def _sample_step(
-      self, params, sampler_state: _SamplingState
+      self,
+      params,
+      sampler_state: _SamplingState,
+      *,
+      sampling: _sampling.SamplingMethod,
   ) -> _SamplingState:
     """Performs a single sampling step."""
     batch_size = sampler_state.token_buffer.shape[0]
@@ -133,8 +146,10 @@ class Sampler:
     if sampler_state.forbidden_token_ids:
       logits = logits.at[:, :, sampler_state.forbidden_token_ids].set(-jnp.inf)
 
-    next_token_candidate = jnp.argmax(logits, axis=-1)  # [B, 1]
-    next_token_candidate = next_token_candidate[:, 0]  # [B,]
+    # Logit is `B L V` with `L=1`
+    next_rng, curr_rng = sampler_state.rng.split()
+    next_token_candidate = sampling.get_next_tokens(logits, rng=curr_rng)
+    next_token_candidate = next_token_candidate[:, 0]
 
     next_token_candidate = jnp.where(
         decoding_step < sampler_state.num_input_tokens - 1,
@@ -170,6 +185,7 @@ class Sampler:
         done=done,
         total_sampling_steps=sampler_state.total_sampling_steps,
         forbidden_token_ids=sampler_state.forbidden_token_ids,
+        rng=next_rng,
     )
 
   def init_cache(self, bsz) -> dict[str, modules.LayerCache]:
@@ -230,6 +246,7 @@ class Sampler:
         done=done,
         total_sampling_steps=total_sampling_steps,
         forbidden_token_ids=forbidden_token_ids,
+        rng=self._rng,
     )
 
   def tokenize(self, input_string: str) -> jax.Array:
@@ -263,11 +280,13 @@ class Sampler:
       self,
       params: params_lib.Params,
       initial_sampling_state: _SamplingState,
+      *,
+      sampling: _sampling.SamplingMethod,
   ) -> _SamplingState:
     """Internal sampling function (to be jitted)."""
 
     def sample_with_params(sampler_state: _SamplingState):
-      return self._sample_step(params, sampler_state)
+      return self._sample_step(params, sampler_state, sampling=sampling)
 
     def cond_fn(sampler_state: _SamplingState):
       return (
@@ -281,10 +300,12 @@ class Sampler:
   def __call__(
       self,
       input_strings: Sequence[str],
+      *,
       total_generation_steps: int,
       echo: bool = False,
       return_logits: bool = False,
       forbidden_tokens: Sequence[str] | None = None,
+      sampling: _sampling.SamplingMethod,
   ) -> SamplerOutput:
     """Samples a completion of the input string.
 
@@ -296,6 +317,7 @@ class Sampler:
       return_logits: whether to return per-step logits used during generation.
       forbidden_tokens: list of tokens that are forbidden to be generated. Each
         token must map to a single token id in the vocab.
+      sampling: Sampling method to use.
 
     Returns:
       sampler_output: A SamplerOutput object containing the generated samples.
@@ -322,7 +344,7 @@ class Sampler:
     )
 
     sampling_state = self._compiled_sample_fn(
-        self.params, initial_sampling_state
+        self.params, initial_sampling_state, sampling=sampling
     )
 
     masked_token_buffer = self.mask_tokens_after_eos_ids(
@@ -346,6 +368,9 @@ class Sampler:
         )
 
     decoded_outputs = [self.tokenizer.decode(tokens) for tokens in out_tokens]
+
+    # Update the rng for the next call.
+    self._rng = sampling_state.rng
 
     result = SamplerOutput(
         text=decoded_outputs,
