@@ -38,6 +38,28 @@ class MyModel(nn.Module):
     return dense(x) + lora(x)
 ```
 
+## Quantization
+
+Similarly to what was introduced for LoRA adapters, we add quantization
+simulation wrappers:
+
+*   `SimulateQuantizedDense`: Wrap a `nn.Dense` layer.
+*   `SimulateQuantizedEinsum`: Wrap an `nn.Einsum` layer.
+
+Example of usage inside a Flax module:
+
+```python
+class MyModel(nn.Module):
+
+  @nn.compact
+  def __call__(self, x):
+    layer = peft.SimulateQuantizedDense(
+        wrapped=nn.Dense(10),
+        method=peft.QuantizationMethod.Q4_0
+    )
+    return layer(x)
+```
+
 ## Model surgery
 
 The library provides some utils to help with model surgery by replacing modules
@@ -55,12 +77,37 @@ with ModuleInterceptor(_replace_dense_by_lora):
   y = model(x)
 ```
 
+A special note regarding quantization and in particular Q4_0. It assumes that
+the weights are transposed for every first layer of the FFNs.
+This could be achieved like this:
+
+```python
+def _apply_q4_0_to_dense(module: nn.Module) -> nn.Module:
+  if isinstance(module, nn.Dense):
+    if 'gating' in module.name.lower():
+      return peft.SimulateQuantizedDense(
+          wrapped=module,
+          method=peft.QuantizationMethod.Q4_0_TRANSPOSE,
+      )
+    else:
+      return peft.SimulateQuantizedDense(
+          wrapped=module,
+          method=peft.QuantizationMethod.Q4_0,
+      )
+  else:
+    return module
+
+# Within the context, the dense layers are replaced by their LoRA version.
+with ModuleInterceptor(_apply_q4_0):
+  y = model(x)
+```
+
 ## Params surgery
 
 For params tree structure manipulation:
 
-*   `peft.split_params`: Split a params nested dict into 2 trees: one only containing
-    the original params and one only containing the LoRA params.
+*   `peft.split_params`: Split a params nested dict into 2 trees: one only
+    containing the original params and one only containing the LoRA params.
 *   `peft.merge_params`: Reverse of `split_params`. Merge 2 trees into a single tree.
 
 ```python

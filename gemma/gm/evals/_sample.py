@@ -109,3 +109,9 @@ class SamplerEvaluator(kd.evals.EvaluatorBase):
         'Could not find a `Seq2SeqTask` transform in the dataset. This is'
         f' required by SamplerEvaluator. Dataset: {epy.pretty_repr(self.ds)}'
     )
+
+  @functools.cached_property
+  def __dashboards__(self) -> kd.kdash.DashboardsBase:
+    """Returns collection keys used by flat board."""
+    # This evaluator do not report any scalar metrics.
+    return kd.kdash.NoopDashboard()
