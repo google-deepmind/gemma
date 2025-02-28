@@ -12,25 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Gemma models."""
+"""Symbols needed to build new `TransformerConfig`."""
 
-# pylint: disable=g-importing-member,g-import-not-at-top
+# pylint: disable=g-importing-member
 
-from etils import epy as _epy
-
-
-with _epy.lazy_api_imports(globals()):
-  # Gemma models
-  from gemma.gm.nn._gemma import Gemma2_2B
-  from gemma.gm.nn._gemma import Gemma2_9B
-  from gemma.gm.nn._gemma import Gemma2_27B
-
-  from gemma.gm.nn._lora import LoRAWrapper
-  from gemma.gm.nn._policy import AnchoredPolicy
-  from gemma.gm.nn._transformer import Transformer
-
-  # Model outputs
-  from gemma.gm.nn._transformer import Output
-  from gemma.gm.nn._policy import AnchoredPolicyOutput
-
-  from gemma.gm.nn import config
+from gemma.modules import AttentionType  # pylint: disable=unused-import
+from gemma.transformer import QueryPreAttentionNormalisation  # pylint: disable=unused-import
+from gemma.transformer import TransformerConfig  # pylint: disable=unused-import
