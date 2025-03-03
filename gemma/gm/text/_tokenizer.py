@@ -27,6 +27,7 @@ from etils import epath
 from etils import epy
 import jax
 import jax.numpy as jnp
+from kauldron.typing import Float
 import numpy as np
 
 from sentencepiece import sentencepiece_model_pb2
@@ -248,7 +249,7 @@ class Tokenizer:
 
   def plot_logits(
       self,
-      logits: enp.typing.Array,
+      logits: Float['vocab_size'],
       *,
       keep_top: int = 30,
   ) -> go.Figure:
@@ -262,6 +263,12 @@ class Tokenizer:
     Returns:
       The plot as a plotly figure.
     """
+    if logits.shape != (self.vocab_size,):
+      raise ValueError(
+          '`plot_logits` expects a single logit distribution with shape'
+          f' `(vocab_size,)`, got {logits.shape}.'
+      )
+
     # Compute the probability distribution.
     probs = jax.nn.softmax(logits)
 
