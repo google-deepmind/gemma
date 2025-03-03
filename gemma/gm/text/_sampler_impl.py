@@ -29,7 +29,7 @@ from gemma.gm.text import _sampling
 from gemma.gm.text import _tokenizer
 import jax
 import jax.numpy as jnp
-from kauldron import random
+from kauldron.typing import PRNGKey
 
 
 @flax.struct.dataclass(kw_only=True)
@@ -63,7 +63,7 @@ class _SamplingState:
   # List of tokens that are forbidden to be generated.
   forbidden_token_ids: Sequence[int] | None = None
 
-  rng: random.PRNGKey
+  rng: PRNGKey
 
 
 @dataclasses.dataclass
@@ -108,7 +108,7 @@ class Sampler:
     self._compiled_sample_fn = jax.jit(
         self._sample_fn, static_argnames=('sampling',)
     )
-    self._rng = random.PRNGKey(seed)
+    self._rng = jax.random.PRNGKey(seed)
 
   @property
   def dtype(self) -> jnp.dtype:
@@ -147,7 +147,7 @@ class Sampler:
       logits = logits.at[:, :, sampler_state.forbidden_token_ids].set(-jnp.inf)
 
     # Logit is `B L V` with `L=1`
-    next_rng, curr_rng = sampler_state.rng.split()
+    next_rng, curr_rng = jax.random.split(sampler_state.rng)
     next_token_candidate = sampling.get_next_tokens(logits, rng=curr_rng)
     next_token_candidate = next_token_candidate[:, 0]
 
