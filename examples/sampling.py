@@ -40,6 +40,7 @@ from gemma import sampler as sampler_lib
 from gemma import transformer as transformer_lib
 
 import sentencepiece as spm
+import os
 
 _PATH_CHECKPOINT = flags.DEFINE_string(
     "path_checkpoint", None, required=True, help="Path to checkpoint."
@@ -70,6 +71,11 @@ def _load_and_sample(
     total_generation_steps: int,
 ) -> None:
   """Loads and samples a string from a checkpoint."""
+  if not os.path.isfile(path_checkpoint):
+    raise ValueError(f"Checkpoint file not found: {path_checkpoint}")
+  if not os.path.isfile(path_tokenizer):
+    raise ValueError(f"Tokenizer file not found: {path_tokenizer}")
+
   print(f"Loading the parameters from {path_checkpoint}")
   parameters = params_lib.load_and_format_params(
       path_checkpoint,
@@ -114,3 +120,4 @@ def main(argv: Sequence[str]) -> None:
 
 if __name__ == "__main__":
   app.run(main)
+
