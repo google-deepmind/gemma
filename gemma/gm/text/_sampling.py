@@ -26,7 +26,7 @@ class SamplingMethod(abc.ABC):
   """Base class for sampling methods."""
 
   @abc.abstractmethod
-  def get_next_tokens(self, logits: Float['B V'], rng: PRNGKey) -> Int['B']:
+  def get_next_tokens(self, logits: Float['*B V'], rng: PRNGKey) -> Int['*B']:
     """Returns the next tokens to generate.
 
     Args:
