@@ -24,9 +24,10 @@ import numpy as np
 # Do not @typechecked as `element` can be `list` too.
 def pad(
     element: PyTree[Array["sequence"]],
-    *,
     max_length: int,
+    *,
     truncate: bool = False,
+    axis: int = -1,
 ) -> PyTree[Array["max_length"]]:
   """Add zeros to the end of the sequence to reach the max length.
 
@@ -37,10 +38,14 @@ def pad(
     max_length: The max length of the sequence.
     truncate: Whether to truncate the sequence to the max length. If `False`,
       sequences longer than the `max_length` will raise an error.
+    axis: The axis in which to pad the sequence (only -1 supported at the
+      moment).
 
   Returns:
     The padded sequence of length `max_length`.
   """
+  if axis != -1:
+    raise NotImplementedError("Only `axis=-1` is supported.")
   return jax.tree.map(
       lambda x: _pad(x, max_length=max_length, truncate=truncate),
       element,
@@ -58,15 +63,21 @@ def _pad(
   # Use `xnp` so it supports both `np` and `jnp`.
   xnp = enp.lazy.get_xnp(element, strict=False)
 
+  element = xnp.asarray(element)
+
   # TODO(epot): Could add an `axis=` kwarg to support multi-dimensional arrays.
-  seq_length = len(element)
+  seq_length = element.shape[-1]
   if not truncate and seq_length > max_length:
     raise ValueError(
         f"Cannot pad sequence of length {seq_length}. Is longer than the"
         f" max length {max_length}. Set `truncate=True`."
     )
-  sentence_tokens = element[:max_length]
-  return xnp.pad(sentence_tokens, (0, max_length - len(sentence_tokens)))
+  sentence_tokens = element[..., :max_length]
+
+  pad_width = [(0, 0)] * (sentence_tokens.ndim - 1) + [
+      (0, max_length - sentence_tokens.shape[-1])
+  ]
+  return xnp.pad(sentence_tokens, pad_width)
 
 
 @flax.struct.dataclass
