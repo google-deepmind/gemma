@@ -23,8 +23,10 @@ import types
 import typing
 from typing import Any, Callable, TypeAlias, TypeVar
 
+from etils import epy
 import jax
 import jaxtyping
+from kauldron import kontext
 
 _FnT = TypeVar('_FnT', bound=Callable[..., Any])
 
@@ -53,6 +55,9 @@ def flatten_unflatten_batch_dim() -> Callable[[_FnT], _FnT]:
 
     @functools.wraps(fn)
     def decorated(*args, **kwargs):
+      # Hide the function from the traceback. Supported by Pytest and IPython
+      __tracebackhide__ = True  # pylint: disable=unused-variable,invalid-name
+
       nonlocal argname_to_non_batch_dim_size
       if argname_to_non_batch_dim_size is None:
         argname_to_non_batch_dim_size = _get_argname_to_non_batch_dim_size(fn)
@@ -67,13 +72,23 @@ def flatten_unflatten_batch_dim() -> Callable[[_FnT], _FnT]:
 
       batch_size = math.prod(batch_shape)
 
-      def _flatten_batch_dim(x):
+      def _flatten_batch_dim(path, x):
         if isinstance(x, jax.Array):
-          return x.reshape((batch_size,) + x.shape[len(batch_shape) :])
+          try:
+            return x.reshape((batch_size,) + x.shape[len(batch_shape) :])
+          except TypeError as e:
+            path = kontext.Path.from_jax_path(path)
+            epy.reraise(
+                e,
+                prefix=(
+                    f'Inconsistent batch shape for argument {str(path)!r}.'
+                    f' Expected batch_shape: {batch_shape}.'
+                ),
+            )
         else:
           return x
 
-      bound_args.arguments = jax.tree.map(
+      bound_args.arguments = jax.tree.map_with_path(
           _flatten_batch_dim,
           bound_args.arguments,
       )
