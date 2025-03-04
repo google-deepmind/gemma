@@ -67,6 +67,13 @@ class Sampler:
       default_factory=lambda: py_random.randint(0, 1000000000)
   )
 
+  def __post_init__(self):
+    if self.model.config.num_embed != self.tokenizer.vocab_size:
+      raise ValueError(
+          'The model and tokenizer vocab size do not match.'
+          ' Please check that the tokenizer matches the Gemma version.'
+      )
+
   # TODO(epot): Add a `max_length` argument to the `sample()` method.
   @typing.overload
   def sample(

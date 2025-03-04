@@ -65,7 +65,7 @@ class TransformerConfig:
   """Configuration for the gemma transformer."""
 
   num_layers: int
-  num_embed: int
+  num_embed: int  # TODO(epot): Rename to `vocab_size` for consistency.
   embed_dim: int
   hidden_dim: int
   num_heads: int
