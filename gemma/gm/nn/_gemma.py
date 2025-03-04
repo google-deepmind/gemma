@@ -30,6 +30,8 @@ class Gemma2_2B(_transformer.Transformer):  # pylint: disable=invalid-name
       transformer.TransformerConfig.gemma2_2b(cache_size=None)
   )
 
+  _TOKENIZER_VERSION = 2
+
 
 class Gemma2_9B(_transformer.Transformer):  # pylint: disable=invalid-name
   """Gemma2 transformer architecture."""
@@ -38,6 +40,8 @@ class Gemma2_9B(_transformer.Transformer):  # pylint: disable=invalid-name
       transformer.TransformerConfig.gemma2_9b(cache_size=None)
   )
 
+  _TOKENIZER_VERSION = 2
+
 
 class Gemma2_27B(_transformer.Transformer):  # pylint: disable=invalid-name
   """Gemma2 transformer architecture."""
@@ -45,3 +49,5 @@ class Gemma2_27B(_transformer.Transformer):  # pylint: disable=invalid-name
   config: transformer.TransformerConfig = (
       transformer.TransformerConfig.gemma2_27b(cache_size=None)
   )
+
+  _TOKENIZER_VERSION = 2
