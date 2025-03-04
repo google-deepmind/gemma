@@ -13,12 +13,15 @@
 # limitations under the License.
 
 from etils import etree
+from etils.enp.typing import ArrayAliasMeta  # pylint: disable=g-importing-member
 from etils.enp.typing import f32
 from flax import linen as nn
 from gemma import peft
 import jax
 from jax import numpy as jnp
 import numpy as np
+
+i4 = ArrayAliasMeta(shape=None, dtype=jnp.int4)
 
 
 def _dense_to_quantized(module):
@@ -30,6 +33,15 @@ def _dense_to_quantized(module):
     return peft.SimulateQuantizedEinsum(
         wrapped=module, method=peft.QuantizationMethod.INT4
     )
+  else:
+    return module
+
+
+def _dense_to_int4(module):
+  if isinstance(module, nn.Dense):
+    return peft.Int4Dense(wrapped=module)
+  if isinstance(module, nn.Einsum):
+    return peft.Int4Einsum(wrapped=module)
   else:
     return module
 
@@ -59,7 +71,7 @@ class MyModule(nn.Module):
     }
 
 
-def test_quantization():
+def test_quantization_simulation():
   model = MyModule()
   with peft.ModuleInterceptor(_dense_to_quantized):
     out, params = model.init_with_output(
@@ -80,6 +92,39 @@ def test_quantization():
           'Einsum_0': {
               'kernel': f32[4, 2, 3],
               'bias': f32[2, 3],
+          },
+      },
+  })
+  assert etree.spec_like(out) == etree.spec_like({
+      'y0': f32[1, 2],
+      'y1': f32[1, 2],
+      'y2': f32[1, 3],
+      'y3': f32[1, 2, 3],
+  })
+
+
+def test_quantization():
+  model = MyModule()
+  params = model.init(jax.random.key(0), jnp.zeros((1, 4)))
+  params_q = peft.quantize(params, method=peft.QuantizationMethod.INT4)
+  with peft.ModuleInterceptor(_dense_to_int4):
+    out = model.apply(params_q, jnp.zeros((1, 4)))
+  assert etree.spec_like(params_q) == etree.spec_like({
+      'params': {
+          'Dense_0': {
+              'kernel': i4[4, 2],
+              'bias': f32[2],
+              'scale': f32[1, 2],
+          },
+          'Dense_1': {
+              'kernel': i4[4, 3],
+              'bias': f32[3],
+              'scale': f32[1, 3],
+          },
+          'Einsum_0': {
+              'kernel': i4[4, 2, 3],
+              'bias': f32[2, 3],
+              'scale': f32[1, 1, 3],
           },
       },
   })
