@@ -53,6 +53,9 @@ def flatten_unflatten_batch_dim() -> Callable[[_FnT], _FnT]:
 
     @functools.wraps(fn)
     def decorated(*args, **kwargs):
+      # Hide the function from the traceback. Supported by Pytest and IPython
+      __tracebackhide__ = True  # pylint: disable=unused-variable,invalid-name
+
       nonlocal argname_to_non_batch_dim_size
       if argname_to_non_batch_dim_size is None:
         argname_to_non_batch_dim_size = _get_argname_to_non_batch_dim_size(fn)
