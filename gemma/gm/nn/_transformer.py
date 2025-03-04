@@ -17,7 +17,7 @@
 from __future__ import annotations
 
 import functools
-from typing import Any
+from typing import Any, ClassVar
 
 import flax
 from flax import linen as nn
@@ -64,6 +64,11 @@ class Transformer(transformer.Transformer):
   positions: kontext.Key | None = None
   cache: kontext.Key | None = None
   attention_mask: kontext.Key | None = None
+
+  # Specify which tokenizer version is used by the model.
+  # If None, no tokenizer is specified and it's the user responsibility
+  # to use the correct tokenizer.
+  _TOKENIZER_VERSION: ClassVar[int | None] = None
 
   def __post_init__(self):
     # TODO(epot): Config should not have `max_cache_length` parameter as

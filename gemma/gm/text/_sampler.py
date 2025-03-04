@@ -35,6 +35,12 @@ import numpy as np
 # * Mode which yields tokens as they get predicted ?
 
 
+# TODO(epot): Cleanup
+_VERSION_TO_TOKENIZER = {
+    2: _tokenizer.Gemma2Tokenizer,
+}
+
+
 @dataclasses.dataclass(frozen=True, kw_only=True)
 class Sampler:
   """Sampler.
@@ -68,10 +74,14 @@ class Sampler:
   )
 
   def __post_init__(self):
-    if self.model.config.num_embed != self.tokenizer.vocab_size:
+    # pylint: disable=protected-access]
+    if self.model._TOKENIZER_VERSION is not None and not isinstance(
+        self.tokenizer, _VERSION_TO_TOKENIZER[self.model._TOKENIZER_VERSION]
+    ):
+      # pylint: enable=protected-access]
       raise ValueError(
-          'The model and tokenizer vocab size do not match.'
-          ' Please check that the tokenizer matches the Gemma version.'
+          'The model and tokenizer vocab size do not match. '
+          f'Got {type(self.model).__name__} and {type(self.tokenizer).__name__}'
       )
 
   # TODO(epot): Add a `max_length` argument to the `sample()` method.
