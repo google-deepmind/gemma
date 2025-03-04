@@ -16,50 +16,13 @@
 
 from collections.abc import Callable
 import dataclasses
-import enum
-
 import einops
-from etils import epy
 from flax import linen as nn
 from flax.linen import dtypes as flax_dtypes
 from flax.typing import Array  # pylint: disable=g-importing-member
+from gemma.peft import _quantization_utils
 import jax
 import jax.numpy as jnp
-
-
-class QuantizationMethod(epy.StrEnum):
-  """Quantization methods.
-
-  Attributes:
-    NONE: No quantization.
-    INT4: 4 bits per-channel.
-    Q4_0: 4 bits per-block.
-    Q4_0_TRANSPOSE: 4 bits per-block (transpose first MLP layer).
-    SFP8: 8 bits floating points.
-  """
-
-  NONE = enum.auto()
-  INT4 = enum.auto()
-  Q4_0 = enum.auto()
-  Q4_0_TRANSPOSE = enum.auto()
-  SFP8 = enum.auto()
-
-
-class _QuantizationGranularity(epy.StrEnum):
-  """Granularity of the quantization.
-
-  Attributes:
-    PER_TENSOR: scale the entire tensor.
-    PER_CHANNEL: scale each channel independently.
-    PER_BLOCK: scale each block independently.
-
-  NOTE: a block is defined a contiguous sub sequence of a tensor, e.g. in
-    128x128 array would comprise 4x32 blocks of size 32.
-  """
-
-  PER_TENSOR = enum.auto()
-  PER_CHANNEL = enum.auto()
-  PER_BLOCK = enum.auto()
 
 
 # (0.5 - 1/32) 2**-22 is the smallest non-zero number in sfp8
@@ -71,8 +34,9 @@ _QUANTIZATION_BLOCK_SIZE = 32  # for Q4_0 quantization
 _NON_ZERO_DIVISION_EPS = 1e-6
 
 
-# TODO(eyvinec): add support for arbitrary tree of params
-def simulate_quantize(x: Array, method: QuantizationMethod | str) -> Array:
+def simulate_quantize(
+    x: Array, method: _quantization_utils.QuantizationMethod | str
+) -> Array:
   """Quantizes the given array.
 
   In this API, we do not actually quantize tensors as the output is not stored
@@ -89,26 +53,30 @@ def simulate_quantize(x: Array, method: QuantizationMethod | str) -> Array:
   Returns:
     The simulate_quantized array.
   """
-  method = QuantizationMethod(method)
+  method = _quantization_utils.QuantizationMethod(method)
   match method:
-    case QuantizationMethod.NONE:
+    case _quantization_utils.QuantizationMethod.NONE:
       return x
-    case QuantizationMethod.INT4:
-      return _simulate_uniform_quantization(
-          x, bitwidth=4, granularity=_QuantizationGranularity.PER_CHANNEL
-      )
-    case QuantizationMethod.Q4_0:
-      return _simulate_uniform_quantization(
-          x, bitwidth=4, granularity=_QuantizationGranularity.PER_BLOCK
-      )
-    case QuantizationMethod.Q4_0_TRANSPOSE:
+    case _quantization_utils.QuantizationMethod.INT4:
       return _simulate_uniform_quantization(
           x,
           bitwidth=4,
-          granularity=_QuantizationGranularity.PER_BLOCK,
+          granularity=_quantization_utils.QuantizationGranularity.PER_CHANNEL,
+      )
+    case _quantization_utils.QuantizationMethod.Q4_0:
+      return _simulate_uniform_quantization(
+          x,
+          bitwidth=4,
+          granularity=_quantization_utils.QuantizationGranularity.PER_BLOCK,
+      )
+    case _quantization_utils.QuantizationMethod.Q4_0_TRANSPOSE:
+      return _simulate_uniform_quantization(
+          x,
+          bitwidth=4,
+          granularity=_quantization_utils.QuantizationGranularity.PER_BLOCK,
           transpose=True,
       )
-    case QuantizationMethod.SFP8:
+    case _quantization_utils.QuantizationMethod.SFP8:
       return _simulate_sfp8_quantization(x)
     case _:
       raise ValueError(f'Unknown quantization method: {method}')
@@ -120,7 +88,9 @@ class SimulateQuantizedDense(nn.Module):
   _: dataclasses.KW_ONLY
 
   wrapped: nn.Dense
-  method: QuantizationMethod = QuantizationMethod.NONE
+  method: _quantization_utils.QuantizationMethod = (
+      _quantization_utils.QuantizationMethod.NONE
+  )
 
   def __post_init__(self):
     super().__post_init__()
@@ -156,7 +126,9 @@ class SimulateQuantizedEinsum(nn.Module):
   _: dataclasses.KW_ONLY
 
   wrapped: nn.Einsum
-  method: QuantizationMethod = QuantizationMethod.NONE
+  method: _quantization_utils.QuantizationMethod = (
+      _quantization_utils.QuantizationMethod.NONE
+  )
 
   def __post_init__(self):
     super().__post_init__()
@@ -211,6 +183,114 @@ class SimulateQuantizedEinsum(nn.Module):
     return y
 
 
+class Int4Dense(nn.Module):
+  """Wrapper around `nn.Dense` which adds a Quantized adapter."""
+
+  _: dataclasses.KW_ONLY
+
+  wrapped: nn.Dense
+
+  def __post_init__(self):
+    super().__post_init__()
+    # Share scope, to make the wrapper module transparent with respect to the
+    # parameters (instead of nesting `{'params': {'wrapped': params}}`).
+    if self.scope is not None:
+      nn.share_scope(self, self.wrapped)
+
+  @nn.compact
+  def __call__(self, inputs: Array) -> Array:
+    kernel = self.param(  # pytype: disable=wrong-keyword-args
+        'kernel',
+        nn.initializers.ones_init(),
+        (inputs.shape[-1], self.wrapped.features),
+        jnp.int4,
+    )
+    scale = self.param(
+        'scale',
+        nn.initializers.ones_init(),
+        (1, self.wrapped.features),
+        self.wrapped.dtype,
+    )
+    w = kernel.astype(self.wrapped.dtype) / scale
+    y = inputs @ w
+    if self.wrapped.use_bias:
+      b = self.param(  # pytype: disable=wrong-keyword-args
+          'bias',
+          self.wrapped.bias_init,
+          (self.wrapped.features,),
+          dtype=self.wrapped.dtype,
+      )
+      y += b
+    return y
+
+
+class Int4Einsum(nn.Module):
+  """Wrapper around `nn.Einsum` which adds a Quantized adapter."""
+
+  _: dataclasses.KW_ONLY
+
+  wrapped: nn.Einsum
+
+  def __post_init__(self):
+    super().__post_init__()
+    # Share scope, to make the wrapper module transparent with respect to the
+    # parameters (instead of nesting `{'params': {'wrapped': params}}`).
+    if self.scope is not None:
+      nn.share_scope(self, self.wrapped)
+
+  def process_einsum_str(self, einsum_str: str) -> str:
+    """Processes the einsum string."""
+
+    einsum_str = einsum_str.replace(' ', '')
+    if '->' not in einsum_str:
+      raise ValueError(
+          '`einsum_str` equation must be explicit and include "->".'
+      )
+    if einsum_str.count(',') != 1:
+      raise ValueError(
+          '`einsum_str` equation must have exactly two operands and '
+          'therefore, exactly one comma character, instead of '
+          f'{einsum_str.count(",")}'
+      )
+    return einsum_str
+
+  @nn.compact
+  def __call__(self, inputs: Array, einsum_str: str | None = None) -> Array:
+    einsum_str = nn.merge_param(
+        'einsum_str', self.wrapped.einsum_str, einsum_str
+    )
+    einsum_str = self.process_einsum_str(einsum_str)
+
+    kernel = self.param(
+        'kernel',
+        nn.initializers.ones_init(),
+        self.wrapped.shape,
+        jnp.int4,
+    ).astype(self.wrapped.dtype)
+    scale = self.param(
+        'scale',
+        nn.initializers.ones_init(),
+        tuple(jnp.ones(len(self.wrapped.shape) - 1, dtype=jnp.int32).tolist())
+        + (self.wrapped.shape[-1],),
+        self.wrapped.dtype,
+    )
+
+    inputs, kernel, _ = flax_dtypes.promote_dtype(
+        inputs, kernel, None, dtype=self.wrapped.dtype
+    )
+
+    kernel = kernel / scale
+
+    y = jnp.einsum(einsum_str, inputs, kernel, precision=self.wrapped.precision)
+    if self.wrapped.use_bias:
+      bias_shape, _ = self.wrapped._get_bias_shape(einsum_str, inputs, kernel)
+      bias = self.param(
+          'bias', self.wrapped.bias_init, bias_shape, self.wrapped.param_dtype
+      )
+      y += bias
+    return y
+
+
 def _straight_through_estimator(
     func: Callable[..., Array],
 ) -> Callable[..., Array]:
@@ -229,28 +309,6 @@ def _straight_through_estimator(
     return zero + y
 
   return wrapper
-
-
-def _reduce_max_all_but_one_axis(
-    x: Array, axis: int = 0, keepdims: bool = True
-) -> Array:
-  """Reduce the max of an array over all dimensions except one.
-
-  This is useful to extract the max w.r.t. to the batch dimension for example.
-
-  Args:
-    x: The array to reduce
-    axis: The axis not to reduce over
-    keepdims: Whether to keep the reduced dimension
-
-  Returns:
-    The reduced array
-  """
-  if axis < 0:
-    axis += x.ndim
-  dims = list(range(x.ndim))
-  dims.pop(axis)
-  return jnp.max(x, axis=tuple(dims), keepdims=keepdims)
 
 
 def _pack(
@@ -319,7 +377,7 @@ def _simulate_uniform_quantization(
     x: Array,
     *,
     bitwidth: int,
-    granularity: _QuantizationGranularity,
+    granularity: _quantization_utils.QuantizationGranularity,
     transpose: bool = False,
 ) -> Array:
   """Applies uniform quantization to the given array.
@@ -342,13 +400,13 @@ def _simulate_uniform_quantization(
   upper_bound = 2 ** (bitwidth - 1) - 1
   # compute scales
   match granularity:
-    case _QuantizationGranularity.PER_TENSOR:
+    case _quantization_utils.QuantizationGranularity.PER_TENSOR:
       max_ = jnp.max(jnp.abs(x))
       scales = upper_bound * jnp.squeeze(jnp.array([1.0 / max_]))
-    case _QuantizationGranularity.PER_CHANNEL:
-      max_ = _reduce_max_all_but_one_axis(jnp.abs(x), -1)
+    case _quantization_utils.QuantizationGranularity.PER_CHANNEL:
+      max_ = _quantization_utils.reduce_max_all_but_one_axis(jnp.abs(x), -1)
       scales = upper_bound * jnp.array(1.0 / max_)
-    case _QuantizationGranularity.PER_BLOCK:
+    case _quantization_utils.QuantizationGranularity.PER_BLOCK:
       return _q4_0(
           x, upper_bound=upper_bound + 1, bitwidth=bitwidth, transpose=transpose
       )
@@ -395,7 +453,8 @@ def _simulate_sfp8_quantization(x: Array) -> Array:
     The simulate_quantized array.
   """
   sfp8_scale = _SFP8_UPPER_BOUND / jnp.maximum(
-      _reduce_max_all_but_one_axis(jnp.abs(x), -1), _NON_ZERO_DIVISION_EPS
+      _quantization_utils.reduce_max_all_but_one_axis(jnp.abs(x), -1),
+      _NON_ZERO_DIVISION_EPS,
   )
   x = x * sfp8_scale
 

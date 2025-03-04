@@ -40,6 +40,41 @@ class MyModel(nn.Module):
 
 ## Quantization
 
+We provide two new APIs, one to apply quantization and one to train/optimize
+checkpoints with quantization aware training and straight through estimation.
+
+### Apply
+
+Contrary to LoRA, we advise that you first train the model using simulation to
+create a relevant checkpoint. Then, quantize the loaded parameters.
+
+```python
+params_q = peft.quantize_checkpoint(
+  params, method=peft.QuantizationMethod.INT4
+)
+```
+
+NOTE: for now peft.QuantizationMethod.INT4 is only supported method.
+
+Then, similarly to what was introduced for LoRA adapters, we add quantization
+simulation wrappers:
+
+*   `Int4Dense`: Wrap a `nn.Dense` layer.
+*   `Int4Einsum`: Wrap an `nn.Einsum` layer.
+
+```python
+class MyModel(nn.Module):
+
+  @nn.compact
+  def __call__(self, x):
+    layer = peft.Int4Dense(
+        wrapped=nn.Dense(10),
+        method=peft.QuantizationMethod.Q4_0
+    )
+    return layer(x)
+```
+
+### Simulation
 Similarly to what was introduced for LoRA adapters, we add quantization
 simulation wrappers:
 
