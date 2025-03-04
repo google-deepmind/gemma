@@ -34,6 +34,15 @@ def test_pad():
       [1, 2, 3, 4, 5, 6],
   )
 
+  arr = np.arange(6).reshape((2, 3)) + 1
+  np.testing.assert_array_equal(
+      gm.data.pad(arr, max_length=6),
+      [
+          [1, 2, 3, 0, 0, 0],
+          [4, 5, 6, 0, 0, 0],
+      ],
+  )
+
 
 def test_seq2seq():
 
