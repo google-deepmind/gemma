@@ -26,6 +26,8 @@ with _epy.lazy_api_imports(globals()):
   from gemma.gm.nn._gemma import Gemma2_27B
 
   from gemma.gm.nn._lora import LoRAWrapper
+  from gemma.gm.nn._quantization import QATWrapper
+  from gemma.gm.nn._quantization import Int4Wrapper
   from gemma.gm.nn._policy import AnchoredPolicy
   from gemma.gm.nn._transformer import Transformer
 
