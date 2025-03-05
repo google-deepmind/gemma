@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import functools
 from typing import Any, ClassVar
 
@@ -24,6 +25,7 @@ from flax import linen as nn
 from gemma import transformer
 from gemma.gm.utils import _dtype_params
 from gemma.gm.utils import _jax_utils
+from gemma.multimodal import vision as gemma_vision
 import jax.numpy as jnp
 from kauldron import kontext
 from kauldron.typing import Float, Int  # pylint: disable=g-multiple-import,g-importing-member
@@ -45,6 +47,7 @@ class Output:
   cache: transformer.Cache | None
 
 
+# TODO(epot): Merge this class with `transformer.Transformer`
 class Transformer(transformer.Transformer):
   """Base transformer class.
 
