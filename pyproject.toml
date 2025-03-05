@@ -33,7 +33,7 @@ keywords = []
 # Installed locally with `pip install -e .`
 dependencies = [
     "absl-py",
-    "etils[enp,epath,epy]",
+    "etils[edc,enp,epath,epy,etree]",
     "einops",
     "grain",
     "jax",
