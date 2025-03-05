@@ -14,7 +14,7 @@
 
 """Flax linen Quantization modules."""
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 import dataclasses
 import einops
 from flax import linen as nn
@@ -183,6 +183,46 @@ class SimulateQuantizedEinsum(nn.Module):
     return y
 
 
+class SimulateQuantizedEinsumAdapter(nn.Module):
+  """Einsum Adapter for QAT Wrapper."""
+
+  _: dataclasses.KW_ONLY
+
+  einsum_str: str
+  shape: Sequence[int]
+
+  method: _quantization_utils.QuantizationMethod = (
+      _quantization_utils.QuantizationMethod.NONE
+  )
+
+  def process_einsum_str(self, einsum_str: str) -> str:
+    """Processes the einsum string."""
+
+    einsum_str = einsum_str.replace(' ', '')
+    if '->' not in einsum_str:
+      raise ValueError(
+          '`einsum_str` equation must be explicit and include "->".'
+      )
+    if einsum_str.count(',') != 1:
+      raise ValueError(
+          '`einsum_str` equation must have exactly two operands and '
+          'therefore, exactly one comma character, instead of '
+          f'{einsum_str.count(",")}'
+      )
+    return einsum_str
+
+  def setup(self):
+    lora_einsum_str = self.process_einsum_str(self.einsum_str)
+    self._lora_einsum_str = lora_einsum_str
+    self.kernel = self.param(
+        'kernel', nn.initializers.lecun_normal(), self.shape
+    )
+
+  def __call__(self, inputs: Array) -> Array:
+    kernel = simulate_quantize(self.kernel, self.method)
+    return jnp.einsum(self._lora_einsum_str, inputs, kernel)
+
+
 class Int4Dense(nn.Module):
   """Wrapper around `nn.Dense` which adds a Quantized adapter."""
 
@@ -289,6 +329,53 @@ class Int4Einsum(nn.Module):
       )
       y += bias
     return y
+
+
+class Int4EinsumAdapter(nn.Module):
+  """Einsum Adapter for INT4 Wrapper."""
+
+  _: dataclasses.KW_ONLY
+
+  einsum_str: str
+  shape: Sequence[int]
+  dtype: jnp.dtype
+
+  def process_einsum_str(self, einsum_str: str) -> str:
+    """Processes the einsum string."""
+
+    einsum_str = einsum_str.replace(' ', '')
+    if '->' not in einsum_str:
+      raise ValueError(
+          '`einsum_str` equation must be explicit and include "->".'
+      )
+    if einsum_str.count(',') != 1:
+      raise ValueError(
+          '`einsum_str` equation must have exactly two operands and '
+          'therefore, exactly one comma character, instead of '
+          f'{einsum_str.count(",")}'
+      )
+    return einsum_str
+
+  def setup(self):
+    lora_einsum_str = self.process_einsum_str(self.einsum_str)
+    self._lora_einsum_str = lora_einsum_str
+    self.kernel = self.param(
+        'kernel', nn.initializers.ones_init(), self.shape, jnp.int4
+    )
+    self.scale = self.param(
+        'scale',
+        nn.initializers.ones_init(),
+        tuple([1] * (len(self.shape) - 1)) + (self.shape[-1],),
+        self.dtype,
+    )
+
+  def __call__(self, inputs: Array) -> Array:
+    inputs, kernel, _ = flax_dtypes.promote_dtype(
+        inputs, self.kernel, None, dtype=self.dtype
+    )
+
+    kernel = kernel / self.scale
+    return jnp.einsum(self._lora_einsum_str, inputs, kernel)
 
 
 def _straight_through_estimator(
