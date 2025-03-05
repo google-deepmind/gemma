@@ -10,7 +10,7 @@ research and technology.
 
 This repository contain the implementation of the
 [`gemma`](https://pypi.org/project/gemma/) PyPI package. A
-[JAX](https://github.com/google/jax) library to use and fine-tune Gemma.
+[JAX](https://github.com/jax-ml/jax) library to use and fine-tune Gemma.
 
 For examples and uses-cases, see our
 [documentation](https://gemma-llm.readthedocs.io/). Please
