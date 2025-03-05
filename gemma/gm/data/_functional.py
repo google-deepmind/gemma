@@ -27,6 +27,7 @@ def pad(
     max_length: int,
     *,
     truncate: bool = False,
+    fill_value: int = 0,
     axis: int = -1,
 ) -> PyTree[Array["max_length"]]:
   """Add zeros to the end of the sequence to reach the max length.
@@ -38,6 +39,7 @@ def pad(
     max_length: The max length of the sequence.
     truncate: Whether to truncate the sequence to the max length. If `False`,
       sequences longer than the `max_length` will raise an error.
+    fill_value: The value to fill the padded sequence with.
     axis: The axis in which to pad the sequence (only -1 supported at the
       moment).
 
@@ -47,7 +49,12 @@ def pad(
   if axis != -1:
     raise NotImplementedError("Only `axis=-1` is supported.")
   return jax.tree.map(
-      lambda x: _pad(x, max_length=max_length, truncate=truncate),
+      lambda x: _pad(
+          x,
+          max_length=max_length,
+          fill_value=fill_value,
+          truncate=truncate,
+      ),
       element,
       is_leaf=_is_list_array,  # Also supports `[0, 1, ...]`
   )
@@ -57,6 +64,7 @@ def _pad(
     element: Array["sequence"],
     *,
     max_length: int,
+    fill_value: int,
     truncate: bool = False,
 ) -> Array["max_length"]:
   """Inner padding implementation."""
@@ -77,7 +85,7 @@ def _pad(
   pad_width = [(0, 0)] * (sentence_tokens.ndim - 1) + [
       (0, max_length - sentence_tokens.shape[-1])
   ]
-  return xnp.pad(sentence_tokens, pad_width)
+  return xnp.pad(sentence_tokens, pad_width, constant_values=fill_value)
 
 
 @flax.struct.dataclass
