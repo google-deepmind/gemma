@@ -50,6 +50,6 @@ apitree.make_project(
         'gemma/peft/README.md': 'peft.md',
     },
     # Redirect the empty `XX.html` pages to their `colab_XX.html`
-    redirects={name: f'colab_{name}' for name in _COLABS_NAMES},
+    redirects={name: f'colab_{name}.html' for name in _COLABS_NAMES},
     globals=globals(),
 )
