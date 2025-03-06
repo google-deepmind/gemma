@@ -26,6 +26,16 @@ sphinx-build -b html docs/ docs/_build
 import apitree
 
 
+_COLABS_NAMES = [
+    'finetuning',
+    'lora_sampling',
+    'lora_finetuning',
+    'sampling',
+    'sharding',
+    'tokenizer',
+]
+
+
 apitree.make_project(
     modules={
         'gm': 'gemma.gm',
@@ -34,13 +44,12 @@ apitree.make_project(
     # TODO(epot): Support mkdir parent for the destination, to support
     # `'colab/finetuning.ipynb'` as output.
     includes_paths={
-        'colabs/finetuning.ipynb': 'colab_finetuning.ipynb',
-        'colabs/lora_sampling.ipynb': 'colab_lora_sampling.ipynb',
-        'colabs/lora_finetuning.ipynb': 'colab_lora_finetuning.ipynb',
-        'colabs/sampling.ipynb': 'colab_sampling.ipynb',
-        'colabs/sharding.ipynb': 'colab_sharding.ipynb',
-        'colabs/tokenizer.ipynb': 'colab_tokenizer.ipynb',
+        f'colabs/{name}.ipynb': f'colab_{name}.ipynb' for name in _COLABS_NAMES
+    }
+    | {
         'gemma/peft/README.md': 'peft.md',
     },
+    # Redirect the empty `XX.html` pages to their `colab_XX.html`
+    redirects={name: f'colab_{name}' for name in _COLABS_NAMES},
     globals=globals(),
 )
