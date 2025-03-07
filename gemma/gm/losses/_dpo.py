@@ -85,7 +85,7 @@ class DpoLoss(kd.losses.Loss):
         + jax.nn.log_sigmoid(-po_delta) * self.label_smoothing
     )
 
-    return dpo_loss
+    return dpo_loss[..., None]  # Float['*B 1'] for Loss compatibility.
 
 
 @typechecked
