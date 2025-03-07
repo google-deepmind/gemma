@@ -112,10 +112,23 @@ class Tokenizer:
     custom_tokens: The Gemma tokenizer has a few unused tokens which can be
       overwritten by the user here. Expect a dictionary mapping the unused id
       (0-98) to the token string. (`e.g. `{0: '<start_of_audio>'}`)
+    VERSION: The Gemma version of the tokenizer (2, 3).
   """
 
   path: epath.PathLike
   custom_tokens: dict[int, str] = dataclasses.field(default_factory=dict)
+
+  VERSION: ClassVar[int] = 0
+
+  @classmethod
+  def from_version(cls, version: int) -> Tokenizer:
+    """Create a tokenizer from a version."""
+    if version == 2:
+      return Gemma2Tokenizer()
+    elif version == 3:
+      return Gemma3Tokenizer()
+    else:
+      raise ValueError(f'Unsupported tokenizer version: {version}')
 
   def encode(
       self,
@@ -296,6 +309,8 @@ class Gemma2Tokenizer(Tokenizer):
   )
 
   special_tokens = _Gemma2SpecialTokens
+
+  VERSION = 2
 
 
 def _real_whitespaces(text: str) -> str:

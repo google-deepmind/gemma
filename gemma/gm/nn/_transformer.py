@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import functools
 from typing import Any, ClassVar
 
@@ -29,6 +30,17 @@ from kauldron import kontext
 from kauldron.typing import Float, Int  # pylint: disable=g-multiple-import,g-importing-member
 
 _PADDING_ID = 0
+
+
+@dataclasses.dataclass(kw_only=True, frozen=True)
+class ModelInfo:
+  """Model information.
+
+  Used to auto-load the model tokenizer and params.
+  """
+
+  tokenizer_version: int | None = None
+  default_ckpt: str | None = None
 
 
 @flax.struct.dataclass
@@ -65,10 +77,8 @@ class Transformer(transformer.Transformer):
   cache: kontext.Key | None = None
   attention_mask: kontext.Key | None = None
 
-  # Specify which tokenizer version is used by the model.
-  # If None, no tokenizer is specified and it's the user responsibility
-  # to use the correct tokenizer.
-  _TOKENIZER_VERSION: ClassVar[int | None] = None
+  # Model info to specifiy the tokenizer version and default checkpoint.
+  INFO: ClassVar[ModelInfo] = ModelInfo()
 
   def __post_init__(self):
     # TODO(epot): Config should not have `max_cache_length` parameter as

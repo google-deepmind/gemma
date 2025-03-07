@@ -35,12 +35,6 @@ import numpy as np
 # * Mode which yields tokens as they get predicted ?
 
 
-# TODO(epot): Cleanup
-_VERSION_TO_TOKENIZER = {
-    2: _tokenizer.Gemma2Tokenizer,
-}
-
-
 @dataclasses.dataclass(frozen=True, kw_only=True)
 class Sampler:
   """Sampler.
@@ -65,7 +59,7 @@ class Sampler:
 
   model: _transformer.Transformer
   params: params_lib.Params
-  tokenizer: _tokenizer.Tokenizer
+  tokenizer: _tokenizer.Tokenizer = None  # pytype: disable=annotation-type-mismatch
   sampling: _sampling.SamplingMethod = dataclasses.field(
       default_factory=_sampling.Greedy
   )
@@ -74,13 +68,28 @@ class Sampler:
   )
 
   def __post_init__(self):
+    # If not provided, initialize the tokenizer.
+    if self.tokenizer is None:
+      if not self.model.INFO.tokenizer_version:
+        raise ValueError(
+            'The model does not specify a tokenizer to use. '
+            'Please explicitly set the tokenizer argument.'
+        )
+      object.__setattr__(
+          self,
+          'tokenizer',
+          _tokenizer.Tokenizer.from_version(self.model.INFO.tokenizer_version),
+      )
+
     # pylint: disable=protected-access]
-    if self.model._TOKENIZER_VERSION is not None and not isinstance(
-        self.tokenizer, _VERSION_TO_TOKENIZER[self.model._TOKENIZER_VERSION]
+    if (
+        self.model.INFO.tokenizer_version
+        and self.tokenizer.VERSION
+        and self.model.INFO.tokenizer_version != self.tokenizer.VERSION
     ):
       # pylint: enable=protected-access]
       raise ValueError(
-          'The model and tokenizer vocab size do not match. '
+          'Incompatible model and tokenizer: '
           f'Got {type(self.model).__name__} and {type(self.tokenizer).__name__}'
       )
 

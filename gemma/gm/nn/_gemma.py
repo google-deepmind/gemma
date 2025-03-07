@@ -20,6 +20,7 @@ from collections.abc import Callable
 from typing import Any, ClassVar
 
 from gemma import transformer
+from gemma.gm.ckpts import _paths
 from gemma.gm.nn import _transformer
 
 
@@ -30,7 +31,10 @@ class Gemma2_2B(_transformer.Transformer):  # pylint: disable=invalid-name
       transformer.TransformerConfig.gemma2_2b(cache_size=None)
   )
 
-  _TOKENIZER_VERSION = 2
+  INFO = _transformer.ModelInfo(
+      tokenizer_version=2,
+      default_ckpt=_paths.CheckpointPath.GEMMA2_2B_IT,
+  )
 
 
 class Gemma2_9B(_transformer.Transformer):  # pylint: disable=invalid-name
@@ -40,7 +44,10 @@ class Gemma2_9B(_transformer.Transformer):  # pylint: disable=invalid-name
       transformer.TransformerConfig.gemma2_9b(cache_size=None)
   )
 
-  _TOKENIZER_VERSION = 2
+  INFO = _transformer.ModelInfo(
+      tokenizer_version=2,
+      default_ckpt=_paths.CheckpointPath.GEMMA2_9B_IT,
+  )
 
 
 class Gemma2_27B(_transformer.Transformer):  # pylint: disable=invalid-name
@@ -50,4 +57,7 @@ class Gemma2_27B(_transformer.Transformer):  # pylint: disable=invalid-name
       transformer.TransformerConfig.gemma2_27b(cache_size=None)
   )
 
-  _TOKENIZER_VERSION = 2
+  INFO = _transformer.ModelInfo(
+      tokenizer_version=2,
+      default_ckpt=_paths.CheckpointPath.GEMMA2_27B_IT,
+  )
