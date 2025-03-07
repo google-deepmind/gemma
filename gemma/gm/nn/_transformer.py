@@ -25,10 +25,11 @@ from flax import linen as nn
 from gemma import transformer
 from gemma.gm.utils import _dtype_params
 from gemma.gm.utils import _jax_utils
+from gemma.gm.vision import _token_utils
 from gemma.multimodal import vision as gemma_vision
 import jax.numpy as jnp
 from kauldron import kontext
-from kauldron.typing import Float, Int  # pylint: disable=g-multiple-import,g-importing-member
+from kauldron.typing import Float, Int, UInt8, typechecked  # pylint: disable=g-multiple-import,g-importing-member
 
 _PADDING_ID = 0
 
@@ -56,6 +57,23 @@ class Output:
   # When `return_last_only`, `logits` is `*B V`
   logits: Float['*B L V'] | Float['*B V']
   cache: transformer.Cache | None
+
+
+@flax.struct.dataclass
+class _Inputs:
+  """Inputs of the Gemma model, after encoding.
+
+  Attributes:
+    embeddings: Encoded tokens, including MM.
+    positions: Input absolute positions.
+    attention_mask: Transformer input mask.
+    inputs_mask: Mask of the input tokens.
+  """
+
+  embeddings: Float['B L D']
+  positions: Int['B L']
+  attention_mask: Int['B L L']
+  inputs_mask: Int['B L']
 
 
 # TODO(epot): Merge this class with `transformer.Transformer`
@@ -114,6 +132,7 @@ class Transformer(transformer.Transformer):
       self,
       tokens: Int['*B L'],
       *,
+      images: UInt8['*B N H W C'] | None = None,
       positions: Int['*B L'] | None = None,
       cache: transformer.Cache | None = None,
       attention_mask: Int['*B L L'] | None = None,
@@ -126,6 +145,7 @@ class Transformer(transformer.Transformer):
 
     Args:
       tokens: input sequence of tokens.
+      images: Images to feed to the vision encoder.
       positions: input absolute positions.
       cache: Attention KV cache or None.
       attention_mask: transformer input mask.
@@ -140,22 +160,20 @@ class Transformer(transformer.Transformer):
       predicted_logits: output logits predicted by the model
       new_cache: updated cache if the input cache is not None, None elsewhere.
     """
-    # TODO(epot): Add `default=False` to `nn.merge_param`
-    if return_last_only is None and self.return_last_only is None:
-      return_last_only = False
-    else:
-      return_last_only = nn.merge_param(
-          'return_last_only', return_last_only, self.return_last_only
-      )
-
-    inputs_mask = jnp.array(tokens != _PADDING_ID, dtype=jnp.int32)
-    if positions is None:
-      positions = transformer.build_positions_from_mask(inputs_mask)
-    if attention_mask is None:
-      attention_mask = transformer.make_causal_attn_mask(inputs_mask)
+    return_last_only = self._get_return_last_only(return_last_only)
 
     with _dtype_params.initialize_param_with_dtype(self.dtype):
-      x = self.embedder.encode(tokens)
+
+      # Encode the text tokens, eventually including the vision embeddings.
+      inputs = self._encode_and_get_inputs(
+          tokens=tokens,
+          images=images,
+          positions=positions,
+          attention_mask=attention_mask,
+      )
+      del tokens, images, positions, attention_mask
+
+      x = inputs.embeddings
 
       old_cache = cache or {}
       new_cache = {}
@@ -163,16 +181,16 @@ class Transformer(transformer.Transformer):
         layer_name = f'layer_{i}'
         layer_cache, x = block(
             x,
-            positions,
+            inputs.positions,
             old_cache.get(layer_name),
-            attention_mask,
+            inputs.attention_mask,
         )
         new_cache[layer_name] = layer_cache  # pytype: disable=container-type-mismatch
 
       x = self.final_norm(x)
 
     if return_last_only:
-      last_input_token_idx = jnp.sum(inputs_mask, axis=-1) - 1
+      last_input_token_idx = jnp.sum(inputs.inputs_mask, axis=-1) - 1
       # TODO(epot): Use `jnp.take_along_axis`
       x = x[jnp.arange(len(x)), last_input_token_idx, ...]
 
@@ -199,3 +217,126 @@ class Transformer(transformer.Transformer):
         dtype=dtype,
         cache_length=cache_length,
     )
+
+  def _encode_and_get_inputs(
+      self,
+      *,
+      tokens: Int['B L'],
+      images: UInt8['B N H W C'] | None = None,
+      attention_mask: Int['*B L L'] | None = None,
+      positions: Int['*B L'] | None = None,
+  ) -> _Inputs:
+    """Encode the text tokens, eventually including the vision embeddings."""
+
+    # If the model has images, we expand each `<start_of_image>` token to add
+    # the image placeholder tokens.
+    if images is not None:
+      tokens = _token_utils.add_extra_tokens_for_images(
+          tokens,
+          max_num_images=images.shape[1],
+          num_tokens_per_image=self.vision_encoder.num_mm_tokens_per_image,
+      )
+
+    # Encode the text tokens
+    # Could this be optimized to filter out the `SOFT_TOKEN_PLACEHOLDER` ?
+    # Currently, The placeholders are required so the mask, positions are
+    # correctly computed.
+    x = self.embedder.encode(tokens)
+
+    # Encode the vision tokens and merge them with the text embeddings.
+    if images is not None:
+      x = self._merge_mm_embeddings(tokens=tokens, embeddings=x, images=images)
+    elif self.vision_encoder is not None and self.is_initializing():
+      # During initialization, call the vision encoder to ensure that the
+      # params are correctly initialized.
+      dummy_patches = _make_dummy_patches(self.vision_encoder)
+      _ = self.vision_encoder(patches=dummy_patches, is_training=False)
+
+    # Compute the mask (after the extra tokens are added)
+    inputs_mask = jnp.array(tokens != _PADDING_ID, dtype=jnp.int32)
+
+    # Note: When `positions` and `attention_mask` are explicitly provided,
+    # it's the user responsibility to correctly take into account the extra
+    # tokens inserted for the images.
+    # This is what the `gm.text.Sampler` implementation does.
+    if positions is None:
+      positions = transformer.build_positions_from_mask(inputs_mask)
+    if attention_mask is None:
+      attention_mask = transformer.make_causal_attn_mask(inputs_mask)
+
+      # Add the bidirectional mask for images.
+      if images is not None:
+        bidirectional_mask = tokens == gemma_vision.TOKEN_PLACEHOLDER
+        attention_mask = transformer.add_bidirectional_mask(
+            attention_mask, bidirectional_mask
+        )
+
+    return _Inputs(
+        embeddings=x,
+        positions=positions,
+        attention_mask=attention_mask,
+        inputs_mask=inputs_mask,
+    )
+
+  @typechecked
+  def _merge_mm_embeddings(
+      self,
+      *,
+      tokens: Int['B L'],
+      embeddings: Float['B L D'],
+      images: UInt8['B N H W C'],
+  ) -> Float['B L D']:
+    """Update the embeddings to include the vision embeddings."""
+    if self.vision_encoder is None:
+      msg = ''
+      if getattr(self, 'text_only', False):
+        msg = ' The model was created with `text_only=True`.'
+      raise ValueError(
+          f'The model {type(self).__name__!r} does not have vision encoder,'
+          ' yet images are provided.'
+          + msg
+      )
+
+    # Encode the images
+    soft_embeddings = self._encode_vision(images)
+
+    # Merge the soft tokens back with the text embeddings.
+    merged_embeddings = _token_utils.merge_embeddings(
+        text_embeddings=embeddings,
+        vision_embeddings=soft_embeddings,
+        mask=tokens == gemma_vision.TOKEN_PLACEHOLDER,
+    )
+
+    return merged_embeddings
+
+  def _encode_vision(self, images: UInt8['B N H W C']) -> Float['B N P D']:
+    """Encode the images into the same space as the text embeddings."""
+    patches = self.vision_encoder.patchify_images(images)
+    soft_embeddings = self.vision_encoder(patches=patches, is_training=False)
+    soft_embeddings = self.embedder.encode_vision(soft_embeddings)
+    return soft_embeddings
+
+  def _get_return_last_only(self, return_last_only: bool | None = None) -> bool:
+    """Merge `return_last_only` from the config and input."""
+    # TODO(epot): Could add `default=False` to `nn.merge_param`
+    if return_last_only is None and self.return_last_only is None:
+      return_last_only = False
+    else:
+      return_last_only = nn.merge_param(
+          'return_last_only', return_last_only, self.return_last_only
+      )
+    return return_last_only
+
+
+def _make_dummy_patches(
+    vision_encoder: gemma_vision.SigLiPFromPatches,
+) -> Float['B L P D']:
+  """Make dummy patches for initializing the vision encoder."""
+  patch_height, _ = vision_encoder.siglip_encoder.patch_size
+  num_patches_one_side = vision_encoder.image_height // patch_height
+  num_channels = 3 * patch_height**2
+  num_patches = num_patches_one_side**2
+  return jnp.zeros(
+      shape=(1, 1, num_patches, num_channels),
+      dtype=jnp.float32,
+  )
