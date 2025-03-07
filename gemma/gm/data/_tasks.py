@@ -260,7 +260,7 @@ class ContrastiveTask(grain.MapTransform):
     # Add the fields to the output `dict`.
     # Equivalent to `element[self.out_input] = ...`
     kd.kontext.set_by_path(element, self.out_tokens, out.input)
-    kd.kontext.set_by_path(element, self.out_mask, out.target)
+    kd.kontext.set_by_path(element, self.out_mask, out.target_mask)
 
     # TODO(epot): Supports nested drop
     if self.drop_inputs:
