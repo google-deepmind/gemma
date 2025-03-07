@@ -16,7 +16,9 @@
 
 import dataclasses
 import enum
+import typing
 from typing import Iterable
+
 import einops
 from flax import linen as nn
 from gemma import layers
@@ -301,6 +303,8 @@ class Transformer(nn.Module):
     ]
     self.final_norm = layers.RMSNorm()
 
+    self.vision_encoder = self.config.vision_encoder
+
   def __call__(
       self,
       last_tokens: jax.Array,  # [B, L]
@@ -349,7 +353,7 @@ class Transformer(nn.Module):
     return logits, cache  # pytype: disable=bad-return-type
 
 
-def compute_sequence_attention_mask(
+def compute_sequence_attention_mask(  # TODO(epot): Cleanup this function.
     time_step: jax.Array,
     *,
     seq_len: int,
@@ -468,6 +472,41 @@ def make_causal_with_prefix_attn_mask(
   causal_or_prefix_mask = jnp.logical_or(causal_mask, prefix_mask)
   attn_mask = input_mask[..., None, :]
   attn_mask *= causal_or_prefix_mask
+  return attn_mask
+
+
+def make_block_mask(
+    bidirectional_mask: jax.Array,  # [B, T]
+) -> jax.Array:  # [B, T]
+  """Creates block mask identifying segments based on a bidirectional mask.
+
+  Args:
+    bidirectional_mask: boolean mask, e.g. [011110011010].
+
+  Returns:
+    block mask for segments, e.g. [011110022030].
+  """
+  # Left pad 0.
+  padded_mask = jnp.pad(bidirectional_mask, [(0, 0), (1, 0)], constant_values=0)
+  boundary = padded_mask[:, 1:] > padded_mask[:, :-1]
+  numbered_boundary = jnp.cumsum(boundary, -1)
+  return bidirectional_mask * numbered_boundary
+
+
+def add_bidirectional_mask(
+    attn_mask: jax.Array,  # [B, #L, L']
+    bidirectional_mask: jax.Array,  # [B #L L'],
+) -> jax.Array:
+  """Adds bidirectional mask to the attention mask."""
+  q_block_indices = make_block_mask(bidirectional_mask)
+  kv_block_indices = q_block_indices
+  attn_mask = jnp.logical_or(
+      attn_mask,
+      jnp.logical_and(
+          kv_block_indices[:, None, :] == q_block_indices[..., None],
+          q_block_indices[..., None] > 0,
+      ),
+  )
   return attn_mask
 
 
