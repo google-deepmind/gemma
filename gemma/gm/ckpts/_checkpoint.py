@@ -12,17 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Utils to load pre-trained weights."""
+"""Checkpoint loading logic."""
 
 from __future__ import annotations
 
 import dataclasses
-import operator
-import sys
+import enum
+import functools
 import typing
-from typing import TypeVar
+from typing import Any, TypeVar
 
 from etils import epath
+import flax
 from gemma import params as params_lib
 import jax
 from kauldron import kd
@@ -33,15 +34,6 @@ if typing.TYPE_CHECKING:
   _StateT = TypeVar('_StateT', bound=kd.train.TrainState)
 else:
   _StateT = TypeVar('_StateT')
-
-
-# TODO(epot): Should add some ModelInfo ? Like:
-# class ModelInfo:
-#   version: str = '2.0'
-#   size: ModelSize = '2B'
-#   variant: Variant | str = 'instruction_tuned'
-# Then could be used to load `CheckpointPath.from_info()`,
-# `Transformer.from_info()`,...
 
 
 # TODO(epot): Should be part of core Kauldron
@@ -62,6 +54,99 @@ class LoadCheckpoint(kd.ckpts.AbstractPartialLoader):
   def transform(self, state: _StateT) -> _StateT:  # pytype: disable=signature-mismatch
     new_params = load_params(self.path, params=state.params)
     return dataclasses.replace(state, params=new_params)
+
+
+class _CheckpointType(enum.StrEnum):
+  """Structure of the checkpoint.
+
+  Attributes:
+    NESTED: This is the final structure matching the Flax `model.init()`
+      structure, stored as nested dict (`{'layer_0': {'attn': ...}}`).
+    FLAT: Internal checkpoint structure where params are stored as flat dict
+      (e.g. `'{'transformer/layer_0/attn/_key_norm'' ...}`). The structure is
+      very messy, but that's unfortunately how the official Gemma checkpoints
+      where released.
+    KAULDRON: Kauldron `kd.train.Trainer` checkpoint. Those checkpoints contains
+      the optimizer state, step,... in addition to the params.
+  """
+
+  NESTED = enum.auto()
+  FLAT = enum.auto()
+  KAULDRON = enum.auto()
+
+
+@flax.struct.dataclass
+class _CheckpointTree:
+  """Util class to convert checkpoint structures."""
+
+  tree: params_lib.Params
+
+  @classmethod
+  def shape_dtype_struct_like(cls, tree: params_lib.Params) -> _CheckpointTree:
+    """Returns a tree matching the input tree, but with `jax.ShapeDtypeStruct`."""
+    tree = jax.tree.map(_as_shape_dtype_struct, tree)
+    return _CheckpointTree(tree=tree)
+
+  @functools.cached_property
+  def type(self) -> _CheckpointType:
+    """Structures of the checkpoint."""
+    if _is_flat_layout(self.tree):
+      return _CheckpointType.FLAT
+    elif _is_kauldron_layout(self.tree):
+      return _CheckpointType.KAULDRON
+    else:
+      return _CheckpointType.NESTED
+
+  @functools.cached_property
+  def nested_tree(self) -> params_lib.Params:
+    """Returns the tree matching the NESTED checkpoint structure."""
+    if self.type == _CheckpointType.FLAT:
+      return _flat_to_nested(self.tree)
+    elif self.type == _CheckpointType.KAULDRON:
+      return self.tree['params']
+    elif self.type == _CheckpointType.NESTED:
+      return self.tree
+    else:
+      raise ValueError(f'Unsupported checkpoint structure: {self.type}')
+
+  def as_nested(self, *, remove_mm: bool = False) -> _CheckpointTree:
+    """Returns a copy of the tree matching the NESTED checkpoint structure."""
+    tree = self.nested_tree
+    tree = _remove_unused_mm_params(tree)
+    if remove_mm:
+      tree = _remove_mm_params(tree)
+    return _CheckpointTree(tree=tree)
+
+  def make_tree_for_params(self, params: _CheckpointTree) -> params_lib.Params:
+    """Returns the tree matching the checkpoint structure."""
+    metadata = _wrap_skip(self)
+
+    # 1. Create the NESTED tree of the params
+    # If the checkpoint has MM params, but those should not be restored,
+    # should add skip mm params so the structure matches.
+    ckpt_params = params.tree
+    if self.has_mm_params and not params.has_mm_params:
+      ckpt_params = _add_skip_mm_params(ckpt_params, metadata)
+
+    # 2. Reformat the nested tree to match the checkpoint structure.
+    if self.type == _CheckpointType.NESTED:
+      target_params = ckpt_params  # No need to reformat
+    elif self.type == _CheckpointType.FLAT:
+      # Unflatten the params structure
+      target_params = _nested_to_flat(ckpt_params)
+      # Flat checkpoint contain an extra unused variable.
+      target_params = _add_unused_mm_params(target_params, metadata)
+    elif self.type == _CheckpointType.KAULDRON:
+      target_params = _copy(metadata.tree)
+      target_params['params'] = ckpt_params
+    else:
+      raise ValueError(f'Unsupported checkpoint structure: {self.type}')
+
+    return target_params
+
+  @functools.cached_property
+  def has_mm_params(self) -> bool:
+    return 'vision_encoder' in self.nested_tree
 
 
 def load_params(
@@ -95,87 +180,223 @@ def load_params(
 
   metadata, path = _get_metadata_and_path(ckpt, path)
 
-  # TODO(epot): Split the logic into `is_legacy` and not legacy.
-  # Would be simpler.
-  is_legacy = _is_legacy_layout(metadata)
-  is_kauldron = _is_kauldron_layout(metadata)
+  metadata = _CheckpointTree.shape_dtype_struct_like(tree=metadata)
 
+  # Eventually clear up the memory.
   if donate and params is not None:
     params = release_memory(params)
 
+  # Params contain the output structure.
   if params is None:
     # If the params are not provided, we create a dummy tree matching the
     # checkpoint structure, so orbax restore as bfloat16 jax.Array, rather than
     # numpy arrays.
-    params = jax.tree.map(_as_shape_dtype_struct, metadata)
-    if is_kauldron:
-      params = params['params']
+    # Params are always restored as NESTED
+    params = metadata.as_nested(remove_mm=text_only and metadata.has_mm_params)
     if sharding is not None:
       params = kd.sharding.with_sharding_constraint(params, sharding)
-    if is_legacy:
-      params = _reformat_params(params)
+  else:
+    # If params explicitly provided, use that
+    params = _CheckpointTree(tree=params)
+    if params.type != _CheckpointType.NESTED:
+      raise ValueError(
+          'The input params provided to `load_params()` should be the raw'
+          " model params matching the Flax `model.init()['params']` structure."
+          f' Got: {_CheckpointType.NESTED}'
+      )
+    if text_only and params.has_mm_params:
+      raise ValueError(
+          'The input params provided to `load_params()` has multimodal params,'
+          ' but `text_only` is `True`.'
+      )
 
-  restore_fn = ckpt.restore
+  if params.has_mm_params and not metadata.has_mm_params:
+    raise ValueError(
+        'The input params provided to `load_params()` has MM params, but the'
+        ' checkpoint does not. This is not supported.'
+    )
 
-  # Apply transformations to the weights before/after restoring:
-  # Note: Decorators are applied in reverse order (i.e. the outermost
-  # decorator is called first but wrapped last here).
+  # Restore the params
+  # To supports different checkpoint structures, the original params have to
+  # be remapped into the checkpoint structure.
+  output_with_skip = metadata.make_tree_for_params(params)
+  # TODO(epot): Support CMSMeta
 
-  # * Normalize the params to match the checkpoint layout.
-  # TODO(epot): Should update the checkpoints to the new layout.
-  if is_legacy:
-    restore_fn = _unformat_format_params(restore_fn)
+  restore_fn = functools.partial(ckpt.restore, path)
+  output = _partial_restore(restore_fn, output_with_skip)
 
-  if is_kauldron:
-    restore_fn = _add_remove_kauldron_params(restore_fn, metadata)
-
-  params = restore_fn(path, params)
-
-  return params
-
-
-def _unformat_format_params(fn):
-  """Decorator which unformat and format the params."""
-
-  def decorator(path, params):
-    params = _unreformat_params(params)
-    params = fn(path, params)
-    params = _reformat_params(params)
-    return params
-
-  return decorator
+  # Then after restoring, the params are remapped back to the final structure.
+  output = _CheckpointTree(tree=output)
+  output = output.as_nested(
+      remove_mm=metadata.has_mm_params and not params.has_mm_params
+  )
+  return output.tree
 
 
-def _unreformat_params(params: params_lib.Params) -> params_lib.Params:
+# ======================== Structure reformat utils ========================
+
+
+def _flat_to_nested(params: params_lib.Params) -> params_lib.Params:
+  """Reformat the params from FLAT to NESTED."""
+  params = _copy(params)
+  # Split the params for the MM and the transformer.
+  transformer_params = {
+      k: v for k, v in params.items() if k.startswith('transformer/')
+  }
+  transformer_params = _flat_to_nested_single(
+      transformer_params, name='transformer'
+  )
+
+  mm_params = {
+      k: v for k, v in params.items() if k.startswith('SigLiPFromPatches_0/')
+  }
+  if mm_params:
+    mm_params = _flat_to_nested_single(mm_params, name='SigLiPFromPatches_0')
+    # TODO(epot): More conversions needed.
+    transformer_params['vision_encoder'] = mm_params  # pytype: disable=unsupported-operands
+  return transformer_params
+
+
+def _nested_to_flat(params: params_lib.Params) -> params_lib.Params:
+  """Reformat the params from NESTED to FLAT."""
+  params = _copy(params)  # Copy to allow mutating the tree.
+
+  mm_params = params.pop('vision_encoder', {})
+  if mm_params:
+    mm_params = _nested_to_flat_single(mm_params, name='SigLiPFromPatches_0')
+
+  transformer_params = _nested_to_flat_single(params, name='transformer')
+
+  # TODO(epot): Reshape the MM params too.
+  return transformer_params | mm_params
+
+
+def _nested_to_flat_single(
+    params: params_lib.Params, *, name: str
+) -> params_lib.Params:
   params = params_lib.flatten_and_remap_params(params)
-  params = {f'transformer/{k}': v for k, v in params.items()}
+  params = {f'{name}/{k}': v for k, v in params.items()}
   return params
 
 
-def _reformat_params(params: params_lib.Params) -> params_lib.Params:
+def _flat_to_nested_single(
+    params: params_lib.Params, *, name: str
+) -> params_lib.Params:
   params = params_lib.param_remapper(params)
   params = params_lib.nest_params(params)
-  params = params['transformer']
+  params = params[name]
   return params
 
 
-def _add_remove_kauldron_params(fn, metadata):
-  """Decorator for compatibility with Kauldron checkpoints."""
+def _remove_mm_params(params):
+  """Remove the MM params."""
+  # Copy to allow mutating the tree.
+  params = _copy(params)
 
-  def decorator(path, params):
-    # Add Kauldron params
-    # TODO(epot): Should use orbax partial loading instead when open-sourced.
-    kauldron_params = _as_shape_dtype_struct(dict(metadata))
-    kauldron_params['params'] = params
+  # TODO(epot): Once orbax supports partial restore, we would not need to
+  # load those extra params in the first place.
 
-    kauldron_params = fn(path, kauldron_params)
+  del params['vision_encoder']
+  del params['embedder']['mm_input_embedding_extra']
+  del params['embedder']['mm_input_projection']
+  del params['embedder']['mm_soft_embedding_norm']
+  return params
 
-    # Remove Kauldron params
-    params = kauldron_params.pop('params')
-    release_memory(kauldron_params)
+
+def _add_unused_mm_params(params, metadata: _CheckpointTree):
+  """Add the unused MM params."""
+  if not metadata.has_mm_params:
     return params
+  params = _copy(params)
+  params['transformer/embedder']['mm_output_embedding'] = metadata.tree[
+      'transformer/embedder'
+  ]['mm_output_embedding']
+  return params
 
-  return decorator
+
+def _remove_unused_mm_params(params):
+  """Remove the unused MM params."""
+  if 'mm_output_embedding' not in params['embedder']:
+    return params
+  params = _copy(params)
+  # Always remove the `'mm_output_embedding'` which is not used.
+  del params['embedder']['mm_output_embedding']
+  return params
+
+
+def _add_skip_mm_params(
+    params: params_lib.Params, metadata: _CheckpointTree
+) -> params_lib.Params:
+  """Add skip MM params to restore."""
+  params = _copy(params)
+  params_with_mm = metadata.nested_tree
+
+  # Params should not be restored in the first place.
+  params['vision_encoder'] = params_with_mm['vision_encoder']
+  for k in (
+      'mm_input_embedding_extra',
+      'mm_input_projection',
+      'mm_soft_embedding_norm',
+  ):
+    params['embedder'][k] = params_with_mm['embedder'][k]
+
+  return params
+
+
+def _is_flat_layout(params: params_lib.Params) -> bool:
+  """Returns True is the structure is the legacy one."""
+  return all(
+      k.startswith(('transformer/', 'SigLiPFromPatches_0/'))
+      for k in params.keys()
+  )
+
+
+def _is_kauldron_layout(params: params_lib.Params) -> bool:
+  """Returns True is the structure is the Kauldron one."""
+  return set(params) == {'collections', 'opt_state', 'params', 'step'}
+
+
+# ======================== Skip utils ========================
+
+
+@dataclasses.dataclass(frozen=True)
+class _Skip:
+  """Skip object to skip the restore of a param."""
+
+  val: Any
+
+
+def _wrap_skip(tree):
+  """Wrap the params in a `Skip` object."""
+  # Currently has no effect but when orbax will support partial restore,
+  # this will skip the restore of those params.
+  return jax.tree.map(_Skip, tree)
+
+
+def _unwrap_skip(tree):
+  return jax.tree.map(lambda x: x.val if isinstance(x, _Skip) else x, tree)
+
+
+def _partial_restore(restore_fn, tree_with_skip):
+  """Restore the params with partial restore."""
+  # TODO(epot): Implement once orbax supports partial restore.
+
+  tree = _unwrap_skip(tree_with_skip)
+  tree = restore_fn(tree)
+  _release_skip(tree, tree_with_skip)
+  return tree
+
+
+def _release_skip(tree, tree_with_skip) -> None:
+  """Release the memory of the skipped params."""
+  jax.tree.map(
+      lambda x, y: x.delete() if isinstance(y, _Skip) else None,
+      tree,
+      tree_with_skip,
+  )
+
+
+# ======================== Other utils ========================
 
 
 def release_memory(x):
@@ -190,17 +411,8 @@ def _release_memory(x):
   return x
 
 
-def _is_legacy_layout(params: params_lib.Params) -> bool:
-  """Returns True is the structure is the legacy one."""
-  return all(
-      k.startswith(('transformer/', 'SigLiPFromPatches_0/'))
-      for k in params.keys()
-  )
-
-
-def _is_kauldron_layout(params: params_lib.Params) -> bool:
-  """Returns True is the structure is the Kauldron one."""
-  return set(params) == {'collections', 'opt_state', 'params', 'step'}
+def _copy(tree):
+  return jax.tree.map(lambda x: x, tree)
 
 
 def _get_metadata_and_path(
@@ -219,6 +431,7 @@ def _get_metadata_and_path(
       metadata = ckpt.metadata(path)
     else:
       raise
+  metadata = dict(metadata)  # Normalize metadata
   return metadata, path
 
 
