@@ -97,6 +97,13 @@ class Sampler:
       params: weights of the model.
       cache_length: Max length of the cache.
     """
+    msg = (
+        "The old sampler is deprecated, and behave unexpectedly."
+        ' Instead, `gm.text.Sampler` should be used.'
+        ' See the documentation at https://gemma-llm.readthedocs.io/. '
+    )
+    raise DeprecationWarning(msg)
+
     self.transformer = transformer
     self.vocab = vocab
     self.params = params
