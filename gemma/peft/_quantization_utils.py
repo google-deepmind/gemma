@@ -64,6 +64,7 @@ def quantize(
     params: PyTree,
     *,
     method: QuantizationMethod | str,
+    dtype: jnp.dtype = jnp.int4,
 ) -> PyTree:
   """Quantizes the given params.
 
@@ -74,6 +75,7 @@ def quantize(
   Args:
     params: The params to quantize.
     method: The quantization method to use.
+    dtype: The dtype to use for the quantization.
 
   Returns:
     The quantized params.
@@ -100,12 +102,19 @@ def quantize(
           data['kernel'],
           bitwidth=4,
           granularity=QuantizationGranularity.PER_CHANNEL,
+          dtype=dtype,
       )
       data['kernel'] = new_kernel
       data['scale'] = scales
     return data
 
-  return jax.tree.map(convert_leaf, params, is_leaf=is_leaf)
+  quantized_params = jax.tree.map(convert_leaf, params, is_leaf=is_leaf)
+
+  quantized_params = _replace_intermediate_keys(
+      quantized_params, 'SimulateQuantizedEinsum', 'Int4Einsum'
+  )
+  quantized_params = _replace_intermediate_keys(quantized_params, 'QAT', 'Int4')
+  return quantized_params
 
 
 def uniform_quantize(
@@ -113,6 +122,7 @@ def uniform_quantize(
     *,
     bitwidth: int,
     granularity: QuantizationGranularity,
+    dtype: jnp.dtype = jnp.int4,
 ) -> tuple[Array, Array]:
   """Applies uniform quantization to the given array.
 
@@ -123,6 +133,7 @@ def uniform_quantize(
     x: The array to quantize.
     bitwidth: The bitwidth of the quantization.
     granularity: The granularity of the quantization.
+    dtype: The dtype to use for the quantization.
 
   Returns:
     The quantized array and the scale used.
@@ -143,7 +154,7 @@ def uniform_quantize(
   x = x * scales
   # clip and round
   x = jnp.clip(jnp.round(x), lower_bound, upper_bound)
-  return x.astype(jnp.int4), jnp.maximum(scales, _NON_ZERO_DIVISION_EPS)
+  return x.astype(dtype), jnp.maximum(scales, _NON_ZERO_DIVISION_EPS)
 
 
 def reduce_max_all_but_one_axis(
@@ -166,3 +177,29 @@ def reduce_max_all_but_one_axis(
   dims = list(range(x.ndim))
   dims.pop(axis)
   return jnp.max(x, axis=tuple(dims), keepdims=keepdims)
+
+
+def _replace_intermediate_keys(data, old_key, new_key):
+  """Replaces intermediate keys in a nested dictionary.
+
+  We use this to go from the simulated quantized nested params to the int4
+  inference nested params.
+
+  Args:
+      data: The nested dictionary.
+      old_key: The key to replace.
+      new_key: The new key.
+
+  Returns:
+      The modified dictionary.
+  """
+  if isinstance(data, dict):
+    new_data = {}
+    for k, v in data.items():
+      new_key_k = k
+      if old_key in k:
+        new_key_k = k.replace(old_key, new_key)
+      new_data[new_key_k] = _replace_intermediate_keys(v, old_key, new_key)
+    return new_data
+  else:
+    return data

@@ -36,5 +36,7 @@ from gemma.peft._quantization_utils import quantize
 from gemma.peft._quantization import simulate_quantize
 from gemma.peft._quantization import SimulateQuantizedDense
 from gemma.peft._quantization import SimulateQuantizedEinsum
+from gemma.peft._quantization import SimulateQuantizedEinsumAdapter
 from gemma.peft._quantization import Int4Dense
 from gemma.peft._quantization import Int4Einsum
+from gemma.peft._quantization import Int4EinsumAdapter
