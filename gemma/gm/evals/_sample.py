@@ -16,6 +16,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+import dataclasses
 import functools
 from typing import Any, Optional
 
@@ -26,6 +28,7 @@ from gemma.gm.text import _sampler
 import jax
 from kauldron import kd
 from kauldron.utils import config_util
+from kauldron.utils import immutabledict
 
 
 class SamplerEvaluator(kd.evals.EvaluatorBase):
@@ -40,6 +43,7 @@ class SamplerEvaluator(kd.evals.EvaluatorBase):
     ds: Dataset to evaluate on. Note that the dataset must be unbatched and
       contain raw `str` fields.
     model: The model to use.
+    summaries: Optional summaries to write.
   """
 
   # Sampler parameters
@@ -51,25 +55,52 @@ class SamplerEvaluator(kd.evals.EvaluatorBase):
 
   model: nn.Module = config_util.ROOT_CFG_REF.model
 
+  summaries: Mapping[str, kd.summaries.Summary] = dataclasses.field(
+      default_factory=dict
+  )
+
+  def __post_init__(self):
+    super().__post_init__()
+    immutabledict.freeze_dict_attrs(self, ['summaries'])
+
   def evaluate(self, state: kd.train.TrainState, step: int) -> Any:
     """Run this evaluator then write and optionally return the results."""
     self._assert_root_cfg_resolved()
-
-    sampler = _sampler.Sampler(
-        model=self.model,
-        params=state.params,
-        tokenizer=self._task.tokenizer,
-    )
 
     prompts = [
         kd.kontext.get_by_path(ex, self._task.out_input) for ex in self.examples
     ]
 
+    # Extract the images input from the dataset.
+    if self.model.images is not None:
+      images = [
+          kd.kontext.get_by_path({'batch': ex}, self.model.images)
+          for ex in self.examples
+      ]
+    else:
+      images = None
+
     # TODO(epot): Supports batch_size for sampling.
     # Evaluators are run within the `jax.transfer_guard('disallow')` for the
     # train loop, so re-enable it here.
     with jax.transfer_guard('allow'):
-      samples = sampler.sample(prompts, max_new_tokens=self.max_new_tokens)
+      # TODO(epot): Which sharding for the images ?
+      images = kd.sharding.device_put(images, kd.sharding.REPLICATED)
+      sampler = _sampler.Sampler(
+          model=self.model,
+          params=state.params,
+          tokenizer=self._task.tokenizer,
+      )
+      samples = sampler.sample(
+          prompts,
+          images=images,
+          max_new_tokens=self.max_new_tokens,
+      )
+
+    # ======= Write outputs =======
+
+    # TODO(epot): Refactor after the summary refactor.
+    aux_state = kd.train.AuxiliariesState()
 
     # TODO(epot): Would be nice to also write the samples to some text file,
     # Like `self.eval_path(step) / f'{self.name}_preds.txt'` or
@@ -79,11 +110,29 @@ class SamplerEvaluator(kd.evals.EvaluatorBase):
     for i, (prompt, ex, sample) in enumerate(
         zip(prompts, self.examples, samples)
     ):
+      # Text summaries
       texts[f'prompt_{i}'] = prompt
       texts[f'sample_{i}'] = sample
       if self._task.out_target:
         texts[f'gt_{i}'] = kd.kontext.get_by_path(ex, self._task.out_target)
+
+      # Images & other summaries
+      with jax.transfer_guard('allow'):
+        new_state = _get_aux_state(
+            step=step,
+            batch=ex,
+            summaries=self.summaries,
+        )
+        aux_state |= new_state
+
+    # Write the data to the writer.
     self.writer.write_texts(step, texts)
+    self.writer.write_step_metrics(
+        step=step,
+        aux=aux_state,
+        schedules={},
+        log_summaries=True,
+    )
 
   @functools.cached_property
   def examples(self) -> list[Any]:
@@ -115,3 +164,17 @@ class SamplerEvaluator(kd.evals.EvaluatorBase):
     """Returns collection keys used by flat board."""
     # This evaluator do not report any scalar metrics.
     return kd.kdash.NoopDashboard()
+
+
+def _get_aux_state(
+    *,
+    step: int,
+    batch: Any,
+    summaries: Mapping[str, kd.summaries.Summary],
+) -> kd.train.AuxiliariesState:
+  """Get the auxiliary state from the summaries."""
+  ctx = kd.train.Context(step=step, batch=batch)
+  summary_states = jax.tree.map(
+      lambda m: m.get_state_from_context(ctx), summaries
+  )
+  return kd.train.AuxiliariesState(summary_states=summary_states)

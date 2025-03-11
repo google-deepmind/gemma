@@ -88,7 +88,7 @@ def flatten_unflatten_batch_dim() -> Callable[[_FnT], _FnT]:
         else:
           return x
 
-      bound_args.arguments = jax.tree.map_with_path(
+      bound_args.arguments = jax.tree_util.tree_map_with_path(
           _flatten_batch_dim,
           bound_args.arguments,
       )
@@ -112,19 +112,21 @@ def _get_batch_shape(
     argname_to_non_batch_dim_size: dict[str, int],
 ) -> tuple[int, ...]:
   """Infer the batch shape from the args."""
-  batch_shapes = set()
+  batch_shapes = {}
   # Collect all the batch shapes
   for k, v in args.items():
     if not isinstance(v, jax.Array):
       continue
     if k not in argname_to_non_batch_dim_size:
       continue
-    batch_shapes.add(v.shape[: -argname_to_non_batch_dim_size[k] or None])
-  if len(batch_shapes) != 1:
+    batch_shapes[k] = v.shape[: -argname_to_non_batch_dim_size[k] or None]
+
+  single_batch_shape = set(batch_shapes.values())
+  if len(single_batch_shape) != 1:
     raise ValueError(
         f'Could not infer batch shape. Got conflicting values: {batch_shapes}.'
     )
-  return batch_shapes.pop()
+  return single_batch_shape.pop()
 
 
 def _get_argname_to_non_batch_dim_size(
@@ -178,6 +180,7 @@ def _get_non_batch_dim_size(ann: TypeAlias) -> int | None:
   * `Float['*B N L']` -> 2
   * `Float['*B N']` -> 1
   * `Float['*B']` -> 0
+  * `Float['*B'] | Float['*B H']` -> None (cannot infer batch size)
   * `Float['*B'] | None` -> 0
   * `bool` -> None
 
@@ -194,11 +197,12 @@ def _get_non_batch_dim_size(ann: TypeAlias) -> int | None:
         _get_non_batch_dim_size(a) for a in typing.get_args(ann)
     }
     non_batch_dim_size -= {None}  # Only keep Array annotations
-    if len(non_batch_dim_size) > 1:
-      raise ValueError(
-          f'Could not infer non-batch size for `{ann}`. Got conflicting'
-          ' values: {non_batch_dim_size}.'
-      )
+    if len(non_batch_dim_size) > 1:  # Union case: `Float['*B'] | Float['*B H']`
+      return None
+      # raise ValueError(
+      #     f'Could not infer non-batch size for `{ann}`. Got conflicting'
+      #     f' values: {non_batch_dim_size}.'
+      # )
     elif len(non_batch_dim_size) == 1:
       return next(iter(non_batch_dim_size))
     else:

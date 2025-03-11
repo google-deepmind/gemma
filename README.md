@@ -17,16 +17,6 @@ For examples and uses-cases, see our
 report issues and feedback in
 [our GitHub](https://github.com/google-deepmind/gemma/issues).
 
-## Learn more about Gemma
-
-* To use this library: https://gemma-llm.readthedocs.io/
-* Technical reports for metrics and model capabilities:
-  * [Gemma 1](https://goo.gle/GemmaReport)
-  * [Gemma 2](https://goo.gle/gemma2report)
-* Other Gemma implementations and doc on the Gemma ecosystem: https://ai.google.dev/gemma/docs
-
-## Quick start
-
 ### Installation
 
 1.  Install JAX for CPU, GPU or TPU. Follow instructions at
@@ -37,16 +27,40 @@ report issues and feedback in
     pip install gemma
     ```
 
-### Downloading the models
+### Examples
 
-To download the model weights. See
-[our documentation](https://gemma-llm.readthedocs.io/en/latest/checkpoints.html).
+Here is a minimal example to have a multi-turn, multi-modal conversation with
+Gemma:
 
-## Examples
+```python
+from gemma import gm
+
+# Model and parameters
+model = gm.nn.Gemma3_4B()
+params = gm.ckpts.load_params(gm.ckpts.CheckpointPath.GEMMA3_4B_IT)
+
+# Example of multi-turn conversation
+sampler = gm.text.ChatSampler(
+    model=model,
+    params=params,
+    mult_turn=True,
+)
+
+prompt = """Which of the 2 images do you prefer ?
+
+Image 1: <start_of_image>
+Image 2: <start_of_image>
+
+Write your answer as a poem."""
+out0 = sampler.chat(prompt, images=[image1, image2])
+
+out1 = sampler.chat('What about the other image ?')
+```
 
 Our documentation contain various Colabs and tutorial, including:
 
 * [Sampling](https://gemma-llm.readthedocs.io/en/latest/colab_sampling.html)
+* [Multi-modal](https://gemma-llm.readthedocs.io/en/latest/colab_multimodal.html)
 * [Fine-tuning](https://gemma-llm.readthedocs.io/en/latest/colab_finetuning.html)
 * [LoRA](https://gemma-llm.readthedocs.io/en/latest/colab_lora_sampling.html)
 * ...
@@ -54,6 +68,20 @@ Our documentation contain various Colabs and tutorial, including:
 Additionally, our
 [examples/](https://github.com/google-deepmind/gemma/tree/main/examples) folder
 contain additional scripts to fine-tune and sample with Gemma.
+
+### Learn more about Gemma
+
+* To use this library: [Gemma documentation](https://gemma-llm.readthedocs.io/)
+* Technical reports for metrics and model capabilities:
+  * [Gemma 1](https://goo.gle/GemmaReport)
+  * [Gemma 2](https://goo.gle/gemma2report)
+* Other Gemma implementations and doc on the
+  [Gemma ecosystem](https://ai.google.dev/gemma/docs)
+
+### Downloading the models
+
+To download the model weights. See
+[our documentation](https://gemma-llm.readthedocs.io/en/latest/checkpoints.html).
 
 ### System Requirements
 

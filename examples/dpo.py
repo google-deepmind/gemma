@@ -54,12 +54,12 @@ def get_config():
       train_ds=_make_dataset(training=True),
       # Model definition
       model=gm.nn.AnchoredPolicy(
-          policy=gm.nn.Gemma2_2B(tokens="batch.tokens"),
+          policy=gm.nn.Gemma3_4B(tokens="batch.tokens", text_only=True),
       ),
       # Load the weights from the pretrained checkpoint
       init_transform=gm.ckpts.AnchoredPolicyLoader(
           policy=gm.ckpts.LoadCheckpoint(
-              path=gm.ckpts.CheckpointPath.GEMMA2_2B_IT,
+              path=gm.ckpts.CheckpointPath.GEMMA3_4B_IT,
           ),
       ),
       # Training
@@ -91,18 +91,24 @@ def _make_dataset(training: bool) -> kd.data.Pipeline:
   max_length = 512
   batch_size = 16
 
-  tokenizer = gm.text.Gemma2Tokenizer()
+  tokenizer = gm.text.Gemma3Tokenizer()
 
-  return gm.data.Parquet(
+  return kd.data.py.HuggingFace(
+      path="argilla/distilabel-math-preference-dpo",
+      split="train",
       shuffle=True if training else False,
       num_epochs=None if training else 1,
       batch_size=batch_size,
       transforms=[
+          # Only keep the fields we need.
+          kd.data.Elements(
+              keep=["instruction", "chosen_response", "rejected_response"]
+          ),
           # Create the model inputs and loss mask.
           gm.data.ContrastiveTask(
-              in_prompt="input",
-              in_chosen="chosen",
-              in_rejected="rejected",
+              in_prompt="instruction",
+              in_chosen="chosen_response",
+              in_rejected="rejected_response",
               out_tokens="tokens",
               out_mask="mask",
               tokenizer=tokenizer,

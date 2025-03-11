@@ -27,7 +27,7 @@ from kauldron import kontext
 import numpy as np
 
 
-class LoRAWrapper(nn.Module):
+class LoRA(nn.Module):
   """Wrapper around a Gemma model to enable LoRA.
 
   The model wrapped will have all it's `nn.Dense`, `nn.Einsum`,... layers
@@ -69,9 +69,9 @@ class LoRAWrapper(nn.Module):
     """Kauldron keys when calling `kontext.get_from_keys_obj`."""
     # Forward the keys from the wrapped model.
     # This allow to define the config as:
-    # gm.nn.LoRAWrapper(
+    # gm.nn.LoRA(
     #   model=MyModel(
-    #     input='batch.input',  # keys propagated to the `LoRAWrapper`
+    #     input='batch.input',  # keys propagated to the `LoRA`
     #   ),
     # )
     return kontext.get_keypaths(self.model)

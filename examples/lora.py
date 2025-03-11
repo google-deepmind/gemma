@@ -19,7 +19,7 @@ docstring of that file for more details.
 
 The changes to use LoRA are:
 
-* `model`: Use `gm.nn.LoRAWrapper()` wrapper to add `LoRA` adapters to the
+* `model`: Use `gm.nn.LoRA()` wrapper to add `LoRA` adapters to the
   model.
 * `init_transform`: Use `gm.ckpts.SkipLoRA()` wrapper to only restore the
   non-LoRA weights.
@@ -59,9 +59,9 @@ def get_config():
           max_length=max_length,
       ),
       # Model definition
-      model=gm.nn.LoRAWrapper(
+      model=gm.nn.LoRA(
           rank=4,
-          model=gm.nn.Gemma2_2B(
+          model=gm.nn.Gemma3_4B(
               tokens="batch.input",
           ),
       ),
@@ -70,7 +70,7 @@ def get_config():
       # weights.
       init_transform=gm.ckpts.SkipLoRA(
           wrapped=gm.ckpts.LoadCheckpoint(
-              path=gm.ckpts.CheckpointPath.GEMMA2_2B_IT,
+              path=gm.ckpts.CheckpointPath.GEMMA3_4B_IT,
           )
       ),
       # Training
@@ -120,7 +120,7 @@ def _make_dataset(
     batch_size: int | None = None,
     max_length: int | None = None,
 ):
-  tokenizer = gm.text.Gemma2Tokenizer()
+  tokenizer = gm.text.Gemma3Tokenizer()
 
   return kd.data.py.Tfds(
       name="mtnt/en-fr",

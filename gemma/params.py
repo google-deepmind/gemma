@@ -24,15 +24,32 @@ import orbax.checkpoint
 
 Params = Mapping[str, Any]
 
+_SIGLIP_PARAMS_PATH = 'not supported'
+
+
+def load_siglip_params(checkpoint_path: str = _SIGLIP_PARAMS_PATH) -> Params:
+  """Loads SigLIP parameters."""
+  params = load_params(checkpoint_path)['donated_carry']['params']
+  out_params = {}
+  for key in params:
+    new_key = str(key).replace('SigLiPFromPatches_0/', '')
+    if 'MlpBlock' in new_key:
+      new_key = new_key.replace('Dense', 'DenseGeneral')
+    out_params[new_key] = params[key]
+  return nest_params(out_params)
+
 
 def load_and_format_params(
     path: str,
+    load_siglip: bool = False,
 ) -> Params:
   """Loads parameters and formats them for compatibility."""
   params = load_params(path)
   param_state = jax.tree_util.tree_map(jnp.array, params)
   remapped_params = param_remapper(param_state)
   nested_params = nest_params(remapped_params)
+  if load_siglip:
+    nested_params['transformer']['vision_encoder'] = load_siglip_params()
   return nested_params
 
 

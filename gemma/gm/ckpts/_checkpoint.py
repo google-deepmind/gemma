@@ -25,8 +25,10 @@ from typing import Any, TypeVar
 from etils import epath
 import flax
 from gemma import params as params_lib
+from gemma.gm.ckpts import _quantization
 import jax
 from kauldron import kd
+import numpy as np
 from orbax import checkpoint as ocp
 
 if typing.TYPE_CHECKING:
@@ -47,12 +49,17 @@ class LoadCheckpoint(kd.ckpts.AbstractPartialLoader):
 
   Attributes:
     path: The path to the orbax checkpoint.
+    quantize: If `True`, the params will be mapped to enable quantization aware
+      training.
   """
 
   path: epath.PathLike
+  quantize: bool = False
 
   def transform(self, state: _StateT) -> _StateT:  # pytype: disable=signature-mismatch
-    new_params = load_params(self.path, params=state.params)
+    new_params = load_params(
+        self.path, params=state.params, quantize=self.quantize
+    )
     return dataclasses.replace(state, params=new_params)
 
 
@@ -112,7 +119,6 @@ class _CheckpointTree:
   def as_nested(self, *, remove_mm: bool = False) -> _CheckpointTree:
     """Returns a copy of the tree matching the NESTED checkpoint structure."""
     tree = self.nested_tree
-    tree = _remove_unused_mm_params(tree)
     if remove_mm:
       tree = _remove_mm_params(tree)
     return _CheckpointTree(tree=tree)
@@ -134,8 +140,6 @@ class _CheckpointTree:
     elif self.type == _CheckpointType.FLAT:
       # Unflatten the params structure
       target_params = _nested_to_flat(ckpt_params)
-      # Flat checkpoint contain an extra unused variable.
-      target_params = _add_unused_mm_params(target_params, metadata)
     elif self.type == _CheckpointType.KAULDRON:
       target_params = _copy(metadata.tree)
       target_params['params'] = ckpt_params
@@ -156,6 +160,7 @@ def load_params(
     donate: bool = True,
     text_only: bool = False,
     sharding: kd.sharding.ShardingTree | None = None,
+    quantize: bool = False,
 ) -> params_lib.Params:
   """Restore the params from a checkpoint.
 
@@ -169,6 +174,8 @@ def load_params(
       params are ignored.
     sharding: If provided, the params will be restored with this sharding. This
       is mutually exclusive with `params`.
+    quantize: If `True`, the params will be mapped to enable quantization aware
+      training.
 
   Returns:
     The restored params.
@@ -223,14 +230,27 @@ def load_params(
   # TODO(epot): Support CMSMeta
 
   restore_fn = functools.partial(ckpt.restore, path)
-  output = _partial_restore(restore_fn, output_with_skip)
+  output = _partial_restore(restore_fn, output_with_skip, quantize=quantize)
 
   # Then after restoring, the params are remapped back to the final structure.
   output = _CheckpointTree(tree=output)
   output = output.as_nested(
       remove_mm=metadata.has_mm_params and not params.has_mm_params
   )
-  return output.tree
+
+  # HACK: Manually cast the MM embedder params to f32, otherwise, image
+  # produce wrong output on old GPUs (T4, V100)
+  tree = output.tree
+  if output.has_mm_params:
+    tree['embedder']['mm_input_projection'] = jax.tree.map(
+        lambda x: x.astype(np.float32),
+        output.tree['embedder']['mm_input_projection'],
+    )
+    tree['embedder']['mm_soft_embedding_norm'] = jax.tree.map(
+        lambda x: x.astype(np.float32),
+        output.tree['embedder']['mm_soft_embedding_norm'],
+    )
+  return tree
 
 
 # ======================== Structure reformat utils ========================
@@ -297,30 +317,8 @@ def _remove_mm_params(params):
   # load those extra params in the first place.
 
   del params['vision_encoder']
-  del params['embedder']['mm_input_embedding_extra']
   del params['embedder']['mm_input_projection']
   del params['embedder']['mm_soft_embedding_norm']
-  return params
-
-
-def _add_unused_mm_params(params, metadata: _CheckpointTree):
-  """Add the unused MM params."""
-  if not metadata.has_mm_params:
-    return params
-  params = _copy(params)
-  params['transformer/embedder']['mm_output_embedding'] = metadata.tree[
-      'transformer/embedder'
-  ]['mm_output_embedding']
-  return params
-
-
-def _remove_unused_mm_params(params):
-  """Remove the unused MM params."""
-  if 'mm_output_embedding' not in params['embedder']:
-    return params
-  params = _copy(params)
-  # Always remove the `'mm_output_embedding'` which is not used.
-  del params['embedder']['mm_output_embedding']
   return params
 
 
@@ -334,7 +332,6 @@ def _add_skip_mm_params(
   # Params should not be restored in the first place.
   params['vision_encoder'] = params_with_mm['vision_encoder']
   for k in (
-      'mm_input_embedding_extra',
       'mm_input_projection',
       'mm_soft_embedding_norm',
   ):
@@ -377,11 +374,13 @@ def _unwrap_skip(tree):
   return jax.tree.map(lambda x: x.val if isinstance(x, _Skip) else x, tree)
 
 
-def _partial_restore(restore_fn, tree_with_skip):
+def _partial_restore(restore_fn, tree_with_skip, quantize: bool = False):
   """Restore the params with partial restore."""
   # TODO(epot): Implement once orbax supports partial restore.
 
   tree = _unwrap_skip(tree_with_skip)
+  if quantize:
+    tree = _quantization.convert_to_qat_checkpoint(tree)
   tree = restore_fn(tree)
   _release_skip(tree, tree_with_skip)
   return tree

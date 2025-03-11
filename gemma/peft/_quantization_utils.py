@@ -14,6 +14,7 @@
 
 """params pre-processing."""
 
+from collections.abc import Sequence
 import enum
 from typing import Any, TypeVar
 from etils import epy
@@ -38,6 +39,7 @@ class QuantizationMethod(epy.StrEnum):
 
   NONE = enum.auto()
   INT4 = enum.auto()
+  INT8 = enum.auto()
   Q4_0 = enum.auto()
   Q4_0_TRANSPOSE = enum.auto()
   SFP8 = enum.auto()
@@ -64,6 +66,8 @@ def quantize(
     params: PyTree,
     *,
     method: QuantizationMethod | str,
+    checkpoint_kernel_key: str = 'w',
+    in_place_keys: bool = False,
 ) -> PyTree:
   """Quantizes the given params.
 
@@ -74,6 +78,9 @@ def quantize(
   Args:
     params: The params to quantize.
     method: The quantization method to use.
+    checkpoint_kernel_key: The key of the kernel in the checkpoint (in
+      pre-trained checkpoitns that is 'w').
+    in_place_keys: Whether to quantize the keys in place.
 
   Returns:
     The quantized params.
@@ -84,28 +91,70 @@ def quantize(
       return params
     case QuantizationMethod.INT4:
       quantization_func = uniform_quantize
+      bitwidth = 4
+      dtype = jnp.int4
+    case QuantizationMethod.INT8:
+      quantization_func = uniform_quantize
+      bitwidth = 8
+      dtype = jnp.int8
     case _:
       raise ValueError(f'Quantization method {method} is not yet supported.')
 
   def is_leaf(data: Any) -> bool:
     if isinstance(data, jax.Array):
       return True
-    if 'kernel' in data:
+    if checkpoint_kernel_key in data:
+      return True
+    if 'gating_einsum' in data or 'linear' in data:
       return True
     return False
 
+  try:
+    # get models dims to identify layer based on weight shape
+    head_dim, d_model, _ = params['layer_0']['attn']['q_einsum'][
+        checkpoint_kernel_key
+    ].shape
+  except KeyError:
+    head_dim, d_model = -1, -1
+
+  def quantize_leaf(data: Any, key: str) -> Any:
+    new_kernel, scales = quantization_func(
+        data[key],
+        bitwidth=bitwidth,
+        granularity=QuantizationGranularity.PER_CHANNEL,
+        dtype=dtype,
+        axis_to_reduce=_get_axis_to_reduce_from_weight_shape(
+            data[key].shape, head_dim=head_dim, d_model=d_model
+        ),
+    )
+    new_data = dict(data)
+    del new_data[key]
+    if in_place_keys:
+      new_data['kernel'] = new_kernel
+      new_data['scale'] = scales
+      return new_data
+    name = f'_IntEinsum_{key}'
+    if key == checkpoint_kernel_key:
+      name = '_IntEinsum_0'
+    new_data[name] = {'kernel': new_kernel, 'scale': scales}
+    return new_data
+
   def convert_leaf(data: Any) -> Any:
-    if 'kernel' in data:
-      new_kernel, scales = quantization_func(
-          data['kernel'],
-          bitwidth=4,
-          granularity=QuantizationGranularity.PER_CHANNEL,
-      )
-      data['kernel'] = new_kernel
-      data['scale'] = scales
+    if isinstance(data, jax.Array):
+      return data
+    if checkpoint_kernel_key in data:
+      data = quantize_leaf(data, checkpoint_kernel_key)
+    # This hack is required because the FeedForward layer call two different
+    # Einsum with using `nn.share_scope`, so the two wrappers need a different
+    # name. Weights are not stored under any kernel key and are isntead under
+    # the following names.
+    if 'gating_einsum' in data or 'linear' in data:
+      data = quantize_leaf(data, 'gating_einsum')
+      data = quantize_leaf(data, 'linear')
     return data
 
-  return jax.tree.map(convert_leaf, params, is_leaf=is_leaf)
+  quantized_params = jax.tree.map(convert_leaf, dict(params), is_leaf=is_leaf)
+  return quantized_params
 
 
 def uniform_quantize(
@@ -113,6 +162,8 @@ def uniform_quantize(
     *,
     bitwidth: int,
     granularity: QuantizationGranularity,
+    dtype: jnp.dtype = jnp.int4,
+    axis_to_reduce: int | None = None,
 ) -> tuple[Array, Array]:
   """Applies uniform quantization to the given array.
 
@@ -123,11 +174,12 @@ def uniform_quantize(
     x: The array to quantize.
     bitwidth: The bitwidth of the quantization.
     granularity: The granularity of the quantization.
+    dtype: The dtype to use for the quantization.
+    axis_to_reduce: The axis to reduce over.
 
   Returns:
     The quantized array and the scale used.
   """
-  assert bitwidth == 4  # only int4 quantization is supported
   upper_bound = 2 ** (bitwidth - 1) - 1
   lower_bound = -(2 ** (bitwidth - 1))
   match granularity:
@@ -135,7 +187,10 @@ def uniform_quantize(
       max_ = jnp.max(jnp.abs(x))
       scales = upper_bound * jnp.squeeze(jnp.array([1.0 / max_]))
     case QuantizationGranularity.PER_CHANNEL:
-      max_ = reduce_max_all_but_one_axis(jnp.abs(x), -1)
+      if axis_to_reduce is None:
+        max_ = reduce_max_all_but_one_axis(jnp.abs(x), axis=-1)
+      else:
+        max_ = jnp.max(jnp.abs(x), keepdims=True, axis=axis_to_reduce)
       scales = upper_bound * jnp.array(1.0 / max_)
     case _:
       raise ValueError(f'Unknown granularity: {granularity}')
@@ -143,7 +198,7 @@ def uniform_quantize(
   x = x * scales
   # clip and round
   x = jnp.clip(jnp.round(x), lower_bound, upper_bound)
-  return x.astype(jnp.int4), jnp.maximum(scales, _NON_ZERO_DIVISION_EPS)
+  return x.astype(dtype), jnp.maximum(scales, _NON_ZERO_DIVISION_EPS)
 
 
 def reduce_max_all_but_one_axis(
@@ -166,3 +221,49 @@ def reduce_max_all_but_one_axis(
   dims = list(range(x.ndim))
   dims.pop(axis)
   return jnp.max(x, axis=tuple(dims), keepdims=keepdims)
+
+
+def _replace_intermediate_keys(data, old_key, new_key):
+  """Replaces intermediate keys in a nested dictionary.
+
+  We use this to go from the simulated quantized nested params to the int4
+  inference nested params.
+
+  Args:
+      data: The nested dictionary.
+      old_key: The key to replace.
+      new_key: The new key.
+
+  Returns:
+      The modified dictionary.
+  """
+  if isinstance(data, dict):
+    return {
+        k.replace(old_key, new_key): _replace_intermediate_keys(
+            v, old_key, new_key
+        )
+        for k, v in data.items()
+    }
+  else:
+    return data
+
+
+def _get_axis_to_reduce_from_weight_shape(
+    shape: Sequence[int], *, head_dim: int, d_model: int
+) -> Sequence[int] | None:
+  """Returns the axis to reduce over."""
+  if head_dim == -1 or d_model == -1:  # no model dims available
+    return None
+  if len(shape) == 2:
+    return (0,)
+  if len(shape) == 3:
+    if shape[0] == head_dim and shape[1] == d_model:  # query einsum
+      return (1,)
+    if shape[0] == head_dim and shape[2] == d_model:  # att out einsum
+      return (0, 1)
+    if shape[2] == d_model:  # gate einsum
+      return (2,)
+    raise ValueError(f'Unsupported weight shape: {shape}')
+  if len(shape) == 4:
+    return (2,)
+  raise ValueError(f'Unsupported weight shape: {shape}')

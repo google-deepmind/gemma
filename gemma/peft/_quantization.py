@@ -14,7 +14,7 @@
 
 """Flax linen Quantization modules."""
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 import dataclasses
 import einops
 from flax import linen as nn
@@ -35,7 +35,9 @@ _NON_ZERO_DIVISION_EPS = 1e-6
 
 
 def simulate_quantize(
-    x: Array, method: _quantization_utils.QuantizationMethod | str
+    x: Array,
+    method: _quantization_utils.QuantizationMethod | str,
+    axis_to_reduce: int | None = None,
 ) -> Array:
   """Quantizes the given array.
 
@@ -49,6 +51,7 @@ def simulate_quantize(
   Args:
     x: The array to simulate_quantize.
     method: The quantization method to use.
+    axis_to_reduce: The axis to reduce the array over.
 
   Returns:
     The simulate_quantized array.
@@ -61,6 +64,13 @@ def simulate_quantize(
       return _simulate_uniform_quantization(
           x,
           bitwidth=4,
+          granularity=_quantization_utils.QuantizationGranularity.PER_CHANNEL,
+          axis_to_reduce=axis_to_reduce,
+      )
+    case _quantization_utils.QuantizationMethod.INT8:
+      return _simulate_uniform_quantization(
+          x,
+          bitwidth=8,
           granularity=_quantization_utils.QuantizationGranularity.PER_CHANNEL,
       )
     case _quantization_utils.QuantizationMethod.Q4_0:
@@ -107,7 +117,11 @@ class SimulateQuantizedDense(nn.Module):
         (inputs.shape[-1], self.wrapped.features),
         dtype=self.wrapped.dtype,
     )
-    w = simulate_quantize(kernel, self.method)
+    w = simulate_quantize(
+        kernel,
+        self.method,
+        axis_to_reduce=None,
+    )
     y = inputs @ w
     if self.wrapped.use_bias:
       b = self.param(  # pytype: disable=wrong-keyword-args
@@ -171,7 +185,13 @@ class SimulateQuantizedEinsum(nn.Module):
         inputs, kernel, None, dtype=self.wrapped.dtype
     )
 
-    kernel = simulate_quantize(kernel, self.method)
+    kernel = simulate_quantize(
+        kernel,
+        self.method,
+        axis_to_reduce=get_axis_to_reduce_from_einsum_str(
+            einsum_str=self.wrapped.name
+        ),
+    )
 
     y = jnp.einsum(einsum_str, inputs, kernel, precision=self.wrapped.precision)
     if self.wrapped.use_bias:
@@ -183,12 +203,13 @@ class SimulateQuantizedEinsum(nn.Module):
     return y
 
 
-class Int4Dense(nn.Module):
+class IntDense(nn.Module):
   """Wrapper around `nn.Dense` which adds a Quantized adapter."""
 
   _: dataclasses.KW_ONLY
 
   wrapped: nn.Dense
+  dtype: jnp.dtype = jnp.int4
 
   def __post_init__(self):
     super().__post_init__()
@@ -203,7 +224,7 @@ class Int4Dense(nn.Module):
         'kernel',
         nn.initializers.ones_init(),
         (inputs.shape[-1], self.wrapped.features),
-        jnp.int4,
+        self.dtype,
     )
     scale = self.param(
         'scale',
@@ -224,12 +245,13 @@ class Int4Dense(nn.Module):
     return y
 
 
-class Int4Einsum(nn.Module):
+class IntEinsum(nn.Module):
   """Wrapper around `nn.Einsum` which adds a Quantized adapter."""
 
   _: dataclasses.KW_ONLY
 
   wrapped: nn.Einsum
+  dtype: jnp.dtype = jnp.int4
 
   def __post_init__(self):
     super().__post_init__()
@@ -265,7 +287,7 @@ class Int4Einsum(nn.Module):
         'kernel',
         nn.initializers.ones_init(),
         self.wrapped.shape,
-        jnp.int4,
+        self.dtype,
     ).astype(self.wrapped.dtype)
     scale = self.param(
         'scale',
@@ -379,6 +401,7 @@ def _simulate_uniform_quantization(
     bitwidth: int,
     granularity: _quantization_utils.QuantizationGranularity,
     transpose: bool = False,
+    axis_to_reduce: int | None = None,
 ) -> Array:
   """Applies uniform quantization to the given array.
 
@@ -390,6 +413,7 @@ def _simulate_uniform_quantization(
     bitwidth: The bitwidth of the quantization.
     granularity: The granularity of the quantization.
     transpose: Whether to transpose the array before quantization.
+    axis_to_reduce: The axis to reduce the max over.
 
   Returns:
     The simulate_quantized array.
@@ -404,7 +428,12 @@ def _simulate_uniform_quantization(
       max_ = jnp.max(jnp.abs(x))
       scales = upper_bound * jnp.squeeze(jnp.array([1.0 / max_]))
     case _quantization_utils.QuantizationGranularity.PER_CHANNEL:
-      max_ = _quantization_utils.reduce_max_all_but_one_axis(jnp.abs(x), -1)
+      if axis_to_reduce is None:
+        max_ = _quantization_utils.reduce_max_all_but_one_axis(
+            jnp.abs(x), axis=-1
+        )
+      else:
+        max_ = jnp.max(jnp.abs(x), keepdims=True, axis=axis_to_reduce)
       scales = upper_bound * jnp.array(1.0 / max_)
     case _quantization_utils.QuantizationGranularity.PER_BLOCK:
       return _q4_0(
@@ -471,3 +500,22 @@ def _simulate_sfp8_quantization(x: Array) -> Array:
   x = jnp.where(lower_bound_mask, _SFP8_LOWEST_NON_ZERO_BOUND, x)
   x = jnp.where(zero_mask, 0, x)
   return x_sign * x / sfp8_scale
+
+
+def get_axis_to_reduce_from_einsum_str(
+    einsum_str: str,
+) -> Sequence[int] | None:
+  """Returns the axis to reduce over."""
+  match einsum_str:
+    case 'BTD,NDH->BTNH':
+      return (1,)
+    case 'BSD,CKDH->CBSKH':
+      return (2,)
+    case 'BTNH,NHD->BTD':
+      return (0, 1)
+    case '...F,NHF->...NH':
+      return (2,)
+    case '...H,HF->...F':
+      return (0,)
+    case _:
+      return None

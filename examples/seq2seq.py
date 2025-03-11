@@ -16,7 +16,7 @@ r"""Example of Gemma finetuning for a prompt -> response task.
 
 Example:
 
-Input:
+Prompt:
 
 ```
 <start_of_turn>user
@@ -24,7 +24,7 @@ Hello! I would love to visit France.<end_of_turn>
 <start_of_turn>model
 ```
 
-Output:
+Target:
 
 ```
 Bonjour ! J'adorerais visiter la France.<end_of_turn>
@@ -67,12 +67,12 @@ def get_config():
           max_length=max_length,
       ),
       # Model definition
-      model=gm.nn.Gemma2_2B(
+      model=gm.nn.Gemma3_4B(
           tokens="batch.input",
       ),
       # Load the weights from the pretrained checkpoint
       init_transform=gm.ckpts.LoadCheckpoint(
-          path=gm.ckpts.CheckpointPath.GEMMA2_2B_IT,
+          path=gm.ckpts.CheckpointPath.GEMMA3_4B_IT,
       ),
       # Training
       num_train_steps=10_000,
@@ -116,7 +116,7 @@ def _make_dataset(
     batch_size: int | None = None,
     max_length: int | None = None,
 ):
-  tokenizer = gm.text.Gemma2Tokenizer()
+  tokenizer = gm.text.Gemma3Tokenizer()
 
   return kd.data.py.Tfds(
       name="mtnt/en-fr",

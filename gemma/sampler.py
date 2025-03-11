@@ -25,6 +25,7 @@ import chex
 from gemma import modules
 from gemma import params as params_lib
 from gemma import transformer as transformer_lib
+from gemma.multimodal import vision as gemma_vision
 import jax
 import jax.numpy as jnp
 
@@ -98,7 +99,8 @@ class Sampler:
       cache_length: Max length of the cache.
     """
     msg = (
-        "The old sampler is deprecated, and behave unexpectedly."
+        "The old sampler is deprecated, behave unexpectedly and doesn't "
+        'support multimodal.'
         ' Instead, `gm.text.Sampler` should be used.'
         ' See the documentation at https://gemma-llm.readthedocs.io/. '
     )
@@ -198,6 +200,7 @@ class Sampler:
       self,
       all_input_ids: list[jax.Array],
       total_sampling_steps: int,
+      patched_images: jax.Array | None,
       include_logits: bool = False,
       forbidden_token_ids: Sequence[int] | None = None,
   ) -> _SamplingState:
@@ -222,9 +225,21 @@ class Sampler:
 
     done = jnp.zeros((bsz,), dtype=jnp.bool_)
     num_input_tokens = jnp.array(num_input_tokens, dtype=jnp.int32)
+    # Pre-process prompt and images.
+    vision_embeddings = gemma_vision.initialize_vision_tokens(
+        patched_images, token_buffer, num_input_tokens
+    )
+    mm_data = vision_embeddings.patches
+    token_buffer = vision_embeddings.token_buffer
+    num_input_tokens = vision_embeddings.num_input_tokens
+    if mm_data is not None:
+      positions = jnp.tile(
+          jnp.arange(token_buffer.shape[1]).reshape(1, -1), (bsz, 1)
+      )
 
     input_mask = token_buffer != self.vocab.pad_id()
     decoding_step = num_input_tokens[0]
+    bi_directional_mask = token_buffer == gemma_vision.TOKEN_PLACEHOLDER
     logits, cache = self.transformer.apply(
         {'params': self.params},
         jax.lax.dynamic_slice(token_buffer, (0, 0), (bsz, decoding_step)),
@@ -234,7 +249,9 @@ class Sampler:
             time_step=decoding_step,
             seq_len=self.cache_length,
             input_mask=input_mask,
+            bi_directional_mask=bi_directional_mask,
         ),
+        mm_data,
     )
     if include_logits:
       logits_buffer = jnp.concatenate(
@@ -324,6 +341,7 @@ class Sampler:
       self,
       input_strings: Sequence[str],
       total_generation_steps: int,
+      patched_images: jax.Array | None = None,
       echo: bool = False,
       return_logits: bool = True,
       forbidden_tokens: Sequence[str] | None = None,
@@ -334,6 +352,7 @@ class Sampler:
       input_strings: input prompts to feed to the model for sampling.
       total_generation_steps: number of generation steps. will correspond to the
         longest prompt in the batch.
+      patched_images: patched images of shape BxNxPxD.
       echo: whether to return the prompt as part of the output sample.
       return_logits: whether to return per-step logits used during generation.
       forbidden_tokens: list of tokens that are forbidden to be generated. Each
@@ -354,13 +373,16 @@ class Sampler:
         forbidden_token_ids.extend(token_id)
       forbidden_token_ids = tuple(forbidden_token_ids)
     all_input_ids = [self.tokenize(x) for x in input_strings]
+    mm_extra_len = transformer_lib.mm_input_length(patched_images)
     max_input_length = max(len(input_ids) for input_ids in all_input_ids)
     total_sampling_steps = max_input_length + total_generation_steps
+    total_sampling_steps += mm_extra_len
     initial_sampling_state = self.init_sample_state(
         all_input_ids,
         include_logits=return_logits,
         total_sampling_steps=total_sampling_steps,
         forbidden_token_ids=forbidden_token_ids,
+        patched_images=patched_images,
     )
 
     sampling_state = self._compiled_sample_fn(

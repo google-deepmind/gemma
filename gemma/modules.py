@@ -23,6 +23,7 @@ import jax.numpy as jnp
 
 K_MASK = -2.3819763e38  # Set to a large negative number.
 DEFAULT_ROPE_BASE_FREQUENCY = 10_000
+DEFAULT_ROPE_SCALE_FACTOR = 1.0
 LayerCache = dict[str, jax.Array]
 
 
@@ -69,6 +70,8 @@ class Embedder(nn.Module):
   vocab_size: int
   embed_dim: int
 
+  vision_proj_dim: int | None = None
+
   def setup(self):
     self.input_embedding_table = self.param(
         'input_embedding',
@@ -76,14 +79,30 @@ class Embedder(nn.Module):
         (self.vocab_size, self.embed_dim),
     )
 
+    # For the multi-modal models, the encoder has additional parameters:
+    # * `mm_soft_embedding_norm` and `mm_input_projection`: Those weights
+    #   serve to project the soft tokens from the image encoder into the
+    #   embedding space of the text encoder. Those tokens are then merged with
+    #   the text tokens inside `Transformer._include_vision_embeddings`.
+    if self.vision_proj_dim:
+      self.mm_soft_embedding_norm = layers.RMSNorm()
+      self.mm_input_projection = layers.Einsum(
+          (self.vision_proj_dim, self.embed_dim)
+      )
+
   def encode(self, x: jax.Array) -> jax.Array:
-    embed_table = self.input_embedding_table
-    x = embed_table[(x,)]
+    x = self.input_embedding_table[(x,)]
     x *= jnp.sqrt(self.embed_dim).astype(x.dtype)
     return x
 
   def decode(self, x: jax.Array) -> jax.Array:
     return jnp.dot(x, self.input_embedding_table.T)
+
+  def encode_vision(self, x: jax.Array) -> jax.Array:
+    """Projects siglip embeddings to the embedding space of the text encoder."""
+    x = self.mm_soft_embedding_norm(x)
+    x = self.mm_input_projection('...tm,md->...td', x)
+    return x
 
 
 class Attention(nn.Module):
@@ -160,6 +179,7 @@ class Attention(nn.Module):
     )
 
     # Cache is left aligned.
+    # Save the KV values to the cache.
     if cache is not None:
       end_index = cache['end_index'][0]
       slice_indices = (0, end_index % cache['v'].shape[1], 0, 0)
@@ -304,6 +324,7 @@ class Block(nn.Module):
   query_pre_attn_scalar: float
   transpose_gating_einsum: bool
   rope_base_frequency: int = DEFAULT_ROPE_BASE_FREQUENCY
+  rope_scale_factor: float = DEFAULT_ROPE_SCALE_FACTOR
   attn_logits_soft_cap: float | None = None
   sliding_window_size: int | None = None
   use_qk_norm: bool = False

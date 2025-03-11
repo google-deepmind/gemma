@@ -27,3 +27,4 @@ with _epy.lazy_api_imports(globals()):
   from gemma.gm import nn
   from gemma.gm import text
   from gemma.gm import sharding
+  from gemma import peft

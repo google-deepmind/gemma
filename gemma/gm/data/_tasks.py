@@ -20,6 +20,7 @@ import dataclasses
 
 import einops
 from gemma.gm.data import _functional
+from gemma.gm.text import _template
 from gemma.gm.text import _tokenizer
 from grain import python as grain
 import jax
@@ -121,8 +122,8 @@ class Seq2SeqTask(grain.MapTransform):
 
     # Format the input to match the expected dialog template.
     # TODO(epot): Add a `template` protocol to allow customizing this.
-    prompt = _PROMPT_TEMPLATE.format(prompt)
-    response = _ANSWER_TEMPLATE.format(response)
+    prompt = _template.PROMPT.format(prompt)
+    response = _template.ANSWER.format(response)
 
     # For sampling, we don't need to tokenize the input.
     if self.sampling:
@@ -132,7 +133,7 @@ class Seq2SeqTask(grain.MapTransform):
 
     # Tokenize the input and the responses.
     prompt = self.tokenizer.encode(prompt, add_bos=True)
-    response = self.tokenizer.encode(response, add_eos=True)
+    response = self.tokenizer.encode(response)
 
     # Create the model inputs/targets/loss_mask.
     out = _functional.make_seq2seq_fields(
@@ -224,9 +225,9 @@ class ContrastiveTask(grain.MapTransform):
 
     # Format the input to match the expected dialog template.
     # TODO(epot): Move this in a separate FormatDialog transform.
-    prompt = _PROMPT_TEMPLATE.format(prompt)
-    chosen = _ANSWER_TEMPLATE.format(chosen)
-    rejected = _ANSWER_TEMPLATE.format(rejected)
+    prompt = _template.PROMPT.format(prompt)
+    chosen = _template.ANSWER.format(chosen)
+    rejected = _template.ANSWER.format(rejected)
 
     # Tokenize the input and the responses.
     # Note: Input should start with begin-of-sequence token.

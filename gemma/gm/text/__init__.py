@@ -20,12 +20,20 @@ from etils import epy as _epy
 # pylint: disable=g-import-not-at-top,g-importing-member
 
 with _epy.lazy_api_imports(globals()):
+  # Tokenizers
   from gemma.gm.text._tokenizer import Gemma2Tokenizer
+  from gemma.gm.text._tokenizer import Gemma3Tokenizer
   from gemma.gm.text._tokenizer import Tokenizer
+
+  # Samplers
   from gemma.gm.text._sampler import Sampler
+  from gemma.gm.text._chat_sampler import ChatSampler
 
   # Sampling methods
   # TODO(epot): Add `TopK`,...
   from gemma.gm.text._sampling import SamplingMethod
   from gemma.gm.text._sampling import Greedy
   from gemma.gm.text._sampling import RandomSampling
+
+  # Other utils
+  # from gemma.gm.text import _template as template

@@ -12,16 +12,32 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-r"""Example of Gemma finetuning for a prompt -> response task.
+r"""Example of Gemma finetuning for an image captioning task.
 
-This is a fork of the seq2seq example, but with sharding.
-The only difference is the `sharding=kd.sharding.ShardingStrategy()`
+Example:
+
+Prompt:
+
+```
+<start_of_turn>user
+<start_of_image><end_of_turn>
+<start_of_turn>model
+```
+
+Target:
+
+```
+A diagram showing a circuit with a battery, lamp, and switch.<end_of_turn>
+```
+
+Here, the prompt only contains the `<start_of_image>` to indicate an image
+is inserted.
 
 Train locally with:
 
 ```sh
 python -m kauldron.main \
-    --cfg=examples/sharding.py \
+    --cfg=examples/multimodal.py \
     --cfg.workdir=/tmp/kauldron_oss/workdir
 ```
 
@@ -31,6 +47,7 @@ from kauldron import konfig
 
 # pylint: disable=g-import-not-at-top
 with konfig.imports():
+  import jax.numpy as jnp
   from gemma import gm
   from kauldron import kd
   import optax
@@ -38,8 +55,8 @@ with konfig.imports():
 
 
 def get_config():
-  batch_size = 16
-  max_length = 512
+  batch_size = 32
+  max_length = 200
 
   return kd.train.Trainer(
       seed=42,
@@ -52,9 +69,7 @@ def get_config():
       # Model definition
       model=gm.nn.Gemma3_4B(
           tokens="batch.input",
-      ),
-      sharding=kd.sharding.ShardingStrategy(
-          params=kd.sharding.FSDPSharding(),
+          images="batch.image",
       ),
       # Load the weights from the pretrained checkpoint
       init_transform=gm.ckpts.LoadCheckpoint(
@@ -69,6 +84,9 @@ def get_config():
               mask="batch.loss_mask",
           ),
       },
+      train_summaries={
+          "image": kd.summaries.ShowImages(images="batch.image", num_images=5),
+      },
       optimizer=optax.adafactor(learning_rate=1e-3),
       checkpointer=kd.ckpts.Checkpointer(
           save_interval_steps=500,
@@ -79,7 +97,7 @@ def get_config():
               run=kd.evals.EveryNSteps(1000),
               ds=_make_dataset(
                   training=False,
-                  batch_size=batch_size,
+                  batch_size=4,
                   max_length=max_length,
               ),
           ),
@@ -88,8 +106,13 @@ def get_config():
           "sampling": gm.evals.SamplerEvaluator(
               run=kd.evals.EveryNSteps(1000),
               max_new_tokens=50,  # Sampling parameters
-              num_examples=1,  # Only predict a single example
+              num_examples=3,
               ds=_make_dataset(training=False, sampling=True),
+              summaries={
+                  "image": kd.summaries.ShowImages(
+                      images="batch.image", num_images=5
+                  ),
+              },
           ),
       },
   )
@@ -105,19 +128,23 @@ def _make_dataset(
   tokenizer = gm.text.Gemma3Tokenizer()
 
   return kd.data.py.Tfds(
-      name="mtnt/en-fr",
-      split="train" if training else "test",
+      name="ai2dcaption",
+      split="llava_15" if training else "test",
       shuffle=True if training else False,
       num_epochs=None if training else 1,
       batch_size=None if sampling else batch_size,
       num_workers=4,
       transforms=[
+          # Only keep the fields we need.See fields at:
+          # https://www.tensorflow.org/datasets/catalog/ai2dcaption
+          kd.data.Elements(keep=["image", "caption"]),
+          # Create a new constant field
+          kd.data.AddConstants({"prompt": "<start_of_image>"}),
           # Create the model inputs/targets/loss_mask.
           gm.data.Seq2SeqTask(
               # Select which field from the dataset to use.
-              # https://www.tensorflow.org/datasets/catalog/mtnt
-              in_prompt="src",
-              in_response="dst",
+              in_prompt="prompt",
+              in_response="caption",
               # Output batch is {"input": ..., "target": ..., "loss_mask": ...}
               out_input="input",
               out_target="target",
@@ -129,5 +156,9 @@ def _make_dataset(
               truncate=True,
               sampling=sampling,
           ),
+          kd.data.py.Resize(key="image", size=(800, 800)),
+          # TODO(epot): Make the `num_images` dimension optional
+          kd.data.Rearrange(key="image", pattern="... h w c -> ... 1 h w c"),
+          kd.data.Cast(key="image", dtype=jnp.uint8),
       ],
   )
