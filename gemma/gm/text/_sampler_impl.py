@@ -405,3 +405,14 @@ def _compute_attention_masks(
   attention_mask = causal_mask[:, jnp.newaxis, :].astype(jnp.bool_)
 
   return attention_mask
+
+  def resize_cache(self, new_length):
+        """Resize the cache while preserving existing data."""
+        if new_length <= 0:
+            raise ValueError("Cache length must be greater than zero.")
+
+        if new_length < len(self.cache):
+            # recent cache is preserved
+            self.cache = self.cache[-new_length:]
+        # Update the cache size limit
+        self.cache_length = new_length
