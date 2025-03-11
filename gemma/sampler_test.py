@@ -110,6 +110,7 @@ class SamplerTest(absltest.TestCase):
     result = sampler(
         ['input string', 'hello world'],
         total_generation_steps=10,
+        patched_images=None,
     )
     self.assertIsNotNone(result)
 
@@ -155,6 +156,7 @@ class SamplerTest(absltest.TestCase):
         ['input string', 'hello world'],
         total_generation_steps=10,
         forbidden_tokens=None,
+        patched_images=None,
     )
     self.assertIn('string', result1.text[0])
     self.assertIn('world', result1.text[1])
@@ -164,6 +166,7 @@ class SamplerTest(absltest.TestCase):
         ['input string', 'hello world'],
         total_generation_steps=10,
         forbidden_tokens=['string', 'world'],
+        patched_images=None,
     )
     for output in result2.text:
       self.assertNotIn('string', output)
@@ -226,6 +229,7 @@ class SamplerTest(absltest.TestCase):
         [raw_input],
         total_generation_steps=10,
         echo=True,
+        patched_images=None,
     )
     out_logits = np.array(output_transformer.logits)[0, 1 : n_input_tokens + 1]
 
@@ -269,6 +273,7 @@ class SamplerTest(absltest.TestCase):
     sample_state = sampler.init_sample_state(
         all_input_ids,
         total_sampling_steps=total_sampling_steps,
+        patched_images=None,
     )
 
     # Check that the position indices correctly ignore padding
@@ -313,6 +318,7 @@ class SamplerTest(absltest.TestCase):
     sample_state = sampler.init_sample_state(
         all_input_ids,
         total_sampling_steps=total_sampling_steps,
+        patched_images=None,
     )
 
     masked_token_buffer = sampler.mask_tokens_after_eos_ids(

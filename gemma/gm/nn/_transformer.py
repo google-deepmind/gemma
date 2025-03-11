@@ -20,16 +20,18 @@ import dataclasses
 import functools
 from typing import Any, ClassVar
 
+import einops
 import flax
 from flax import linen as nn
 from gemma import transformer
+from gemma.gm.utils import _attention_mask
 from gemma.gm.utils import _dtype_params
 from gemma.gm.utils import _jax_utils
 from gemma.gm.vision import _token_utils
 from gemma.multimodal import vision as gemma_vision
 import jax.numpy as jnp
 from kauldron import kontext
-from kauldron.typing import Float, Int, UInt8, typechecked  # pylint: disable=g-multiple-import,g-importing-member
+from kauldron.typing import Bool, Float, Int, UInt8, typechecked  # pylint: disable=g-multiple-import,g-importing-member
 
 _PADDING_ID = 0
 
@@ -72,8 +74,8 @@ class _Inputs:
 
   embeddings: Float['B L D']
   positions: Int['B L']
-  attention_mask: Int['B L L']
-  inputs_mask: Int['B L']
+  attention_mask: Bool['B L cache_length']
+  inputs_mask: Bool['B L']
 
 
 # TODO(epot): Merge this class with `transformer.Transformer`
@@ -93,9 +95,7 @@ class Transformer(transformer.Transformer):
   # Keys to specify in the config which inputs to pass to the `__call__`
   # function (e.g. `tokens='batch.tokens'`).
   tokens: kontext.Key = kontext.REQUIRED
-  positions: kontext.Key | None = None
-  cache: kontext.Key | None = None
-  attention_mask: kontext.Key | None = None
+  images: kontext.Key | None = None
 
   # Model info to specifiy the tokenizer version and default checkpoint.
   INFO: ClassVar[ModelInfo] = ModelInfo()
@@ -124,18 +124,20 @@ class Transformer(transformer.Transformer):
   # The function accepts/returns aribtrary batch shape, but inside the
   # function, the batch dimension is flattened to a single dimension.
   @_jax_utils.flatten_unflatten_batch_dim()
-  # TODO(epot): Restore the `@typechecked` annotation. Currently disable it
-  # because during sampling, `attention_mask` is `[*B 1 1024]`, which is
-  # not `*B L L`
-  # @typechecked
+  @typechecked
   def __call__(  # pytype: disable=signature-mismatch
       self,
       tokens: Int['*B L'],
       *,
-      images: UInt8['*B N H W C'] | None = None,
+      images: UInt8['*B N H W C'] | UInt8['*B H W C'] | None = None,
+      # TODO(epot): Cleanup and simplify the API.
       positions: Int['*B L'] | None = None,
+      positions_offset: Int['*B'] | None = None,
       cache: transformer.Cache | None = None,
-      attention_mask: Int['*B L L'] | None = None,
+      # During training and pre-filling, the attention mask is `*B L L`
+      # When sampling (after prefilling), tokens are decoded one by one,
+      # so the attention mask is `*B 1 cache_length`
+      attention_mask: Bool['*B L cache_length'] | None = None,
       return_last_only: bool | None = None,
   ) -> Output:  # Output['*B']
     """Transformer forward pass.
@@ -147,6 +149,8 @@ class Transformer(transformer.Transformer):
       tokens: input sequence of tokens.
       images: Images to feed to the vision encoder.
       positions: input absolute positions.
+      positions_offset: Offset to add to the positions. Used for multi-turn when
+        the cache is provided and `positions` is None.
       cache: Attention KV cache or None.
       attention_mask: transformer input mask.
       return_last_only: If `True`, only compute and return the logits of the
@@ -169,9 +173,10 @@ class Transformer(transformer.Transformer):
           tokens=tokens,
           images=images,
           positions=positions,
+          positions_offset=positions_offset,
           attention_mask=attention_mask,
       )
-      del tokens, images, positions, attention_mask
+      del positions, attention_mask
 
       x = inputs.embeddings
 
@@ -193,6 +198,15 @@ class Transformer(transformer.Transformer):
       last_input_token_idx = jnp.sum(inputs.inputs_mask, axis=-1) - 1
       # TODO(epot): Use `jnp.take_along_axis`
       x = x[jnp.arange(len(x)), last_input_token_idx, ...]
+    elif images is not None:
+      # Remove the MM extra tokens inserted.
+      # During fine-tuning, the prompt is always masked, and the model cannot
+      # generate images tokens, so the logits are meaningless anyway.
+      x = _token_utils.remove_mm_logits(
+          logits=x,
+          tokens=tokens,
+          num_tokens_per_image=self.config.vision_encoder.num_mm_tokens_per_image,  # pytype: disable=attribute-error
+      )
 
     logits = self.embedder.decode(x)
 
@@ -218,23 +232,28 @@ class Transformer(transformer.Transformer):
         cache_length=cache_length,
     )
 
+  @typechecked
   def _encode_and_get_inputs(
       self,
       *,
-      tokens: Int['B L'],
-      images: UInt8['B N H W C'] | None = None,
-      attention_mask: Int['*B L L'] | None = None,
-      positions: Int['*B L'] | None = None,
+      tokens: Int['B L_no_mm'],
+      images: UInt8['B H W C'] | UInt8['B N H W C'] | None = None,
+      attention_mask: Bool['B L_no_mm cache_length'] | None = None,
+      positions: Int['B L_no_mm'] | None = None,
+      positions_offset: Int['B'] | None = None,
   ) -> _Inputs:
     """Encode the text tokens, eventually including the vision embeddings."""
 
     # If the model has images, we expand each `<start_of_image>` token to add
     # the image placeholder tokens.
     if images is not None:
+      self._assert_support_mm()
+      if len(images.shape) == 4:  # Expand optional `num_images` dimension
+        images = einops.rearrange(images, 'b h w c -> b 1 h w c')
       tokens = _token_utils.add_extra_tokens_for_images(
           tokens,
           max_num_images=images.shape[1],
-          num_tokens_per_image=self.vision_encoder.num_mm_tokens_per_image,
+          num_tokens_per_image=self.vision_encoder.num_mm_tokens_per_image,  # pytype: disable=attribute-error
       )
 
     # Encode the text tokens
@@ -253,7 +272,7 @@ class Transformer(transformer.Transformer):
       _ = self.vision_encoder(patches=dummy_patches, is_training=False)
 
     # Compute the mask (after the extra tokens are added)
-    inputs_mask = jnp.array(tokens != _PADDING_ID, dtype=jnp.int32)
+    inputs_mask = tokens != _PADDING_ID
 
     # Note: When `positions` and `attention_mask` are explicitly provided,
     # it's the user responsibility to correctly take into account the extra
@@ -261,15 +280,20 @@ class Transformer(transformer.Transformer):
     # This is what the `gm.text.Sampler` implementation does.
     if positions is None:
       positions = transformer.build_positions_from_mask(inputs_mask)
-    if attention_mask is None:
-      attention_mask = transformer.make_causal_attn_mask(inputs_mask)
+      # For multi-turn, during the pre-fill phase, the positions should be
+      # shifted to take into account the previous turns.
+      if positions_offset is not None:
+        positions += positions_offset[..., None]
 
-      # Add the bidirectional mask for images.
+    if attention_mask is None:
       if images is not None:
         bidirectional_mask = tokens == gemma_vision.TOKEN_PLACEHOLDER
-        attention_mask = transformer.add_bidirectional_mask(
-            attention_mask, bidirectional_mask
-        )
+      else:
+        bidirectional_mask = None
+      attention_mask = _attention_mask.make_causal_bidirectional_attention_mask(
+          inputs_mask,
+          bidirectional_mask=bidirectional_mask,
+      )
 
     return _Inputs(
         embeddings=x,
@@ -287,16 +311,6 @@ class Transformer(transformer.Transformer):
       images: UInt8['B N H W C'],
   ) -> Float['B L D']:
     """Update the embeddings to include the vision embeddings."""
-    if self.vision_encoder is None:
-      msg = ''
-      if getattr(self, 'text_only', False):
-        msg = ' The model was created with `text_only=True`.'
-      raise ValueError(
-          f'The model {type(self).__name__!r} does not have vision encoder,'
-          ' yet images are provided.'
-          + msg
-      )
-
     # Encode the images
     soft_embeddings = self._encode_vision(images)
 
@@ -326,6 +340,17 @@ class Transformer(transformer.Transformer):
           'return_last_only', return_last_only, self.return_last_only
       )
     return return_last_only
+
+  def _assert_support_mm(self) -> None:
+    if self.config.vision_encoder is None:
+      msg = ''
+      if getattr(self, 'text_only', False):
+        msg = ' The model was created with `text_only=True`.'
+      raise ValueError(
+          f'The model {type(self).__name__!r} does not have vision encoder,'
+          ' yet images are provided.'
+          + msg
+      )
 
 
 def _make_dummy_patches(

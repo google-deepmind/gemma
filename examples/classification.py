@@ -46,13 +46,13 @@ def get_config():
       # Dataset
       train_ds=_make_dataset(training=True),
       # Model definition
-      model=gm.nn.Gemma2_2B(
+      model=gm.nn.Gemma3_4B(
           tokens="batch.sentence",
           return_last_only=True,
       ),
       # Load the weights from the pretrained checkpoint
       init_transform=gm.ckpts.LoadCheckpoint(
-          path=gm.ckpts.CheckpointPath.GEMMA2_2B_IT,
+          path=gm.ckpts.CheckpointPath.GEMMA3_4B_IT,
       ),
       # Training
       num_train_steps=10_000,
@@ -81,7 +81,7 @@ def _make_dataset(training: bool) -> kd.data.Pipeline:
   _INPUT_FIELD = "sentence"  # pylint: disable=invalid-name
   _LABEL_FIELD = "label"  # pylint: disable=invalid-name
 
-  tokenizer = gm.text.Gemma2Tokenizer()
+  tokenizer = gm.text.Gemma3Tokenizer()
 
   return kd.data.py.Tfds(
       name="glue/cola",

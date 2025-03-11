@@ -39,9 +39,9 @@ def _dense_to_quantized(module):
 
 def _dense_to_int4(module):
   if isinstance(module, nn.Dense):
-    return peft.Int4Dense(wrapped=module)
+    return peft.IntDense(wrapped=module, dtype=jnp.int4)
   if isinstance(module, nn.Einsum):
-    return peft.Int4Einsum(wrapped=module)
+    return peft.IntEinsum(wrapped=module, dtype=jnp.int4)
   else:
     return module
 
@@ -106,7 +106,12 @@ def test_quantization_simulation():
 def test_quantization():
   model = MyModule()
   params = model.init(jax.random.key(0), jnp.zeros((1, 4)))
-  params_q = peft.quantize(params, method=peft.QuantizationMethod.INT4)
+  params_q = peft.quantize(
+      params,
+      method=peft.QuantizationMethod.INT4,
+      in_place_keys=True,
+      checkpoint_kernel_key='kernel',
+  )
   with peft.ModuleInterceptor(_dense_to_int4):
     out = model.apply(params_q, jnp.zeros((1, 4)))
   assert etree.spec_like(params_q) == etree.spec_like({

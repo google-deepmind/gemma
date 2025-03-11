@@ -22,11 +22,13 @@ import functools
 import typing
 from typing import ClassVar
 
+import einops
 from etils import enp
 from etils import epath
 from etils import epy
 import jax
 import jax.numpy as jnp
+from kauldron.utils import immutabledict
 import numpy as np
 
 from sentencepiece import sentencepiece_model_pb2
@@ -50,7 +52,7 @@ class _DisplayEnumType(enum.EnumType):
     )
 
 
-class _SpecialTokens(enum.IntEnum, metaclass=_DisplayEnumType):
+class SpecialTokens(enum.IntEnum, metaclass=_DisplayEnumType):
   """Special tokens ids."""
 
   PAD: ClassVar[int]
@@ -65,8 +67,11 @@ class _SpecialTokens(enum.IntEnum, metaclass=_DisplayEnumType):
   START_OF_TURN: ClassVar[int]  # <start_of_turn>
   END_OF_TURN: ClassVar[int]  # <end_of_turn>
 
+  START_OF_IMAGE: ClassVar[int]  # '<start_of_image>'
+  END_OF_IMAGE: ClassVar[int]  # '<end_of_image>'
 
-class _Gemma2SpecialTokens(_SpecialTokens, enum.IntEnum):
+
+class _Gemma2SpecialTokens(SpecialTokens, enum.IntEnum):
   """Special tokens ids."""
 
   PAD = 0
@@ -87,6 +92,31 @@ class _Gemma2SpecialTokens(_SpecialTokens, enum.IntEnum):
   END_OF_TURN = 107  # <end_of_turn>
 
   # '<start_of_image>' = 255999
+
+
+class _Gemma3SpecialTokens(SpecialTokens, enum.IntEnum):
+  """Special tokens ids."""
+
+  PAD = 0
+  EOS = 1
+  BOS = 2
+  UNK = 3
+  MASK = 4
+  # '[multimodal]' = 5
+  # Initial index to access the `<unusedXX>` tokens. For example, `<unused7>` is
+  # `SpecialTokens.CUSTOM + 7`
+  CUSTOM = 6  # <unused0>
+  # <unused1> = 7
+  # <unused2> = 8
+  # ...
+  # TODO(epot): Tokenizer also has `<unused99>` up to `<unused6238>` after the
+  # `<START_OF_IMAGE>` token (starting at 256000).
+  START_OF_TURN = 105  # <start_of_turn>
+  END_OF_TURN = 106  # <end_of_turn>
+
+  # Multimodal tokens (Gemma3 only)
+  START_OF_IMAGE = 255999  # '<start_of_image>'
+  END_OF_IMAGE = 256000  # <end_of_image>
 
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
@@ -113,12 +143,17 @@ class Tokenizer:
       overwritten by the user here. Expect a dictionary mapping the unused id
       (0-98) to the token string. (`e.g. `{0: '<start_of_audio>'}`)
     VERSION: The Gemma version of the tokenizer (2, 3).
+    FORBIDDEN_TOKENS: Default forbidden tokens.
   """
 
   path: epath.PathLike
   custom_tokens: dict[int, str] = dataclasses.field(default_factory=dict)
 
   VERSION: ClassVar[int] = 0
+  FORBIDDEN_TOKENS: ClassVar[tuple[int, ...]] = ()  # pylint: disable=g-missing-from-attributes
+
+  def __post_init__(self):
+    immutabledict.freeze_dict_attrs(self, ['custom_tokens'])
 
   @classmethod
   def from_version(cls, version: int) -> Tokenizer:
@@ -205,7 +240,7 @@ class Tokenizer:
     ]
 
   @functools.cached_property
-  def special_tokens(self) -> type[_SpecialTokens]:
+  def special_tokens(self) -> type[SpecialTokens]:
     """Returns the special tokens."""
     raise NotImplementedError(
         f'{type(self).__qualname__} does not define special tokens.'
@@ -275,6 +310,14 @@ class Tokenizer:
     Returns:
       The plot as a plotly figure.
     """
+    if logits.ndim == 2 and logits.shape[1] == 1:  # batch_size==1, flatten
+      logits = einops.rearrange(logits, '1 d -> d')
+    if logits.ndim != 1:
+      raise ValueError(
+          '`plot_logits` expects logits for a single token, got'
+          f' {logits.shape}.'
+      )
+
     # Compute the probability distribution.
     probs = jax.nn.softmax(logits)
 
@@ -311,6 +354,29 @@ class Gemma2Tokenizer(Tokenizer):
   special_tokens = _Gemma2SpecialTokens
 
   VERSION = 2
+
+
+@dataclasses.dataclass(frozen=True)
+class Gemma3Tokenizer(Tokenizer):
+  """Tokenizer for Gemma 3."""
+
+  # TODO(epot): Add a util to auto-download and cache the tokenizer from gs://
+  # bucket (e.g. in `~/.gemma/<tokenizer_name>`). Could be customized
+  # through some `GEMMA_CACHE_DIR` environment variable.
+  # TODO(epot): Public GCS path
+  path: epath.PathLike = (
+      'gs://gemma-data/tokenizers/tokenizer_gemma3.model'
+  )
+
+  special_tokens = _Gemma3SpecialTokens
+
+  # Tokens which are forbidden to be generated in the sampler.
+  FORBIDDEN_TOKENS = (
+      special_tokens.START_OF_IMAGE,
+      special_tokens.END_OF_IMAGE,
+  )
+
+  VERSION = 3
 
 
 def _real_whitespaces(text: str) -> str:

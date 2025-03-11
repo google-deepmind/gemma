@@ -30,6 +30,7 @@ _COLABS_NAMES = [
     'finetuning',
     'lora_sampling',
     'lora_finetuning',
+    'multimodal',
     'sampling',
     'sharding',
     'tokenizer',

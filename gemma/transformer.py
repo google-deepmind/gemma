@@ -18,12 +18,15 @@ import dataclasses
 import enum
 import typing
 from typing import Iterable
+import warnings
+
 
 import einops
 from flax import linen as nn
 from gemma import layers
 from gemma import modules
 from gemma import params as params_lib
+from gemma.multimodal import vision as gemma_vision
 import jax
 import jax.numpy as jnp
 
@@ -60,6 +63,18 @@ _NUM_LAYERS_GEMMA_7B = 28
 _NUM_LAYERS_GEMMA2_2B = 26
 _NUM_LAYERS_GEMMA2_9B = 42
 _NUM_LAYERS_GEMMA2_27B = 46
+_NUM_LAYERS_GEMMA3_1B = 26
+_NUM_LAYERS_GEMMA3_4B = 34
+_NUM_LAYERS_GEMMA3_12B = 48
+_NUM_LAYERS_GEMMA3_27B = 62
+_GEMMA3_ATTENTION_PATTERN = (
+    modules.AttentionType.LOCAL_SLIDING,
+    modules.AttentionType.LOCAL_SLIDING,
+    modules.AttentionType.LOCAL_SLIDING,
+    modules.AttentionType.LOCAL_SLIDING,
+    modules.AttentionType.LOCAL_SLIDING,
+    modules.AttentionType.GLOBAL,
+)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -87,6 +102,10 @@ class TransformerConfig:
   use_qk_norm: bool = False
   local_base_frequency: int = modules.DEFAULT_ROPE_BASE_FREQUENCY
   global_base_frequency: int = modules.DEFAULT_ROPE_BASE_FREQUENCY
+  local_scale_factor: float = modules.DEFAULT_ROPE_SCALE_FACTOR
+  global_scale_factor: float = modules.DEFAULT_ROPE_SCALE_FACTOR
+  mm_extra_vocab_size: int = 0
+  vision_encoder: gemma_vision.SigLiPFromPatches | None = None
 
   def query_pre_attn_scalar(self) -> float:
     """Returns the scalar to multiply the query by before attention."""
@@ -127,6 +146,8 @@ class TransformerConfig:
       return cls.gemma2_9b(cache_size)
     if num_layers == _NUM_LAYERS_GEMMA2_27B:
       return cls.gemma2_27b(cache_size)
+    if num_layers == _NUM_LAYERS_GEMMA3_4B:
+      return cls.gemma3_4b(text_only=False)
 
     raise ValueError(
         'Params are not a Gemma 2b, 7b, or Gemma 2 2b, 9b, or 27b variant.'
@@ -240,6 +261,120 @@ class TransformerConfig:
         transpose_gating_einsum=True,
     )
 
+  @classmethod
+  def gemma3_1b(cls):
+    return cls(
+        num_layers=_NUM_LAYERS_GEMMA3_1B,
+        final_logit_softcap=None,
+        num_embed=262144,
+        embed_dim=1152,
+        hidden_dim=6 * 1152,
+        num_heads=4,
+        head_dim=256,
+        num_kv_heads=1,
+        use_post_attn_norm=True,
+        use_post_ffw_norm=True,
+        use_qk_norm=True,
+        attention_types=_make_attention_type_from_pattern(
+            _GEMMA3_ATTENTION_PATTERN, _NUM_LAYERS_GEMMA3_1B
+        ),
+        query_pre_attn_norm=QueryPreAttentionNormalisation.BY_ONE_OVER_SQRT_HEAD_DIM,
+        attn_logits_soft_cap=None,
+        sliding_window_size=512,
+        transpose_gating_einsum=True,
+        local_base_frequency=10_000,
+        global_base_frequency=1_000_000,
+        vision_encoder=None,
+        max_cache_length=None,
+    )
+
+  @classmethod
+  def gemma3_4b(cls, *, text_only: bool = False):
+    return cls(
+        num_layers=_NUM_LAYERS_GEMMA3_4B,
+        final_logit_softcap=None,
+        num_embed=262_144,
+        embed_dim=2560,
+        hidden_dim=2560 * 8 // 2,
+        num_heads=8,
+        head_dim=256,
+        num_kv_heads=4,
+        use_post_attn_norm=True,
+        use_post_ffw_norm=True,
+        use_qk_norm=True,
+        attention_types=_make_attention_type_from_pattern(
+            _GEMMA3_ATTENTION_PATTERN, _NUM_LAYERS_GEMMA3_4B
+        ),
+        query_pre_attn_norm=QueryPreAttentionNormalisation.BY_ONE_OVER_SQRT_HEAD_DIM,
+        attn_logits_soft_cap=None,
+        sliding_window_size=1024,
+        transpose_gating_einsum=True,
+        local_base_frequency=10_000,
+        global_base_frequency=1_000_000,
+        global_scale_factor=8.0,
+        vision_encoder=None if text_only else gemma_vision.SigLiPFromPatches(),
+        mm_extra_vocab_size=0 if text_only else 128,
+        max_cache_length=None,
+    )
+
+  @classmethod
+  def gemma3_12b(cls, *, text_only: bool = False):
+    return cls(
+        num_layers=_NUM_LAYERS_GEMMA3_12B,
+        final_logit_softcap=None,
+        num_embed=262144,
+        embed_dim=30 * 128,
+        hidden_dim=8 * 30 * 128 // 2,
+        num_heads=16,
+        head_dim=256,
+        num_kv_heads=8,
+        use_post_attn_norm=True,
+        use_post_ffw_norm=True,
+        use_qk_norm=True,
+        attention_types=_make_attention_type_from_pattern(
+            _GEMMA3_ATTENTION_PATTERN, _NUM_LAYERS_GEMMA3_12B
+        ),
+        query_pre_attn_norm=QueryPreAttentionNormalisation.BY_ONE_OVER_SQRT_HEAD_DIM,
+        attn_logits_soft_cap=None,
+        sliding_window_size=1024,
+        transpose_gating_einsum=True,
+        local_base_frequency=10_000,
+        global_base_frequency=1_000_000,
+        global_scale_factor=8.0,
+        vision_encoder=None if text_only else gemma_vision.SigLiPFromPatches(),
+        mm_extra_vocab_size=0 if text_only else 128,
+        max_cache_length=None,
+    )
+
+  @classmethod
+  def gemma3_27b(cls, *, text_only: bool = False):
+    return cls(
+        num_layers=_NUM_LAYERS_GEMMA3_27B,
+        final_logit_softcap=None,
+        num_embed=262144,
+        embed_dim=5376,
+        hidden_dim=5376 * 8 // 2,
+        num_heads=32,
+        head_dim=128,
+        num_kv_heads=16,
+        use_post_attn_norm=True,
+        use_post_ffw_norm=True,
+        use_qk_norm=True,
+        attention_types=_make_attention_type_from_pattern(
+            _GEMMA3_ATTENTION_PATTERN, _NUM_LAYERS_GEMMA3_27B
+        ),
+        query_pre_attn_norm=QueryPreAttentionNormalisation.BY_ONE_OVER_SQRT_EMBED_DIM_DIV_NUM_HEADS,
+        attn_logits_soft_cap=None,
+        sliding_window_size=1024,
+        transpose_gating_einsum=True,
+        local_base_frequency=10_000,
+        global_base_frequency=1_000_000,
+        global_scale_factor=8.0,
+        vision_encoder=None if text_only else gemma_vision.SigLiPFromPatches(),
+        mm_extra_vocab_size=0 if text_only else 128,
+        max_cache_length=None,
+    )
+
   def init_cache(
       self,
       batch_size: int,
@@ -271,10 +406,24 @@ class Transformer(nn.Module):
 
   config: TransformerConfig
 
+  def __post_init__(self):
+    if type(self) == Transformer:  # pylint: disable=unidiomatic-typecheck]
+      msg = (
+          'The old Transformer class is deprecated, behave unexpectedly and'
+          " doesn't support multimodal."
+          ' Instead, `gm.nn.GemmaXX` should be used.'
+          ' See the documentation at https://gemma-llm.readthedocs.io/. '
+      )
+      raise DeprecationWarning(msg)
+    super().__post_init__()
+
   def setup(self):
     self.embedder = modules.Embedder(
         vocab_size=self.config.num_embed,
         embed_dim=self.config.embed_dim,
+        vision_proj_dim=self.config.vision_encoder.siglip_encoder.width
+        if self.config.vision_encoder
+        else None,
     )
 
     self.blocks = [
@@ -296,6 +445,9 @@ class Transformer(nn.Module):
             rope_base_frequency=self.config.local_base_frequency
             if attn_type == modules.AttentionType.LOCAL_SLIDING
             else self.config.global_base_frequency,
+            rope_scale_factor=self.config.local_scale_factor
+            if attn_type == modules.AttentionType.LOCAL_SLIDING
+            else self.config.global_scale_factor,
         )
         for i, attn_type in zip(
             range(self.config.num_layers), self.config.attention_types
@@ -311,6 +463,7 @@ class Transformer(nn.Module):
       positions: jax.Array,  # [B, L]
       cache: Cache | None,  # (sequence length L')
       attention_mask: jax.Array,  # [B, L, L']
+      patches: jax.Array | None = None,  # [B, N, P, D']
   ) -> tuple[jax.Array, Cache | None]:
     """Transformer forward pass.
 
@@ -330,7 +483,13 @@ class Transformer(nn.Module):
       predicted_logits: output logits predicted by the model
       new_cache: updated cache if the input cache is not None, None elsewhere.
     """
+    if patches is not None:
+      _check_tokens_for_vision(last_tokens, patches)
     x = self.embedder.encode(last_tokens)
+    if patches is not None:
+      x = self._include_vision_embeddings(
+          last_tokens=last_tokens, embeddings=x, patches=patches
+      )
     for i, block in enumerate(self.blocks):
       layer_name = f'layer_{i}'
       layer_cache = cache[layer_name] if cache else None
@@ -351,6 +510,103 @@ class Transformer(nn.Module):
       logits = jnp.tanh(logits) * self.config.final_logit_softcap
 
     return logits, cache  # pytype: disable=bad-return-type
+
+  def _include_vision_embeddings(
+      self,
+      last_tokens: jax.Array,  # [B, L]
+      embeddings: jax.Array,  # [B, L, D]
+      patches: jax.Array | None,  # [B, N, P, D']
+  ) -> jax.Array:
+    assert self.vision_encoder is not None
+    # get soft tokens
+    encoder_output: jax.Array = self.vision_encoder(  # pylint: disable=unexpected-keyword-arg
+        patches=patches, is_training=False
+    )
+    # project soft tokens
+    vision_embeddings = einops.rearrange(
+        encoder_output,
+        'b media num_embeds patches -> (b media) num_embeds patches',
+    )
+    vision_embeddings = self.embedder.encode_vision(vision_embeddings)
+    embeddings = jnp.place(
+        arr=embeddings,
+        mask=jnp.expand_dims(last_tokens, -1).repeat(
+            embeddings.shape[-1], axis=-1
+        )
+        == gemma_vision.TOKEN_PLACEHOLDER,
+        vals=vision_embeddings,
+        inplace=False,
+    )
+    return embeddings
+
+  if not typing.TYPE_CHECKING:
+
+    def __getattr__(self, name: str):
+      # It's convenient to be able to access the vision encoder directly.
+      # However it has to be initialized in setup, so can't use a standard
+      # `@property`
+      if name == 'vision_encoder':
+        return self.config.vision_encoder
+      return super().__getattr__(name)
+
+  else:  # For type checking / auto-complete
+
+    @property
+    def vision_encoder(self) -> gemma_vision.SigLiPFromPatches | None:
+      return self.config.vision_encoder
+
+
+def _check_tokens_for_vision(
+    last_tokens: jax.Array,  # [B, L]
+    patches: jax.Array | None = None,  # [B, N, P, D']
+) -> None:
+  """Checks if the last tokens are correctly formatted for vision tokens."""
+  if patches is not None:
+    correct_placeholder, start_positions = jax.vmap(
+        gemma_vision.check_mask, in_axes=-1, out_axes=-1
+    )(input_data=last_tokens)
+    if not jnp.all(correct_placeholder):
+      raise ValueError(
+          'The last tokens \n\n%s\n\n are not correctly formatted for vision'
+          ' tokens: in your input, you do not have contiguous sets of value'
+          ' %d over %d tokens.'
+          % (
+              last_tokens,
+              gemma_vision.TOKEN_PLACEHOLDER,
+              gemma_vision.NUM_PLACEHOLDER_TOKENS_PER_IMAGE,
+          )
+      )
+    for special_token, position_offset in [
+        (gemma_vision.NEW_LINE_TOKEN, -2),
+        (gemma_vision.BEGIN_IMAGE_TOKEN, -1),
+        (
+            gemma_vision.END_IMAGE_TOKEN,
+            gemma_vision.NUM_PLACEHOLDER_TOKENS_PER_IMAGE,
+        ),
+        (
+            gemma_vision.NEW_LINE_TOKEN,
+            gemma_vision.NUM_PLACEHOLDER_TOKENS_PER_IMAGE + 1,
+        ),
+    ]:
+      correct_special_token = gemma_vision.check_special_vision_token(
+          input_data=last_tokens,
+          start_positions=start_positions,
+          special_token=special_token,
+          position_offset=position_offset,
+      )
+      if not jnp.all(correct_special_token):
+        raise ValueError(
+            'The last tokens \n\n%s\n\n are not correctly formatted for'
+            ' vision tokens: in your input, you do not have the correct'
+            ' special token %d at position %d w.r.t. the image'
+            ' placeholders %d.'
+            % (
+                last_tokens,
+                special_token,
+                position_offset,
+                gemma_vision.TOKEN_PLACEHOLDER,
+            )
+        )
 
 
 def compute_sequence_attention_mask(  # TODO(epot): Cleanup this function.
@@ -414,6 +670,15 @@ def compute_attention_masks(
   attention_mask = causal_mask[:, jnp.newaxis, :].astype(jnp.bool_)
 
   return attention_mask
+
+
+def mm_input_length(patches: jax.Array | None) -> int:
+  """Returns the number of multimodal tokens in the input."""
+  if patches is not None:
+    return (
+        patches.shape[1] * gemma_vision.NUM_TOKENS_PER_MEDIA
+    )  # NOTE: 256 tokens + begin/end img + '\n
+  return 0
 
 
 def make_causal_attn_mask(

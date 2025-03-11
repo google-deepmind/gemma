@@ -25,7 +25,16 @@ with _epy.lazy_api_imports(globals()):
   from gemma.gm.nn._gemma import Gemma2_9B
   from gemma.gm.nn._gemma import Gemma2_27B
 
-  from gemma.gm.nn._lora import LoRAWrapper
+  from gemma.gm.nn._gemma import Gemma3_1B
+  from gemma.gm.nn._gemma import Gemma3_4B
+  from gemma.gm.nn._gemma import Gemma3_12B
+  from gemma.gm.nn._gemma import Gemma3_27B
+
+  # TODO(epot): Expose the Vision encoder model as standalone.
+
+  from gemma.gm.nn._lora import LoRA
+  from gemma.gm.nn._quantization import QuantizationAwareWrapper
+  from gemma.gm.nn._quantization import IntWrapper
   from gemma.gm.nn._policy import AnchoredPolicy
   from gemma.gm.nn._transformer import Transformer
 

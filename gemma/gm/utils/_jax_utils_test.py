@@ -25,16 +25,21 @@ def test_flatten_batch_dim():
   def f(
       arr0: kd.typing.Float['*b h n'],
       arr1: kd.typing.Float['*b'],
+      arr_multi: kd.typing.Float['*b n'] | kd.typing.Float['*b n w'],
       arr2: Optional[kd.typing.Float['*b h']] = None,
       arr3: None | kd.typing.Float['*b h'] = None,
+      *,
       expected_batch_dim_size: int = 3,
       other1=4,  # No annotations.
+      expected_multi_shape: tuple[int, ...],
   ):
     del other1
     assert len(arr0.shape) == 3
     assert len(arr1.shape) == 1
     assert arr0.shape[0] == expected_batch_dim_size
     assert arr1.shape[0] == expected_batch_dim_size
+    assert arr_multi.shape[0] == expected_batch_dim_size
+    assert arr_multi.shape[1:] == expected_multi_shape
     if arr2 is not None:
       assert len(arr2.shape) == 2
       assert arr2.shape[0] == expected_batch_dim_size
@@ -53,24 +58,30 @@ def test_flatten_batch_dim():
   x = f(
       arr0=jnp.ones((2, 3, 1, 4)),  # *b == (2, 3)
       arr1=jnp.ones((2, 3)),
+      arr_multi=jnp.ones((2, 3, 2)),
       arr2=jnp.ones((2, 3, 2)),
       arr3=jnp.ones((2, 3, 3)),
       expected_batch_dim_size=6,
       other1=4,
+      expected_multi_shape=(2,),
   )
   assert x.shape == (2, 3, 1, 4)
   x = f(
       arr0=jnp.ones((2, 3, 4)),  # *b == (2,)
       arr1=jnp.ones((2,)),
+      arr_multi=jnp.ones((2, 3, 2)),
       arr2=jnp.ones((2, 2)),
       expected_batch_dim_size=2,
       other1=4,
+      expected_multi_shape=(3, 2),
   )
   assert x.shape == (2, 3, 4)
   x = f(
       arr0=jnp.ones((3, 4)),  # *b == ()
       arr1=jnp.ones(()),
+      arr_multi=jnp.ones((3, 2)),
       expected_batch_dim_size=1,
       other1=4,
+      expected_multi_shape=(3, 2),
   )
   assert x.shape == (3, 4)

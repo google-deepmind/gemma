@@ -2,7 +2,7 @@
 # Project metadata. Available keys are documented at:
 # https://packaging.python.org/en/latest/specifications/declaring-project-metadata
 name = "gemma"
-description = "Open weights large language model (LLM) from Google DeepMind."
+description = "Gemma open-weight LLM library from Google DeepMind."
 readme = "README.md"
 requires-python = ">=3.11"
 license = {file = "LICENSE"}

@@ -61,6 +61,7 @@ def apply_rope(
     inputs: jax.Array,
     positions: jax.Array,
     base_frequency: int,
+    scale_factor: float = 1.0,
 ) -> jax.Array:
   """Applies RoPE.
 
@@ -71,6 +72,8 @@ def apply_rope(
     inputs: Array of shape [B, L, N, H].
     positions:  Array of shape [B, L].
     base_frequency: Base frequency used to compute rotations.
+    scale_factor: The scale factor used for positional interpolation, allowing
+      an expansion of sequence length beyond the pre-trained context length.
 
   Returns:
     Array of shape [B, L, N, H].
@@ -83,6 +86,10 @@ def apply_rope(
       positions[..., jnp.newaxis] / timescale[jnp.newaxis, jnp.newaxis, :]
   )
   sinusoid_inp = sinusoid_inp[..., jnp.newaxis, :]
+  if scale_factor < 1.0:
+    raise ValueError(f'scale_factor must be >= 1.0, got {scale_factor}')
+  sinusoid_inp /= scale_factor
+
   sin = jnp.sin(sinusoid_inp)
   cos = jnp.cos(sinusoid_inp)
 
