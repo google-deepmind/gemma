@@ -122,6 +122,7 @@ class ChatSampler:
   
   def resize_cache(self, new_cache_length:int):
     object.__setattr__(self, 'cache_length', new_cache_length)
+    #reinitialization of the sampler
     object.__setattr__(self, 'sampler', self.sampler)
 
   def chat(
