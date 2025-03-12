@@ -12,7 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from gemma import gm
 from gemma.gm.text import _sampler_call
+import jax
 import jax.numpy as jnp
 import numpy as np
 
@@ -49,5 +51,25 @@ def test_end_tokens_mask():
   np.testing.assert_array_equal(out, expected)
 
 
+def test_sampler():
+  model = gm.testing.DummyGemma()
+  params = model.init(
+      jax.random.PRNGKey(0),
+      jnp.zeros((5,), dtype=jnp.int32),
+  )
+  params = params['params']
+  tokenizer = gm.testing.DummyTokenizer()
+
+  sampler = gm.text.Sampler(
+      model=model,
+      params=params,
+      tokenizer=tokenizer,
+      cache_length=128,
+      max_out_length=128,
+  )
+  sampler.sample('Hello world')
+
+
+# TODO(epot):
 # def test_slice_cache():
 #   _sampler_call._slice_cache(cache=)
