@@ -115,6 +115,7 @@ class Attention(nn.Module):
   attn_type: AttentionType
   query_pre_attn_scalar: float
   rope_base_frequency: int = DEFAULT_ROPE_BASE_FREQUENCY
+  rope_scale_factor: float = DEFAULT_ROPE_SCALE_FACTOR
   attn_logits_soft_cap: float | None = None
   sliding_window_size: int | None = None
   use_qk_norm: bool = False
@@ -170,12 +171,14 @@ class Attention(nn.Module):
         query_proj,
         segment_pos,
         base_frequency=self.rope_base_frequency,
+        scale_factor=self.rope_scale_factor,
     )
     query_scaled = query_proj * self.query_pre_attn_scalar
     key_proj = positional_embeddings.apply_rope(
         key_proj,
         segment_pos,
         base_frequency=self.rope_base_frequency,
+        scale_factor=self.rope_scale_factor,
     )
 
     # Cache is left aligned.
@@ -339,6 +342,7 @@ class Block(nn.Module):
         attn_type=self.attn_type,
         query_pre_attn_scalar=self.query_pre_attn_scalar,
         rope_base_frequency=self.rope_base_frequency,
+        rope_scale_factor=self.rope_scale_factor,
         attn_logits_soft_cap=self.attn_logits_soft_cap,
         sliding_window_size=self.sliding_window_size,
         use_qk_norm=self.use_qk_norm,
