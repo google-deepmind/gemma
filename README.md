@@ -75,6 +75,7 @@ contain additional scripts to fine-tune and sample with Gemma.
 * Technical reports for metrics and model capabilities:
   * [Gemma 1](https://goo.gle/GemmaReport)
   * [Gemma 2](https://goo.gle/gemma2report)
+  * [Gemma 3](https://storage.googleapis.com/deepmind-media/gemma/Gemma3Report.pdf)
 * Other Gemma implementations and doc on the
   [Gemma ecosystem](https://ai.google.dev/gemma/docs)
 
