@@ -204,6 +204,7 @@ class ContrastiveTask(grain.MapTransform):
   in_rejected: kd.kontext.Key  # e.g. `'rejected'`
 
   out_tokens: kd.kontext.Key  # e.g. `'tokens'`
+  out_targets: kd.kontext.Key  # e.g. `'target'`
   out_mask: kd.kontext.Key  # e.g. `'mask'`
 
   tokenizer: _tokenizer.Tokenizer
@@ -261,6 +262,7 @@ class ContrastiveTask(grain.MapTransform):
     # Add the fields to the output `dict`.
     # Equivalent to `element[self.out_input] = ...`
     kd.kontext.set_by_path(element, self.out_tokens, out.input)
+    kd.kontext.set_by_path(element, self.out_targets, out.target)
     kd.kontext.set_by_path(element, self.out_mask, out.target_mask)
 
     # TODO(epot): Supports nested drop

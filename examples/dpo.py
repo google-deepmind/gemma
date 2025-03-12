@@ -66,7 +66,7 @@ def get_config():
       num_train_steps=10_000,
       train_losses={
           "dpo": gm.losses.DpoLoss(
-              tokens="batch.tokens",
+              tokens="batch.targets",
               sequence_mask="batch.mask",
               policy_logits="preds.policy.logits",
               anchor_logits="preds.anchor.logits",
@@ -110,6 +110,7 @@ def _make_dataset(training: bool) -> kd.data.Pipeline:
               in_chosen="chosen_response",
               in_rejected="rejected_response",
               out_tokens="tokens",
+              out_targets="targets",
               out_mask="mask",
               tokenizer=tokenizer,
               # Padding parameters
