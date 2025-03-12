@@ -104,7 +104,7 @@ class Sampler:
         ' Instead, `gm.text.Sampler` should be used.'
         ' See the documentation at https://gemma-llm.readthedocs.io/. '
     )
-    print(msg)
+    raise DeprecationWarning(msg)
 
     self.transformer = transformer
     self.vocab = vocab
