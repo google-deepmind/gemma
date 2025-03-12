@@ -18,6 +18,7 @@
 
 from gemma.gm.ckpts._checkpoint import load_params
 from gemma.gm.ckpts._checkpoint import LoadCheckpoint
+from gemma.gm.ckpts._checkpoint import save_params
 from gemma.gm.ckpts._lora import SkipLoRA
 from gemma.gm.ckpts._paths import CheckpointPath
 from gemma.gm.ckpts._policy import AnchoredPolicyLoader
