@@ -153,6 +153,20 @@ class _CheckpointTree:
     return 'vision_encoder' in self.nested_tree
 
 
+def save_params(
+    params: params_lib.Params,
+    path: epath.PathLike,
+) -> None:
+  """Save the params to a checkpoint.
+
+  Args:
+    params: The params to save.
+    path: The directory to which save the checkpoint.
+  """
+  ckpt = ocp.StandardCheckpointer()
+  ckpt.save(path, params)
+
+
 def load_params(
     path: epath.PathLike,
     *,
