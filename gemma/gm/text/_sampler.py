@@ -146,11 +146,11 @@ class Sampler:
           f'Got {type(self.model).__name__} and {type(self.tokenizer).__name__}'
       )
 
-  # Unbatched version (`str -> str`)
+  # Unbatched version (`str or Int['L'] -> str`)
   @typing.overload
   def sample(
       self,
-      prompt: str,
+      prompt: str | Int['L'],
       *,
       images: UInt8['N? H W C'] | None = None,
       max_new_tokens: int | None = ...,
@@ -161,11 +161,11 @@ class Sampler:
   ) -> str:
     ...
 
-  # Batched version (`list[str] -> list[str]`)
+  # Batched version (`list[str] or Int['B L'] -> list[str]`)
   @typing.overload
   def sample(
       self,
-      prompt: Sequence[str],
+      prompt: Sequence[str] | Int['B L'],
       *,
       images: Sequence[UInt8['N H W C']] | None = None,
       max_new_tokens: int | None = ...,
@@ -176,12 +176,13 @@ class Sampler:
   ) -> list[str]:
     ...
 
-  # `return_logits=True` returns detailed output (`... -> SamplerOutput`).
-  # Supports both batched (`list[str]`) and unbatched (`str`) inputs.
+  # `return_state=True` returns detailed output (`... -> SamplerOutput`).
+  # Supports both batched (`list[str] | Int['B L']`)
+  # and unbatched (`str` | `Int['L']`) inputs.
   @typing.overload
   def sample(
       self,
-      prompt: str | Sequence[str],
+      prompt: str | Sequence[str] | Int['L'] | Int['B L'],
       *,
       images: UInt8['B? N? H W C'] | None = None,
       max_new_tokens: int | None = ...,
@@ -223,8 +224,11 @@ class Sampler:
     ```
 
     Args:
-      prompt: Prompt to sample from. Can be a single string or a list of
-        strings.
+      prompt: Prompt to sample from. Can be a single string, a list of
+        strings, a one-dimensional array of integers, or a two-dimensional array
+        of integers. A one-dimensional array represents the tokens of a single
+        prompt; a two-dimensional array represents the tokens of a batch of
+        prompts, where the batch size is the first dimension of the array.
       images: Images for the prompt. The position where the image should be
         inserted in the prompt is determined by the `<start_of_image>` token in
         the prompt.
@@ -250,11 +254,15 @@ class Sampler:
     # Normalize the seed.
     rng = _normalize_rng(rng)
 
-    # Normalize inputs to always be batched.
-    tokens, is_single_prompt = self._encode_prompts(
-        prompt,
-        add_bos=last_state is None,  # Only add BOS for the first turn.
-    )
+    if isinstance(prompt, Array):
+      tokens = prompt
+      is_single_prompt = not isinstance(prompt[0], Array)
+    else:
+      # Normalize inputs to always be batched.
+      tokens, is_single_prompt = self._encode_prompts(
+          prompt,
+          add_bos=last_state is None,  # Only add BOS for the first turn.
+      )
     images = _normalize_images(images, is_single_prompt=is_single_prompt)
 
     # Cache size in the pre-fill phase.
