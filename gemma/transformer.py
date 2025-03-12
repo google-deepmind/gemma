@@ -414,7 +414,7 @@ class Transformer(nn.Module):
           ' Instead, `gm.nn.GemmaXX` should be used.'
           ' See the documentation at https://gemma-llm.readthedocs.io/. '
       )
-      raise DeprecationWarning(msg)
+      print(msg)
     super().__post_init__()
 
   def setup(self):
