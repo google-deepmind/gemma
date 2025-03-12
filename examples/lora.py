@@ -63,6 +63,9 @@ def get_config():
           rank=4,
           model=gm.nn.Gemma3_4B(
               tokens="batch.input",
+              # TODO(epot): At the moment, LoRA fine-tuning with multimodal
+              # is not supported. Willbe  fixed soon.
+              text_only=True,
           ),
       ),
       # Load the weights from the pretrained checkpoint
