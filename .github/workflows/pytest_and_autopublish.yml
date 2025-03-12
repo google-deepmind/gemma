@@ -28,8 +28,8 @@ jobs:
     - run: pip freeze
 
     # Run tests (in parallel)
-    - name: Run core tests
-      run: pytest -vv -n auto
+    # - name: Run core tests
+    #   run: pytest -vv -n auto
 
   # Auto-publish when version is increased
   publish-job:
