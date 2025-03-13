@@ -8,11 +8,11 @@
 Model (LLM) by [Google DeepMind](https://deepmind.google/), based on Gemini
 research and technology.
 
-This repository contain the implementation of the
+This repository contains the implementation of the
 [`gemma`](https://pypi.org/project/gemma/) PyPI package. A
 [JAX](https://github.com/jax-ml/jax) library to use and fine-tune Gemma.
 
-For examples and uses-cases, see our
+For examples and use cases, see our
 [documentation](https://gemma-llm.readthedocs.io/). Please
 report issues and feedback in
 [our GitHub](https://github.com/google-deepmind/gemma/issues).
@@ -57,7 +57,7 @@ out0 = sampler.chat(prompt, images=[image1, image2])
 out1 = sampler.chat('What about the other image ?')
 ```
 
-Our documentation contain various Colabs and tutorial, including:
+Our documentation contains various Colabs and tutorials, including:
 
 * [Sampling](https://gemma-llm.readthedocs.io/en/latest/colab_sampling.html)
 * [Multi-modal](https://gemma-llm.readthedocs.io/en/latest/colab_multimodal.html)
@@ -67,7 +67,7 @@ Our documentation contain various Colabs and tutorial, including:
 
 Additionally, our
 [examples/](https://github.com/google-deepmind/gemma/tree/main/examples) folder
-contain additional scripts to fine-tune and sample with Gemma.
+contains additional scripts to fine-tune and sample with Gemma.
 
 ### Learn more about Gemma
 
