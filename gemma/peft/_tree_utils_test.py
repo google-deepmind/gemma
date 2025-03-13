@@ -62,3 +62,30 @@ def test_split_params():
   }
 
   assert peft.merge_params(original, lora) == params
+
+
+def test_quantize_lora_params():
+    """Test the QLoRA parameter quantization function."""
+    lora_params = {
+        'dense': {
+            'lora': {
+                'a': 0.156,
+                'b': -0.234,
+            },
+        },
+        'other_layer': {
+            'lora': {
+                'x': 0.78,
+                'y': -0.99,
+            },
+        },
+    }
+
+    quantized_lora = peft.quantize_lora_params(lora_params, bits=4)
+
+    assert 0 <= quantized_lora['dense']['lora']['a'] <= 1, "Value out of range after quantization"
+    assert -1 <= quantized_lora['dense']['lora']['b'] <= 0, "Value out of range after quantization"
+    assert 0 <= quantized_lora['other_layer']['lora']['x'] <= 1, "Value out of range"
+    assert -1 <= quantized_lora['other_layer']['lora']['y'] <= 0, "Value out of range"
+
+    print("QLoRA parameter quantization test passed!")
