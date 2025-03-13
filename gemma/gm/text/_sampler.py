@@ -31,7 +31,9 @@ from gemma.gm.text import _tokenizer
 from gemma.gm.vision import _token_utils
 import jax
 import jax.numpy as jnp
+from kauldron import kd
 from kauldron.typing import Array, Float, Int, PRNGKey, PRNGKeyLike, UInt8  # pylint: disable=g-multiple-import,g-importing-member
+
 import numpy as np
 
 
@@ -158,6 +160,7 @@ class Sampler:
       rng: PRNGKeyLike | None = ...,
       return_state: Literal[False] = ...,
       last_state: _sampler_call.SamplingState | None = ...,
+      sharding: kd.sharding.ShardingTree | None = None,
   ) -> str:
     ...
 
@@ -173,6 +176,7 @@ class Sampler:
       rng: PRNGKeyLike | None = ...,
       return_state: Literal[False] = ...,
       last_state: _sampler_call.SamplingState | None = ...,
+      sharding: kd.sharding.ShardingTree | None = None,
   ) -> list[str]:
     ...
 
@@ -189,6 +193,7 @@ class Sampler:
       rng: PRNGKeyLike | None = ...,
       return_state: Literal[True] = ...,
       last_state: _sampler_call.SamplingState | None = ...,
+      sharding: kd.sharding.ShardingTree | None = None,
   ) -> SamplerOutput:
     ...
 
@@ -202,6 +207,7 @@ class Sampler:
       rng=None,
       return_state=False,
       last_state=None,
+      sharding=None,
   ):
     # pylint: disable=g-docstring-quotes
     '''Samples a string from the model.
@@ -239,7 +245,11 @@ class Sampler:
       last_state: When `return_state=True`, the state can be propagated across
         calls to the sampler, for multi-turn conversations. Use
         `gm.text.ChatSampler` for a simpler API which handles the state for you.
-
+      sharding: If provided, shard the tokens according to the
+        specified sharding. Users are responsible for ensuring the tokenized
+        prompt is compatible with the sharding. For example, if
+        `sharding=kd.sharding.FIRST_DIM`, the number of prompts must be
+        divisible by the number of devices.
     Returns:
       The sampled output.
     '''
@@ -254,6 +264,9 @@ class Sampler:
     tokens, is_single_prompt = self._encode_prompts(
         prompt,
         add_bos=last_state is None,  # Only add BOS for the first turn.
+    )
+    tokens = kd.sharding.with_sharding_constraint(
+        tokens, sharding
     )
     images = _normalize_images(images, is_single_prompt=is_single_prompt)
 
