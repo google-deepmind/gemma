@@ -31,8 +31,6 @@ import jax.numpy as jnp
 
 import sentencepiece as spm
 
-_compute_attention_masks = transformer_lib.compute_attention_masks
-
 
 @chex.dataclass
 class _SamplingState:
