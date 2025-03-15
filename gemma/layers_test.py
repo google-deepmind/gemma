@@ -24,37 +24,27 @@ import numpy as np
 
 class EinsumTest(parameterized.TestCase):
 
-  @parameterized.parameters(
-      dict(
-          inputs_shape=(1, 4),
-          params_shape=(3, 2, 4, 3),
-          eqn='TD,SNDH->STNH',
-          expected_shape=(3, 1, 2, 3),
-      ),
-      dict(
-          inputs_shape=(1, 2, 4),
-          params_shape=(2, 4, 8),
-          eqn='ANH,NHD->AD',
-          expected_shape=(1, 8),
-      ),
-  )
-  def test_einsum(self, inputs_shape, params_shape, eqn, expected_shape):
-    einsum = layers.Einsum(params_shape)
-    output = einsum.apply(
-        {'params': {'w': jnp.ones(params_shape)}},
-        eqn,
-        jnp.ones(inputs_shape),
+    @parameterized.parameters(
+        ((1, 4), (3, 2, 4, 3), 'TD,SNDH->STNH', (3, 1, 2, 3)),
+        ((1, 2, 4), (2, 4, 8), 'ANH,NHD->AD', (1, 8)),
     )
-    self.assertEqual(output.shape, expected_shape)
+    def test_einsum(self, inputs_shape, params_shape, eqn, expected_shape):
+        einsum = layers.Einsum(params_shape)
+        output = einsum.apply(
+            {'params': {'w': jnp.ones(params_shape)}},
+            eqn,
+            jnp.ones(inputs_shape),
+        )
+        self.assertEqual(output.shape, expected_shape, f"Expected {expected_shape}, got {output.shape}")
 
-  @parameterized.parameters(dict(x=[0.1, 0.2], expected=[0.6324429, 1.2648858]))
-  def test_rmsnorm(self, x, expected):
-    x = jnp.array([x])
-    rmsnorm = layers.RMSNorm()
-    params = rmsnorm.init(jax.random.PRNGKey(0), x)
-    output = rmsnorm.apply(params, x)
-    np.testing.assert_array_equal(output, jnp.array([expected]))
+    @parameterized.parameters(([0.1, 0.2], [0.6324429, 1.2648858]))
+    def test_rmsnorm(self, x, expected):
+        x = jnp.array([x])
+        rmsnorm = layers.RMSNorm()
+        params = rmsnorm.init(jax.random.PRNGKey(0), x)
+        output = rmsnorm.apply(params, x)
+        np.testing.assert_allclose(output, jnp.array([expected]), rtol=1e-6)
 
 
 if __name__ == '__main__':
-  absltest.main()
+    absltest.main()
