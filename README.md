@@ -8,18 +8,18 @@
 Model (LLM) by [Google DeepMind](https://deepmind.google/), based on Gemini
 research and technology.
 
-This repository contain the implementation of the
+This repository contains the implementation of the
 [`gemma`](https://pypi.org/project/gemma/) PyPI package. A
 [JAX](https://github.com/jax-ml/jax) library to use and fine-tune Gemma.
 
-For examples and uses-cases, see our
+For examples and use cases, see our
 [documentation](https://gemma-llm.readthedocs.io/). Please
 report issues and feedback in
 [our GitHub](https://github.com/google-deepmind/gemma/issues).
 
 ### Installation
 
-1.  Install JAX for CPU, GPU or TPU. Follow instructions at
+1.  Install JAX for CPU, GPU or TPU. Follow the instructions on
     [the JAX website](https://jax.readthedocs.io/en/latest/installation.html).
 1.  Run
 
@@ -46,7 +46,7 @@ sampler = gm.text.ChatSampler(
     mult_turn=True,
 )
 
-prompt = """Which of the 2 images do you prefer ?
+prompt = """ Which of the two images do you prefer?
 
 Image 1: <start_of_image>
 Image 2: <start_of_image>
@@ -57,7 +57,7 @@ out0 = sampler.chat(prompt, images=[image1, image2])
 out1 = sampler.chat('What about the other image ?')
 ```
 
-Our documentation contain various Colabs and tutorial, including:
+Our documentation contains various Colabs and tutorials, including:
 
 * [Sampling](https://gemma-llm.readthedocs.io/en/latest/colab_sampling.html)
 * [Multi-modal](https://gemma-llm.readthedocs.io/en/latest/colab_multimodal.html)
@@ -86,7 +86,7 @@ To download the model weights. See
 
 ### System Requirements
 
-Gemma can run on a CPU, GPU and TPU. For GPU, we recommend a 8GB+ RAM on GPU for
-the 2B checkpoint and 24GB+ RAM on GPU for the 7B checkpoint.
+Gemma can run on a CPU, GPU and TPU. For GPU, we recommend 8GB+ RAM on GPU for
+The 2B checkpoint and 24GB+ RAM on GPU are used for the 7B checkpoint.
 
 *This is not an official Google product.*
