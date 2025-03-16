@@ -119,15 +119,35 @@ class ChatSampler:
         forbidden_tokens=self.forbidden_tokens,
         cache_length=self.cache_length,
     )
-  def resize_cache(self, new_length:int):
-    # old_length = self.cache_length
-    # updated_last_state = _sampler_call._update_last_state(
-    #   last_state=self.last_state,
-    #   old_length=old_length,
-    #   new_length=new_length
-    #   )
-    # object.__setattr__(self, 'last_state', updated_last_state)
+  def resize_cache(self, new_length: int):
+    """Update the cache length Dynamicly"""
     object.__setattr__(self, 'cache_length', new_length)
+
+    # Update the last_state with the new cache size if last_state is not None
+    if self.last_state is not None:
+        # Initialize a new cache with the updated size
+        updated_cache = self.model.init_cache(
+            batch_size=len(self.last_state.cache),
+            dtype=self._dtype,
+            cache_length=new_length,
+        )
+
+        # Determine the number of tokens to copy from the old cache
+        num_tokens_to_copy = min(self.last_state.cache.shape[1], new_length)
+
+        # Copy the existing cache data into the new cache
+        for i in range(len(self.last_state.cache)):
+            updated_cache[i, :num_tokens_to_copy] = self.last_state.cache[i, :num_tokens_to_copy]
+
+        # Create a new SamplingState with the updated cache
+        updated_last_state = _sampler_call.SamplingState(
+            cache=updated_cache,
+            predicted_tokens=self.last_state.predicted_tokens,
+            used_cache_length=min(self.last_state.used_cache_length, new_length),
+            # Add any other fields that are part of SamplingState
+        )
+        object.__setattr__(self, 'last_state', updated_last_state)
+
     # Invalidate the cached sampler so it gets recomputed
     if 'sampler' in self.__dict__:
         del self.__dict__['sampler']
