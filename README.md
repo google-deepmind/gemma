@@ -43,7 +43,7 @@ params = gm.ckpts.load_params(gm.ckpts.CheckpointPath.GEMMA3_4B_IT)
 sampler = gm.text.ChatSampler(
     model=model,
     params=params,
-    mult_turn=True,
+    multi_turn=True,
 )
 
 prompt = """Which of the 2 images do you prefer ?
