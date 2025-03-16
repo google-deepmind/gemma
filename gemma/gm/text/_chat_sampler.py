@@ -119,6 +119,19 @@ class ChatSampler:
         forbidden_tokens=self.forbidden_tokens,
         cache_length=self.cache_length,
     )
+  def resize_cache(self, new_length:int):
+    # old_length = self.cache_length
+    # updated_last_state = _sampler_call._update_last_state(
+    #   last_state=self.last_state,
+    #   old_length=old_length,
+    #   new_length=new_length
+    #   )
+    # object.__setattr__(self, 'last_state', updated_last_state)
+    object.__setattr__(self, 'cache_length', new_length)
+    # Invalidate the cached sampler so it gets recomputed
+    if 'sampler' in self.__dict__:
+        del self.__dict__['sampler']
+
 
   def chat(
       self,
