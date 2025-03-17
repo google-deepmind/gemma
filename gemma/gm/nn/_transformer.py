@@ -268,8 +268,7 @@ class Transformer(transformer.Transformer):
     elif self.vision_encoder is not None and self.is_initializing():
       # During initialization, call the vision encoder to ensure that the
       # params are correctly initialized.
-      dummy_patches = _make_dummy_patches(self.vision_encoder)
-      _ = self.vision_encoder(patches=dummy_patches, is_training=False)
+      _ = self._encode_vision(_make_dummy_images(self.vision_encoder))
 
     # Compute the mask (after the extra tokens are added)
     inputs_mask = tokens != _PADDING_ID
@@ -353,15 +352,11 @@ class Transformer(transformer.Transformer):
       )
 
 
-def _make_dummy_patches(
+def _make_dummy_images(
     vision_encoder: gemma_vision.SigLiPFromPatches,
 ) -> Float['B L P D']:
-  """Make dummy patches for initializing the vision encoder."""
-  patch_height, _ = vision_encoder.siglip_encoder.patch_size
-  num_patches_one_side = vision_encoder.image_height // patch_height
-  num_channels = 3 * patch_height**2
-  num_patches = num_patches_one_side**2
+  """Make dummy images for initializing the vision encoder."""
   return jnp.zeros(
-      shape=(1, 1, num_patches, num_channels),
-      dtype=jnp.float32,
+      (1, 1, vision_encoder.image_height, vision_encoder.image_width, 3),
+      dtype=jnp.uint8,
   )
