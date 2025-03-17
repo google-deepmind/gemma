@@ -19,6 +19,8 @@ from __future__ import annotations
 import dataclasses
 import enum
 import functools
+import operator
+import sys
 import typing
 from typing import Any, TypeVar
 
@@ -30,6 +32,8 @@ import jax
 from kauldron import kd
 import numpy as np
 from orbax import checkpoint as ocp
+
+_FnT = TypeVar('_FnT')
 
 if typing.TYPE_CHECKING:
   # Likely overkill, but avoid resolving the lazy-import on importing this file.
@@ -241,10 +245,15 @@ def load_params(
   # To supports different checkpoint structures, the original params have to
   # be remapped into the checkpoint structure.
   output_with_skip = metadata.make_tree_for_params(params)
-  # TODO(epot): Support CMSMeta
-
   restore_fn = functools.partial(ckpt.restore, path)
-  output = _partial_restore(restore_fn, output_with_skip, quantize=quantize)
+  output = _partial_restore(restore_fn, output_with_skip)
+
+  # TODO(epot): Better API. Currently this do not quantize the weights, but
+  # just refactor the params to the QAT structure.
+  # Eventually quantize the params. Note: It would be better to do this
+  # while the weights are loaded, so restore do not use unecessary memory.
+  if quantize:
+    output = _quantization.convert_to_qat_checkpoint(output)
 
   # Then after restoring, the params are remapped back to the final structure.
   output = _CheckpointTree(tree=output)
@@ -388,13 +397,10 @@ def _unwrap_skip(tree):
   return jax.tree.map(lambda x: x.val if isinstance(x, _Skip) else x, tree)
 
 
-def _partial_restore(restore_fn, tree_with_skip, quantize: bool = False):
+def _partial_restore(restore_fn, tree_with_skip):
   """Restore the params with partial restore."""
   # TODO(epot): Implement once orbax supports partial restore.
-
   tree = _unwrap_skip(tree_with_skip)
-  if quantize:
-    tree = _quantization.convert_to_qat_checkpoint(tree)
   tree = restore_fn(tree)
   _release_skip(tree, tree_with_skip)
   return tree
