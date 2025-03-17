@@ -31,6 +31,8 @@ _COLABS_NAMES = [
     'lora_sampling',
     'lora_finetuning',
     'multimodal',
+    'quantization_aware_training',
+    'quantization_sampling',
     'sampling',
     'sharding',
     'tokenizer',
