@@ -14,8 +14,11 @@
 
 """Symbols needed to build new `TransformerConfig`."""
 
-# pylint: disable=g-importing-member
+# pylint: disable=g-importing-member,unused-import
 
-from gemma.modules import AttentionType  # pylint: disable=unused-import
-from gemma.transformer import QueryPreAttentionNormalisation  # pylint: disable=unused-import
-from gemma.transformer import TransformerConfig  # pylint: disable=unused-import
+from gemma.gm.nn._transformer import ModelInfo
+from gemma.modules import AttentionType
+from gemma.transformer import GEMMA3_ATTENTION_PATTERN
+from gemma.transformer import make_attention_layers_types
+from gemma.transformer import QueryPreAttentionNormalisation
+from gemma.transformer import TransformerConfig

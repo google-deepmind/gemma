@@ -89,6 +89,8 @@ class _Gemma3Base(_transformer.Transformer):
   CONFIG_FN: ClassVar[Callable[..., transformer.TransformerConfig]]
 
   def __init_subclass__(cls, **kwargs: Any):
+    # TODO(epot): Rather than `CONFIG_FN`, instead remove `vision_encoder` from
+    # the config.
     if 'CONFIG_FN' in cls.__dict__:
       cls.CONFIG_FN = staticmethod(cls.CONFIG_FN)
     super().__init_subclass__(**kwargs)
