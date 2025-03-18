@@ -33,16 +33,18 @@ import jax.numpy as jnp
 Cache = dict[str, modules.LayerCache]
 
 
-def _make_attention_type_from_pattern(
+def make_attention_layers_types(
     pattern: tuple[modules.AttentionType, ...],
+    *,
     num_layers: int,
 ) -> tuple[modules.AttentionType, ...]:
+  """Returns the list of attention types for every layers."""
 
   pattern_size = len(pattern)
   out = pattern * (num_layers // pattern_size)
   if num_layers % pattern_size != 0:
     out += pattern[: num_layers % pattern_size]
-  return out
+  return tuple(out)
 
 
 class QueryPreAttentionNormalisation(enum.Enum):
@@ -67,7 +69,7 @@ _NUM_LAYERS_GEMMA3_1B = 26
 _NUM_LAYERS_GEMMA3_4B = 34
 _NUM_LAYERS_GEMMA3_12B = 48
 _NUM_LAYERS_GEMMA3_27B = 62
-_GEMMA3_ATTENTION_PATTERN = (
+GEMMA3_ATTENTION_PATTERN = (
     modules.AttentionType.LOCAL_SLIDING,
     modules.AttentionType.LOCAL_SLIDING,
     modules.AttentionType.LOCAL_SLIDING,
@@ -275,8 +277,8 @@ class TransformerConfig:
         use_post_attn_norm=True,
         use_post_ffw_norm=True,
         use_qk_norm=True,
-        attention_types=_make_attention_type_from_pattern(
-            _GEMMA3_ATTENTION_PATTERN, _NUM_LAYERS_GEMMA3_1B
+        attention_types=make_attention_layers_types(
+            GEMMA3_ATTENTION_PATTERN, num_layers=_NUM_LAYERS_GEMMA3_1B
         ),
         query_pre_attn_norm=QueryPreAttentionNormalisation.BY_ONE_OVER_SQRT_HEAD_DIM,
         attn_logits_soft_cap=None,
@@ -302,8 +304,8 @@ class TransformerConfig:
         use_post_attn_norm=True,
         use_post_ffw_norm=True,
         use_qk_norm=True,
-        attention_types=_make_attention_type_from_pattern(
-            _GEMMA3_ATTENTION_PATTERN, _NUM_LAYERS_GEMMA3_4B
+        attention_types=make_attention_layers_types(
+            GEMMA3_ATTENTION_PATTERN, num_layers=_NUM_LAYERS_GEMMA3_4B
         ),
         query_pre_attn_norm=QueryPreAttentionNormalisation.BY_ONE_OVER_SQRT_HEAD_DIM,
         attn_logits_soft_cap=None,
@@ -331,8 +333,8 @@ class TransformerConfig:
         use_post_attn_norm=True,
         use_post_ffw_norm=True,
         use_qk_norm=True,
-        attention_types=_make_attention_type_from_pattern(
-            _GEMMA3_ATTENTION_PATTERN, _NUM_LAYERS_GEMMA3_12B
+        attention_types=make_attention_layers_types(
+            GEMMA3_ATTENTION_PATTERN, num_layers=_NUM_LAYERS_GEMMA3_12B
         ),
         query_pre_attn_norm=QueryPreAttentionNormalisation.BY_ONE_OVER_SQRT_HEAD_DIM,
         attn_logits_soft_cap=None,
@@ -360,8 +362,8 @@ class TransformerConfig:
         use_post_attn_norm=True,
         use_post_ffw_norm=True,
         use_qk_norm=True,
-        attention_types=_make_attention_type_from_pattern(
-            _GEMMA3_ATTENTION_PATTERN, _NUM_LAYERS_GEMMA3_27B
+        attention_types=make_attention_layers_types(
+            GEMMA3_ATTENTION_PATTERN, num_layers=_NUM_LAYERS_GEMMA3_27B
         ),
         query_pre_attn_norm=QueryPreAttentionNormalisation.BY_ONE_OVER_SQRT_EMBED_DIM_DIV_NUM_HEADS,
         attn_logits_soft_cap=None,

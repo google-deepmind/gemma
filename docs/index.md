@@ -13,6 +13,7 @@
     colab_lora_finetuning
     peft
     checkpoints
+    research
 
 .. toctree::
     :hidden:
