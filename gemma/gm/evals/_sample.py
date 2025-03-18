@@ -43,6 +43,10 @@ class SamplerEvaluator(kd.evals.EvaluatorBase):
     ds: Dataset to evaluate on. Note that the dataset must be unbatched and
       contain raw `str` fields.
     model: The model to use.
+    losses: Losses to compute. Losses and metrics can access the prediction text
+      through the key: `preds.text`.
+    metrics: Metrics to compute. Losses and metrics can access the prediction
+      text through the key: `preds.text`.
     summaries: Optional summaries to write.
   """
 
@@ -55,13 +59,18 @@ class SamplerEvaluator(kd.evals.EvaluatorBase):
 
   model: nn.Module = config_util.ROOT_CFG_REF.model
 
+  # Losses, metrics, summaries
+  losses: Mapping[str, kd.losses.Loss] = dataclasses.field(default_factory=dict)
+  metrics: Mapping[str, kd.metrics.Metric] = dataclasses.field(
+      default_factory=dict
+  )
   summaries: Mapping[str, kd.summaries.Summary] = dataclasses.field(
       default_factory=dict
   )
 
   def __post_init__(self):
     super().__post_init__()
-    immutabledict.freeze_dict_attrs(self, ['summaries'])
+    immutabledict.freeze_dict_attrs(self, ['losses', 'metrics', 'summaries'])
 
   def evaluate(self, state: kd.train.TrainState, step: int) -> Any:
     """Run this evaluator then write and optionally return the results."""
@@ -99,7 +108,11 @@ class SamplerEvaluator(kd.evals.EvaluatorBase):
 
     # ======= Write outputs =======
 
-    # TODO(epot): Refactor after the summary refactor.
+    aux = kd.train.Auxiliaries(
+        losses=self.losses,
+        metrics=self.metrics,
+        summaries=self.summaries,
+    )
     aux_state = kd.train.AuxiliariesState()
 
     # TODO(epot): Would be nice to also write the samples to some text file,
@@ -110,6 +123,7 @@ class SamplerEvaluator(kd.evals.EvaluatorBase):
     for i, (prompt, ex, sample) in enumerate(
         zip(prompts, self.examples, samples)
     ):
+      # TODO(epot): Should instead uses summaries.
       # Text summaries
       texts[f'prompt_{i}'] = prompt
       texts[f'sample_{i}'] = sample
@@ -118,10 +132,18 @@ class SamplerEvaluator(kd.evals.EvaluatorBase):
 
       # Images & other summaries
       with jax.transfer_guard('allow'):
-        new_state = _get_aux_state(
+        # TODO(epot): Should simplify the abstractions (i.e. merge
+        # `update_context` & `get_aux_state`).
+        ctx = kd.train.Context(
             step=step,
             batch=ex,
-            summaries=self.summaries,
+            preds={'text': sample},
+        )
+        ctx = aux.update_context(ctx)
+        new_state = ctx.get_aux_state(
+            return_losses=True,
+            return_metrics=True,
+            return_summaries=True,
         )
         aux_state |= new_state
 
@@ -164,17 +186,3 @@ class SamplerEvaluator(kd.evals.EvaluatorBase):
     """Returns collection keys used by flat board."""
     # This evaluator do not report any scalar metrics.
     return kd.kdash.NoopDashboard()
-
-
-def _get_aux_state(
-    *,
-    step: int,
-    batch: Any,
-    summaries: Mapping[str, kd.summaries.Summary],
-) -> kd.train.AuxiliariesState:
-  """Get the auxiliary state from the summaries."""
-  ctx = kd.train.Context(step=step, batch=batch)
-  summary_states = jax.tree.map(
-      lambda m: m.get_state_from_context(ctx), summaries
-  )
-  return kd.train.AuxiliariesState(summary_states=summary_states)
