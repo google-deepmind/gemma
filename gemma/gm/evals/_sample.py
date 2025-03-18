@@ -16,9 +16,10 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Iterator, Mapping
 import dataclasses
 import functools
+import itertools
 from typing import Any, Optional
 
 from etils import epy
@@ -31,15 +32,27 @@ from kauldron.utils import config_util
 from kauldron.utils import immutabledict
 
 
+def batched_iterable(
+    iterable: Iterable[Any], batch_size: int
+) -> Iterator[list[Any]]:
+  """Yields lists of elements from an iterable in batches."""
+  it = iter(iterable)
+  while batch := list(itertools.islice(it, batch_size)):
+    yield batch
+
+
 class SamplerEvaluator(kd.evals.EvaluatorBase):
-  """Sampling evaluator.
+  """Sampling evaluator that supports batched sampling.
 
   The evaluator expects as dataset containing a `Seq2SeqTask` transform.
 
   Attributes:
-    max_new_tokens: Maximum number of new tokens to generate. In total, the
-      model will process `input_length + max_new_tokens`.
-    num_examples: How many examples to sample.
+    max_new_tokens: Maximum number of new tokens to generate for each sample. In
+      total, the model will process `input_length + max_new_tokens`.
+    num_examples: How many examples to sample in total. If None, all examples
+      from the dataset will be used.
+    batch_size: The number of examples to process in parallel for each sampling
+      operation.
     ds: Dataset to evaluate on. Note that the dataset must be unbatched and
       contain raw `str` fields.
     model: The model to use.
@@ -55,6 +68,7 @@ class SamplerEvaluator(kd.evals.EvaluatorBase):
 
   # Dataset parameters
   num_examples: Optional[int] = 1
+  batch_size: int = 1
   ds: kd.data.Pipeline = config_util.ROOT_CFG_REF.eval_ds
 
   model: nn.Module = config_util.ROOT_CFG_REF.model
@@ -76,35 +90,43 @@ class SamplerEvaluator(kd.evals.EvaluatorBase):
     """Run this evaluator then write and optionally return the results."""
     self._assert_root_cfg_resolved()
 
-    prompts = [
-        kd.kontext.get_by_path(ex, self._task.out_input) for ex in self.examples
-    ]
+    prompts = []
+    samples = []
 
-    # Extract the images input from the dataset.
-    if self.model.images is not None:
-      images = [
-          kd.kontext.get_by_path({'batch': ex}, self.model.images)
-          for ex in self.examples
-      ]
-    else:
-      images = None
-
-    # TODO(epot): Supports batch_size for sampling.
     # Evaluators are run within the `jax.transfer_guard('disallow')` for the
     # train loop, so re-enable it here.
     with jax.transfer_guard('allow'):
-      # TODO(epot): Which sharding for the images ?
-      images = kd.sharding.device_put(images, kd.sharding.REPLICATED)
       sampler = _sampler.Sampler(
           model=self.model,
           params=state.params,
           tokenizer=self._task.tokenizer,
       )
-      samples = sampler.sample(
-          prompts,
-          images=images,
-          max_new_tokens=self.max_new_tokens,
-      )
+      for examples_batch in batched_iterable(self.examples, self.batch_size):
+        prompts_batch = [
+            kd.kontext.get_by_path(ex, self._task.out_input)
+            for ex in examples_batch
+        ]
+
+        # Extract the images input from the dataset.
+        images_batch = None
+        if self.model.images is not None:
+          images_batch = [
+              kd.kontext.get_by_path({'batch': ex}, self.model.images)
+              for ex in examples_batch
+          ]
+
+        # TODO(epot): Which sharding for the images ?
+        images_batch = kd.sharding.device_put(
+            images_batch, kd.sharding.REPLICATED
+        )
+
+        samples = sampler.sample(
+            prompts_batch,
+            images=images_batch,
+            max_new_tokens=self.max_new_tokens,
+        )
+        prompts.extend(prompts_batch)
+        samples.extend(samples)
 
     # ======= Write outputs =======
 
