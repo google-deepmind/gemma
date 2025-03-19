@@ -57,7 +57,7 @@ class Output:
   """
 
   # When `return_last_only`, `logits` is `*B V`
-  logits: Float['*B L V'] | Float['*B V']
+  logits: Float['*B L V'] | Float['*B V'] | Float['...']
   cache: transformer.Cache | None
 
 
@@ -88,6 +88,7 @@ class Transformer(transformer.Transformer):
     dtype: The parameter dtype. Default to `jnp.bfloat16`.
   """
 
+  head: nn.Module | None = None
   return_last_only: bool | None = None
 
   dtype: jnp.dtype = jnp.bfloat16
@@ -208,11 +209,15 @@ class Transformer(transformer.Transformer):
           num_tokens_per_image=self.config.vision_encoder.num_mm_tokens_per_image,  # pytype: disable=attribute-error
       )
 
-    logits = self.embedder.decode(x)
+    if self.head:
+      # Use the provided head if the user specifies one.
+      logits = self.head(x)
+    else:
+      logits = self.embedder.decode(x)
 
-    if self.config.final_logit_softcap is not None:
-      logits /= self.config.final_logit_softcap
-      logits = jnp.tanh(logits) * self.config.final_logit_softcap
+      if self.config.final_logit_softcap is not None:
+        logits /= self.config.final_logit_softcap
+        logits = jnp.tanh(logits) * self.config.final_logit_softcap
 
     return Output(
         logits=logits,
