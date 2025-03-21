@@ -30,6 +30,8 @@ from gemma.peft._tree_utils import merge_params
 from gemma.peft._tree_utils import split_params
 from gemma.peft._tree_utils import unfuse_params
 
+from gemma.peft._qlora import quantize_lora_params
+
 # Quantization utils
 from gemma.peft._quantization_utils import QuantizationMethod
 from gemma.peft._quantization_utils import quantize
