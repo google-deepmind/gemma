@@ -16,14 +16,13 @@
 
 from collections.abc import Callable, Sequence
 import dataclasses
-import einops
 from flax import linen as nn
 from flax.linen import dtypes as flax_dtypes
 from flax.typing import Array  # pylint: disable=g-importing-member
 from gemma.peft import _quantization_utils
 import jax
 import jax.numpy as jnp
-
+import numpy as np
 
 # (0.5 - 1/32) 2**-22 is the smallest non-zero number in sfp8
 _SFP8_ZERO_THRESHOLD = 1.1175882588358173e-07
@@ -38,6 +37,7 @@ def simulate_quantize(
     x: Array,
     method: _quantization_utils.QuantizationMethod | str,
     axis_to_reduce: int | None = None,
+    transpose: Sequence[int] | None = None,
 ) -> Array:
   """Quantizes the given array.
 
@@ -52,6 +52,7 @@ def simulate_quantize(
     x: The array to simulate_quantize.
     method: The quantization method to use.
     axis_to_reduce: The axis to reduce the array over.
+    transpose: The axis to transpose the array over.
 
   Returns:
     The simulate_quantized array.
@@ -78,13 +79,7 @@ def simulate_quantize(
           x,
           bitwidth=4,
           granularity=_quantization_utils.QuantizationGranularity.PER_BLOCK,
-      )
-    case _quantization_utils.QuantizationMethod.Q4_0_TRANSPOSE:
-      return _simulate_uniform_quantization(
-          x,
-          bitwidth=4,
-          granularity=_quantization_utils.QuantizationGranularity.PER_BLOCK,
-          transpose=True,
+          transpose=transpose,
       )
     case _quantization_utils.QuantizationMethod.SFP8:
       return _simulate_sfp8_quantization(x)
@@ -189,7 +184,10 @@ class SimulateQuantizedEinsum(nn.Module):
         kernel,
         self.method,
         axis_to_reduce=get_axis_to_reduce_from_einsum_str(
-            einsum_str=self.wrapped.name
+            einsum_str=einsum_str
+        ),
+        transpose=get_tranpose_axis_from_einsum_str(
+            einsum_str=einsum_str
         ),
     )
 
@@ -334,11 +332,11 @@ def _straight_through_estimator(
 
 
 def _pack(
-    x: Array, *, transpose: bool = True
+    x: Array, *, transpose: Sequence[int] | None = None
 ) -> tuple[Array, jax.ShapeDtypeStruct]:
   """Reshape the input array into shape (-1, block_size)."""
-  if transpose:
-    x = einops.rearrange(x, '... a b -> ... b a')
+  if transpose is not None:
+    x = jnp.transpose(x, transpose)
   orig_shape, orig_dtype = x.shape, x.dtype
   orig_shape_dtype = jax.ShapeDtypeStruct(shape=orig_shape, dtype=orig_dtype)
   assert orig_shape[-1] % _QUANTIZATION_BLOCK_SIZE == 0
@@ -350,7 +348,7 @@ def _pack(
 def _unpack(
     x: Array,
     *,
-    transpose: bool,
+    transpose: Sequence[int] | None = None,
     orig_shape_dtype: jax.ShapeDtypeStruct,
     cast_to_orig_dtype: bool = True,
 ) -> Array:
@@ -358,13 +356,18 @@ def _unpack(
   res = x.reshape(orig_shape_dtype.shape)
   if cast_to_orig_dtype:
     res = res.astype(orig_shape_dtype.dtype)
-  if transpose:
-    res = einops.rearrange(res, '... b a -> ... a b')
+  if transpose is not None:
+    # here we reverse the transpose, so we need to adapt the axes
+    res = jnp.transpose(res, np.argsort(transpose).tolist())
   return res
 
 
 def _q4_0(
-    x: Array, *, upper_bound: int, bitwidth: int, transpose: bool = False
+    x: Array,
+    *,
+    upper_bound: int,
+    bitwidth: int,
+    transpose: Sequence[int] | None = None,
 ) -> Array:
   """Approximation of x using Q4_0."""
 
@@ -400,7 +403,7 @@ def _simulate_uniform_quantization(
     *,
     bitwidth: int,
     granularity: _quantization_utils.QuantizationGranularity,
-    transpose: bool = False,
+    transpose: Sequence[int] | None = None,
     axis_to_reduce: int | None = None,
 ) -> Array:
   """Applies uniform quantization to the given array.
@@ -412,7 +415,8 @@ def _simulate_uniform_quantization(
     x: The array to simulate_quantize.
     bitwidth: The bitwidth of the quantization.
     granularity: The granularity of the quantization.
-    transpose: Whether to transpose the array before quantization.
+    transpose: axis to transpose the array before quantization (if Noen then no
+      transpose is applied).
     axis_to_reduce: The axis to reduce the max over.
 
   Returns:
@@ -517,5 +521,22 @@ def get_axis_to_reduce_from_einsum_str(
       return (2,)
     case '...H,HF->...F':
       return (0,)
+    case _:
+      return None
+
+
+def get_tranpose_axis_from_einsum_str(einsum_str: str) -> Sequence[int] | None:
+  """Returns the transpose axis for Q4-0 quantization."""
+  match einsum_str:
+    case 'BTD,NDH->BTNH':  # q einsum
+      return [0, 2, 1]
+    case 'BSD,CKDH->CBSKH':  # kv einsum
+      return [0, 1, 3, 2]
+    case 'BTNH,NHD->BTD':  # attention out
+      return [2, 0, 1]
+    case '...F,NHF->...NH':  # mlp in (gating)
+      return None
+    case '...H,HF->...F':  # mlp out
+      return [1, 0]
     case _:
       return None
