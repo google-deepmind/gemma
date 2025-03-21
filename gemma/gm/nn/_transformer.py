@@ -101,6 +101,7 @@ class Transformer(transformer.Transformer):
   INFO: ClassVar[ModelInfo] = ModelInfo()
 
   def __post_init__(self):
+
     # TODO(epot): Config should not have `max_cache_length` parameter as
     # this is a sampling argument independent of the model architecture.
     # Also rather than inheriting from Transformer, could try unify the API
