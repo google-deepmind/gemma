@@ -54,11 +54,13 @@ class Output:
   Attributes:
     logits: Predicted logits of the model.
     cache: Updated cache if the input cache is not None, None elsewhere.
+    hidden_states: The hidden states of the model.
   """
 
   # When `return_last_only`, `logits` is `*B V`
   logits: Float['*B L V'] | Float['*B V']
   cache: transformer.Cache | None
+  hidden_states: Float['*B L D'] | Float['*B D'] | None
 
 
 @flax.struct.dataclass
@@ -120,6 +122,7 @@ class Transformer(transformer.Transformer):
       static_argnames=(
           'self',
           'return_last_only',
+          'return_hidden_states',
       ),
   )
   # The function accepts/returns aribtrary batch shape, but inside the
@@ -140,6 +143,7 @@ class Transformer(transformer.Transformer):
       # so the attention mask is `*B 1 cache_length`
       attention_mask: Bool['*B L cache_length'] | None = None,
       return_last_only: bool | None = None,
+      return_hidden_states: bool | None = None,
   ) -> Output:  # Output['*B']
     """Transformer forward pass.
 
@@ -158,6 +162,9 @@ class Transformer(transformer.Transformer):
         last input token in sequence. Useful for decoding where we don't need to
         compute logits for the whole sequence, but only for the last token.
         Otherwise, return all logits. Default to `False`.
+      return_hidden_states: If `True`, return the hidden states of the model.
+        Useful for developing custom models. Otherwise, return only the logits
+        and the cache. Default to `False`.
 
     Returns:
       predicted_logits, new_cache
@@ -218,6 +225,7 @@ class Transformer(transformer.Transformer):
     return Output(
         logits=logits,
         cache=None if cache is None else new_cache,
+        hidden_states=x if return_hidden_states else None,
     )
 
   def init_cache(
