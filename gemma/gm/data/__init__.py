@@ -14,21 +14,27 @@
 
 """Data pipeline ops."""
 
-# pylint: disable=g-importing-member,g-bad-import-order
+from etils import epy as _epy
 
-# Data sources
-from gemma.gm.data._parquet import Parquet
+# pylint: disable=g-import-not-at-top
 
-# `transforms=`
-from gemma.gm.data._tasks import ContrastiveTask
-from gemma.gm.data._tasks import Seq2SeqTask
-from gemma.gm.data._transforms import AddSeq2SeqFields
-from gemma.gm.data._transforms import DecodeBytes
-from gemma.gm.data._transforms import FormatText
-from gemma.gm.data._transforms import MapInts
-from gemma.gm.data._transforms import Pad
-from gemma.gm.data._transforms import Tokenize
+with _epy.lazy_api_imports(globals()):
 
-# Functional API
-from gemma.gm.data._functional import make_seq2seq_fields
-from gemma.gm.data._functional import pad
+  # pylint: disable=g-importing-member,g-bad-import-order
+
+  # Data sources
+  from gemma.gm.data._parquet import Parquet
+
+  # `transforms=`
+  from gemma.gm.data._tasks import ContrastiveTask
+  from gemma.gm.data._tasks import Seq2SeqTask
+  from gemma.gm.data._transforms import AddSeq2SeqFields
+  from gemma.gm.data._transforms import DecodeBytes
+  from gemma.gm.data._transforms import FormatText
+  from gemma.gm.data._transforms import MapInts
+  from gemma.gm.data._transforms import Pad
+  from gemma.gm.data._transforms import Tokenize
+
+  # Functional API
+  from gemma.gm.data._functional import make_seq2seq_fields
+  from gemma.gm.data._functional import pad
