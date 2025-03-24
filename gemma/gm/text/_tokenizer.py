@@ -339,6 +339,16 @@ class Tokenizer:
     )
     return fig
 
+  # Pickle protocol
+  # The `spm.SentencePieceProcessor` is not pickleable, so instead implement
+  # pickle protocol.
+
+  def __getstate__(self):
+    return {f.name: getattr(self, f.name) for f in dataclasses.fields(self)}
+
+  def __setstate__(self, state):
+    self.__init__(**state)
+
 
 @dataclasses.dataclass(frozen=True)
 class Gemma2Tokenizer(Tokenizer):
