@@ -39,7 +39,7 @@ class SamplerEvaluator(kd.evals.EvaluatorBase):
   Attributes:
     max_new_tokens: Maximum number of new tokens to generate. In total, the
       model will process `input_length + max_new_tokens`.
-    num_examples: How many examples to sample.
+    num_batches: Number of batches. If `None`, sample the entire dataset.
     ds: Dataset to evaluate on. Note that the dataset must be unbatched and
       contain raw `str` fields.
     model: The model to use.
@@ -54,7 +54,8 @@ class SamplerEvaluator(kd.evals.EvaluatorBase):
   max_new_tokens: int
 
   # Dataset parameters
-  num_examples: Optional[int] = 1
+  num_batches: Optional[int] = None
+  cache: bool = False
   ds: kd.data.Pipeline = config_util.ROOT_CFG_REF.eval_ds
 
   model: nn.Module = config_util.ROOT_CFG_REF.model
@@ -76,42 +77,34 @@ class SamplerEvaluator(kd.evals.EvaluatorBase):
     """Run this evaluator then write and optionally return the results."""
     self._assert_root_cfg_resolved()
 
-    prompts = [
-        kd.kontext.get_by_path(ex, self._task.out_input) for ex in self.examples
-    ]
+    sampler = _sampler.Sampler(
+        model=self.model,
+        params=state.params,
+        tokenizer=self._task.tokenizer,
+    )
 
-    # Extract the images input from the dataset.
-    if self.model.images is not None:
-      images = [
-          kd.kontext.get_by_path({'batch': ex}, self.model.images)
-          for ex in self.examples
-      ]
+    # TODO(epot): Better sharding, a few options:
+    #  1. Allow to customize the sharding to process examples
+    #  2. Or auto-detect the sharding to set to `FIRST_DIM` when possible.
+    #  3. Re-use sharding from `trainer.sharding.ds`
+    if self.ds.batch_size is None:
+      sharding = kd.sharding.REPLICATED
     else:
-      images = None
+      sharding = kd.sharding.FIRST_DIM
 
-    # TODO(epot): Supports batch_size for sampling.
-    # Evaluators are run within the `jax.transfer_guard('disallow')` for the
-    # train loop, so re-enable it here.
-    with jax.transfer_guard('allow'):
-      # TODO(epot): Which sharding for the images ?
-      images = kd.sharding.device_put(images, kd.sharding.REPLICATED)
-      sampler = _sampler.Sampler(
-          model=self.model,
-          params=state.params,
-          tokenizer=self._task.tokenizer,
-      )
-      samples = sampler.sample(
-          prompts,
-          images=images,
-          max_new_tokens=self.max_new_tokens,
-      )
+    # Default text summaries
+    summaries = {
+        # 'prompt': kd.summaries.ShowText(text=self._task.out_input),
+        # 'answer': kd.summaries.ShowText(text='pred.text'),
+    }
+    # if self._task.out_target:
+    #   summaries['gt'] = kd.summaries.ShowText(text=self._task.out_target)
 
-    # ======= Write outputs =======
-
+    # Accumulate metrics.
     aux = kd.train.Auxiliaries(
         losses=self.losses,
         metrics=self.metrics,
-        summaries=self.summaries,
+        summaries=summaries | self.summaries,
     )
     aux_state = kd.train.AuxiliariesState()
 
@@ -119,25 +112,28 @@ class SamplerEvaluator(kd.evals.EvaluatorBase):
     # Like `self.eval_path(step) / f'{self.name}_preds.txt'` or
     # `self.writer.path_for_step(step) ?`
     # TODO(epot): If that's the case, also create a XManager artifact ?
-    texts = {}
-    for i, (prompt, ex, sample) in enumerate(
-        zip(prompts, self.examples, samples)
-    ):
-      # TODO(epot): Should instead uses summaries.
-      # Text summaries
-      texts[f'prompt_{i}'] = prompt
-      texts[f'sample_{i}'] = sample
-      if self._task.out_target:
-        texts[f'gt_{i}'] = kd.kontext.get_by_path(ex, self._task.out_target)
 
-      # Images & other summaries
-      with jax.transfer_guard('allow'):
+    # Evaluators are run within the `jax.transfer_guard('disallow')` for the
+    # train loop, so re-enable it here.
+    with jax.transfer_guard('allow'):
+
+      for ex in self.ds_iter:
+        prompts, images = self._get_prompt_and_image_from_batch(ex)
+
+        images = kd.sharding.device_put(images, sharding)
+        out_text = sampler.sample(
+            prompts,
+            images=images,
+            max_new_tokens=self.max_new_tokens,
+            sharding=sharding,
+        )
+
         # TODO(epot): Should simplify the abstractions (i.e. merge
         # `update_context` & `get_aux_state`).
         ctx = kd.train.Context(
             step=step,
             batch=ex,
-            preds={'text': sample},
+            preds={'text': out_text},
         )
         ctx = aux.update_context(ctx)
         new_state = ctx.get_aux_state(
@@ -147,8 +143,9 @@ class SamplerEvaluator(kd.evals.EvaluatorBase):
         )
         aux_state |= new_state
 
+    # ======= Write outputs =======
+
     # Write the data to the writer.
-    self.writer.write_texts(step, texts)
     self.writer.write_step_metrics(
         step=step,
         aux=aux_state,
@@ -157,9 +154,16 @@ class SamplerEvaluator(kd.evals.EvaluatorBase):
     )
 
   @functools.cached_property
-  def examples(self) -> list[Any]:
-    """Extract the prompts from the dataset."""
-    return list(self.ds.take(self.num_examples))
+  def ds_iter(self) -> kd.data.IterableDataset:
+    """Iterate over the examples."""
+    ds_iter = self.ds
+    if self.num_batches is not None:
+      ds_iter = ds_iter.take(self.num_batches)
+    if self.cache:
+      if self.num_batches is None:
+        raise ValueError('Can only cache if num_batches is set.')
+      ds_iter = ds_iter.cache()
+    return ds_iter
 
   # TODO(epot): More flexible way to connect the dataset (e.g. eval-only
   # datasets). Supports custom `Seq2Seq` transforms,...
@@ -180,6 +184,18 @@ class SamplerEvaluator(kd.evals.EvaluatorBase):
         'Could not find a `Seq2SeqTask` transform in the dataset. This is'
         f' required by SamplerEvaluator. Dataset: {epy.pretty_repr(self.ds)}'
     )
+
+  def _get_prompt_and_image_from_batch(self, ex: Any) -> tuple[str, Any]:
+    """Returns the prompt and image from the example."""
+    # self._task.out_input == self.model.tokens
+    prompt = kd.kontext.get_by_path(ex, self._task.out_input)
+
+    # Extract the images input from the dataset.
+    if self.model.images is not None:
+      images = kd.kontext.get_by_path({'batch': ex}, self.model.images)
+    else:
+      images = None
+    return prompt, images
 
   @functools.cached_property
   def __dashboards__(self) -> kd.kdash.DashboardsBase:

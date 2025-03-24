@@ -106,7 +106,7 @@ def get_config():
           "sampling": gm.evals.SamplerEvaluator(
               run=kd.evals.EveryNSteps(1000),
               max_new_tokens=50,  # Sampling parameters
-              num_examples=3,
+              num_batches=3,
               ds=_make_dataset(training=False, sampling=True),
               summaries={
                   "image": kd.summaries.ShowImages(

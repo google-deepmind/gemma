@@ -88,7 +88,7 @@ def get_config():
           "sampling": gm.evals.SamplerEvaluator(
               run=kd.evals.EveryNSteps(1000),
               max_new_tokens=50,  # Sampling parameters
-              num_examples=1,  # Only predict a single example
+              num_batches=1,  # Only predict a single example (batch_size=None)
               ds=_make_dataset(training=False, sampling=True),
           ),
       },
