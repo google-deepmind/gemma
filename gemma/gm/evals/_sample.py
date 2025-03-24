@@ -94,11 +94,13 @@ class SamplerEvaluator(kd.evals.EvaluatorBase):
 
     # Default text summaries
     summaries = {
-        # 'prompt': kd.summaries.ShowText(text=self._task.out_input),
-        # 'answer': kd.summaries.ShowText(text='pred.text'),
+        'prompt': kd.summaries.ShowTexts(texts=f'batch.{self._task.out_input}'),
+        'answer': kd.summaries.ShowTexts(texts='preds.text'),
     }
-    # if self._task.out_target:
-    #   summaries['gt'] = kd.summaries.ShowText(text=self._task.out_target)
+    if self._task.out_target:
+      summaries['gt'] = kd.summaries.ShowTexts(
+          texts=f'batch.{self._task.out_target}'
+      )
 
     # Accumulate metrics.
     aux = kd.train.Auxiliaries(
