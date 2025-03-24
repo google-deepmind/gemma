@@ -35,7 +35,7 @@ dependencies = [
     "absl-py",
     "etils[edc,enp,epath,epy,etree]",
     "einops",
-    "grain",
+    "grain ; sys_platform != 'win32'",
     "jax",
     "jaxtyping",
     "kauldron",
