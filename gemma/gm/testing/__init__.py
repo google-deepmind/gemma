@@ -12,20 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Kauldron API for Gemma."""
+"""Testing utilities (dummy models, tokenizer,...)."""
 
-from etils import epy as _epy
+# pylint: disable=g-importing-member
 
-# pylint: disable=g-import-not-at-top
-
-with _epy.lazy_api_imports(globals()):
-  # API match the `kd` namespace.
-  from gemma.gm import ckpts
-  from gemma.gm import data
-  from gemma.gm import evals
-  from gemma.gm import losses
-  from gemma.gm import nn
-  from gemma.gm import text
-  from gemma.gm import sharding
-  from gemma.gm import testing
-  from gemma import peft
+from gemma.gm.testing._dummy_model import DummyGemma
+from gemma.gm.testing._dummy_tokenizer import DummyTokenizer
