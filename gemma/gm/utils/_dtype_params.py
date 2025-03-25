@@ -27,36 +27,49 @@ import jax
 _DType = jax.typing.DTypeLike
 
 
+@dataclasses.dataclass(frozen=True, kw_only=True)
+class _DTypeState:
+  dtype: _DType | None
+  exclude: list[str] | None
+
+
 @edc.dataclass
 @dataclasses.dataclass
-class _Context:
+class _Stack:
   """Context for the dtype stack."""
 
-  dtypes: edc.ContextVar[list[_DType | None]] = dataclasses.field(
+  stack: edc.ContextVar[list[_DTypeState]] = dataclasses.field(
       default_factory=list
   )
 
 
-_context = _Context()
+_dtypes_stack = _Stack()
 
 
 @contextlib.contextmanager
-def initialize_param_with_dtype(dtype: _DType | None) -> Iterator[None]:
+def initialize_param_with_dtype(
+    dtype: _DType | None,
+    *,
+    exclude: list[str] | None = None,
+) -> Iterator[None]:
   """Set the params dtype to the given value.
 
   Inside the contextmanager, `self.param()` will use the given dtype.
+  If nested, only the last contextmanager will be used.
 
   Args:
     dtype: The dtype to use.
+    exclude: List of module paths to exclude from the dtype conversion.
 
   Yields:
     None
   """
   try:
-    _context.dtypes.append(dtype)
+    state = _DTypeState(dtype=dtype, exclude=exclude)
+    _dtypes_stack.stack.append(state)
     yield
   finally:
-    _context.dtypes.pop()
+    _dtypes_stack.stack.pop()
 
 
 @functools.cache
@@ -73,23 +86,39 @@ def _mock_flax_module_param() -> None:
       dtype: _DType | None = None,
       **kwargs,
   ):
-    # TODO(epot): Check this do not break LoRA
-    if (
-        self.is_initializing()
-        and _context.dtypes
-        # LoRA modules provide the dtype as kwargs
-        and 'dtype' not in kwargs
-        # If `None` is provided, use the default dtype
-        and _context.dtypes[-1] is not None
-    ):
+    if _should_replace_dtype(module=self, stack=_dtypes_stack):
       del dtype  # The dtype is overwritten by the contextmanager
-      return param(
-          self, name, init_fn, shape, **kwargs, dtype=_context.dtypes[-1]
-      )
+      state = _dtypes_stack.stack[-1]
+      return param(self, name, init_fn, shape, **kwargs, dtype=state.dtype)
     else:
       return param(self, name, init_fn, shape, dtype, **kwargs)
 
   nn.Module.param = decorated
+
+
+def _should_replace_dtype(
+    *,
+    module: nn.Module,
+    stack: _Stack,
+) -> bool:
+  """Whether or not the dtype should be replaced."""
+  if not module.is_initializing() or not stack.stack:
+    return False
+  last_state = stack.stack[-1]
+  # If `None` is provided, use the default dtype
+  if last_state.dtype is None:
+    return False
+
+  # Eventually filter out some modules
+  if last_state.exclude is not None:
+    path = '.'.join(module.scope.path)
+    # Hack so matching `xxx` do not match `.xxx_yyy.`
+    path = f'.{path}.'
+    for p in last_state.exclude:
+      if f'.{p}.' in path:
+        return False
+
+  return True
 
 
 _mock_flax_module_param()
