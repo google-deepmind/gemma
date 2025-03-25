@@ -16,7 +16,6 @@
 
 from collections.abc import Iterator
 import contextlib
-import dataclasses
 import functools
 
 from etils import edc
@@ -27,17 +26,7 @@ import jax
 _DType = jax.typing.DTypeLike
 
 
-@edc.dataclass
-@dataclasses.dataclass
-class _Context:
-  """Context for the dtype stack."""
-
-  dtypes: edc.ContextVar[list[_DType | None]] = dataclasses.field(
-      default_factory=list
-  )
-
-
-_context = _Context()
+_dtypes_stack = edc.Stack[_DType | None]()
 
 
 @contextlib.contextmanager
@@ -53,10 +42,10 @@ def initialize_param_with_dtype(dtype: _DType | None) -> Iterator[None]:
     None
   """
   try:
-    _context.dtypes.append(dtype)
+    _dtypes_stack.append(dtype)
     yield
   finally:
-    _context.dtypes.pop()
+    _dtypes_stack.pop()
 
 
 @functools.cache
@@ -76,15 +65,15 @@ def _mock_flax_module_param() -> None:
     # TODO(epot): Check this do not break LoRA
     if (
         self.is_initializing()
-        and _context.dtypes
+        and _dtypes_stack
         # LoRA modules provide the dtype as kwargs
         and 'dtype' not in kwargs
         # If `None` is provided, use the default dtype
-        and _context.dtypes[-1] is not None
+        and _dtypes_stack[-1] is not None
     ):
       del dtype  # The dtype is overwritten by the contextmanager
       return param(
-          self, name, init_fn, shape, **kwargs, dtype=_context.dtypes[-1]
+          self, name, init_fn, shape, **kwargs, dtype=_dtypes_stack[-1]
       )
     else:
       return param(self, name, init_fn, shape, dtype, **kwargs)
