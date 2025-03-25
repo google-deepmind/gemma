@@ -174,7 +174,17 @@ class Transformer(transformer.Transformer):
     """
     return_last_only = self._get_return_last_only(return_last_only)
 
-    with _dtype_params.initialize_param_with_dtype(self.dtype):
+    with _dtype_params.initialize_param_with_dtype(
+        self.dtype,
+        exclude=[
+            # The multi-modal params are kept in float32.
+            'vision_encoder',
+            'embedder.mm_input_projection',
+            'embedder.mm_soft_embedding_norm',
+            # Skip the LoRA params
+            'lora',
+        ],
+    ):
 
       # Encode the text tokens, eventually including the vision embeddings.
       inputs = self._encode_and_get_inputs(
