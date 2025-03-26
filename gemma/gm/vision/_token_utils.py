@@ -78,7 +78,7 @@ def add_extra_tokens_for_images(
   # TODO(epot): This value should be propagated from the model.
   special_tokens = _tokenizer.Gemma3Tokenizer.special_tokens
 
-  # New tokens which will be insterted for each image.
+  # New tokens which will be inserted for each image.
   mm_tokens = [
       _DOUBLE_NEW_LINE_TOKEN,
       special_tokens.START_OF_IMAGE,
@@ -150,7 +150,7 @@ def _get_new_text_tokens(
     offset_by: int,
     length_with_mm: int,
 ) -> Int['B max_num_images num_tokens_per_image+4']:
-  # Jax vmap does not support positional argiments, so need the
+  # Jax vmap does not support positional arguments, so need the
   # _get_new_text_tokens_inner indirection.
   return jax.vmap(_get_new_text_tokens_inner, in_axes=(0, 0, None, None))(
       mm_start, text_tokens, offset_by, length_with_mm
