@@ -59,11 +59,11 @@ out1 = sampler.chat('What about the other image ?')
 
 Our documentation contains various Colabs and tutorials, including:
 
-* [Sampling](https://gemma-llm.readthedocs.io/en/latest/colab_sampling.html)
-* [Multi-modal](https://gemma-llm.readthedocs.io/en/latest/colab_multimodal.html)
-* [Fine-tuning](https://gemma-llm.readthedocs.io/en/latest/colab_finetuning.html)
-* [LoRA](https://gemma-llm.readthedocs.io/en/latest/colab_lora_sampling.html)
-* ...
+- [Sampling](https://gemma-llm.readthedocs.io/en/latest/colab_sampling.html)
+- [Multi-modal](https://gemma-llm.readthedocs.io/en/latest/colab_multimodal.html)
+- [Fine-tuning](https://gemma-llm.readthedocs.io/en/latest/colab_finetuning.html)
+- [LoRA](https://gemma-llm.readthedocs.io/en/latest/colab_lora_sampling.html)
+- ...
 
 Additionally, our
 [examples/](https://github.com/google-deepmind/gemma/tree/main/examples) folder
@@ -71,12 +71,12 @@ contain additional scripts to fine-tune and sample with Gemma.
 
 ### Learn more about Gemma
 
-* To use this library: [Gemma documentation](https://gemma-llm.readthedocs.io/)
-* Technical reports for metrics and model capabilities:
-  * [Gemma 1](https://goo.gle/GemmaReport)
-  * [Gemma 2](https://goo.gle/gemma2report)
-  * [Gemma 3](https://storage.googleapis.com/deepmind-media/gemma/Gemma3Report.pdf)
-* Other Gemma implementations and doc on the
+- To use this library: [Gemma documentation](https://gemma-llm.readthedocs.io/)
+- Technical reports for metrics and model capabilities:
+  - [Gemma 1](https://goo.gle/GemmaReport)
+  - [Gemma 2](https://goo.gle/gemma2report)
+  - [Gemma 3](https://storage.googleapis.com/deepmind-media/gemma/Gemma3Report.pdf)
+- Other Gemma implementations and doc on the
   [Gemma ecosystem](https://ai.google.dev/gemma/docs)
 
 ### Downloading the models
@@ -89,8 +89,16 @@ To download the model weights. See
 Gemma can run on a CPU, GPU and TPU. For GPU, we recommend 8GB+ RAM on GPU for
 The 2B checkpoint and 24GB+ RAM on GPU are used for the 7B checkpoint.
 
+### GPU Memory Requirements
+| Model Size | Precision | Minimum VRAM | Recommended VRAM |
+|------------|-----------|--------------|------------------|
+| Gemma 7B   | bf16      | 14GB         | 16GB             |
+| Gemma 7B   | int4      | 6GB          | 8GB              |
+| Gemma 12B  | bf16      | 24GB         | 32GB             |
+| Gemma 12B  | int4      | 10GB         | 12GB             |
+
 ### Contributing
 
 We welcome contributions! Please read our [Contributing Guidelines](./CONTRIBUTING.md) before submitting a pull request.
 
-*This is not an official Google product.*
+_This is not an official Google product._
