@@ -89,6 +89,14 @@ To download the model weights. See
 Gemma can run on a CPU, GPU and TPU. For GPU, we recommend 8GB+ RAM on GPU for
 The 2B checkpoint and 24GB+ RAM on GPU are used for the 7B checkpoint.
 
+### GPU Memory Requirements
+| Model Size | Precision | Minimum VRAM | Recommended VRAM |
+|------------|-----------|--------------|------------------|
+| Gemma 7B   | bf16      | 14GB         | 16GB             |
+| Gemma 7B   | int4      | 6GB          | 8GB              |
+| Gemma 12B  | bf16      | 24GB         | 32GB             |
+| Gemma 12B  | int4      | 10GB         | 12GB             |
+
 ### Contributing
 
 We welcome contributions! Please read our [Contributing Guidelines](./CONTRIBUTING.md) before submitting a pull request.
