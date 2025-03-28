@@ -25,25 +25,6 @@ class PositionalEmbeddingsTest(parameterized.TestCase):
 
   @parameterized.parameters(
       dict(
-          input_embedding_shape=(2, 1, 1, 6),
-          positions=[[1], [0]],
-          max_wavelength=100,
-          expected=[
-              [[[1.841471, 1.099833, 1.01, 1.540302, 1.995004, 1.99995]]],
-              [[[1.0, 1.0, 1.0, 2.0, 2.0, 2.0]]],
-          ],
-      )
-  )
-  def test_add_positional_embeddings(
-      self, input_embedding_shape, positions, max_wavelength, expected
-  ):
-    outputs = positional_embeddings.add_positional_embedding(
-        jnp.ones(input_embedding_shape), jnp.array(positions), max_wavelength
-    )
-    np.testing.assert_array_almost_equal(outputs, jnp.array(expected))
-
-  @parameterized.parameters(
-      dict(
           input_embedding_shape=(2, 1, 2, 4),
           positions=[[1], [0]],
           max_wavelength=100,
@@ -62,7 +43,7 @@ class PositionalEmbeddingsTest(parameterized.TestCase):
     outputs = positional_embeddings.apply_rope(
         jnp.ones(input_embedding_shape),
         jnp.array(positions),
-        max_wavelength,
+        base_frequency=max_wavelength,
     )
     np.testing.assert_array_almost_equal(outputs, jnp.array(expected))
 
