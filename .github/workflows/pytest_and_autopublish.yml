@@ -28,11 +28,13 @@ jobs:
     - run: pip freeze
 
     # Run tests (in parallel)
+    # * `/tests/` subfolder contains end-to-end tests which are to big to run.
     # * Sampler and transformer tests are disabled because they are using the legacy API.
     # TODO(epot): Restore _interceptors_test.
     - name: Run core tests
       run: |
         pytest -vv -n auto \
+          --ignore=gemma/gm/tests/ \
           --ignore=gemma/peft/_interceptors_test.py \
           --ignore=gemma/sampler_test.py \
           --ignore=gemma/transformer_test.py
