@@ -29,6 +29,7 @@ import flax
 from gemma import params as params_lib
 from gemma.gm.ckpts import _quantization
 import jax
+import jax.numpy as jnp
 from kauldron import kd
 import numpy as np
 from orbax import checkpoint as ocp
@@ -416,6 +417,30 @@ def _release_skip(tree, tree_with_skip) -> None:
 
 
 # ======================== Other utils ========================
+
+
+def release_cache_memory(cache):
+  """Explicitly releases memory used by the attention cache.
+
+  This function helps manage memory usage in long-running inference sessions by
+  releasing the memory used by KV cache when it's no longer needed.
+
+  Args:
+    cache: The attention KV cache from a transformer model.
+
+  Returns:
+    None
+  """
+  if cache is None:
+    return
+
+  for layer_name, layer_cache in cache.items():
+    if isinstance(layer_cache, dict):
+      for k, v in layer_cache.items():
+        if isinstance(v, (jax.Array, jnp.ndarray)) and v.size > 1000:
+          v.delete()
+
+  return None
 
 
 def release_memory(x):
