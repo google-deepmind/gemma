@@ -29,7 +29,9 @@ from gemma.gm.utils import _dtype_params
 from gemma.gm.utils import _jax_utils
 from gemma.gm.vision import _token_utils
 from gemma.multimodal import vision as gemma_vision
+import jax
 import jax.numpy as jnp
+from kauldron import kd
 from kauldron import kontext
 from kauldron.typing import Bool, Float, Int, UInt8, typechecked  # pylint: disable=g-multiple-import,g-importing-member
 
@@ -238,18 +240,30 @@ class Transformer(transformer.Transformer):
         hidden_states=x if return_hidden_states else None,
     )
 
+  @functools.partial(
+      jax.jit,
+      static_argnames=(
+          'self',
+          'batch_size',
+          'dtype',
+          'cache_length',
+          'sharding',
+      ),
+  )
   def init_cache(
       self,
       *,
       batch_size: int,
       dtype: jnp.dtype[Any],
       cache_length: int,
+      sharding: kd.sharding.ShardingTree | None = None,
   ) -> transformer.Cache:
-    return self.config.init_cache(
+    cache = self.config.init_cache(
         batch_size=batch_size,
         dtype=dtype,
         cache_length=cache_length,
     )
+    return kd.sharding.with_sharding_constraint(cache, sharding)
 
   @typechecked
   def _encode_and_get_inputs(

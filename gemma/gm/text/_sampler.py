@@ -265,9 +265,7 @@ class Sampler:
         prompt,
         add_bos=last_state is None,  # Only add BOS for the first turn.
     )
-    tokens = kd.sharding.with_sharding_constraint(
-        tokens, sharding
-    )
+    tokens = kd.sharding.with_sharding_constraint(tokens, sharding)
     images = _normalize_images(images, is_single_prompt=is_single_prompt)
 
     # Cache size in the pre-fill phase.
@@ -305,6 +303,7 @@ class Sampler:
           batch_size=len(tokens),
           dtype=self._dtype,
           cache_length=self.cache_length,
+          sharding=sharding,
       )
     else:
       # TODO(epot): Should check shape is compatible with `cache_length`.
