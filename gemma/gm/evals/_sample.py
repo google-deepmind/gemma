@@ -37,6 +37,9 @@ class SamplerEvaluator(kd.evals.EvaluatorBase):
   The evaluator expects as dataset containing a `Seq2SeqTask` transform.
 
   Attributes:
+    cache_length: Cache length to use. This is the maximum number of tokens the
+      conversation can have (prompts, answers, images for all turns). Setting
+      this to a fixed value avoids re-compilation between turns.
     max_new_tokens: Maximum number of new tokens to generate. In total, the
       model will process `input_length + max_new_tokens`.
     pad_length: Pad length for the input. This is useful to ensure the prompt is
@@ -54,6 +57,7 @@ class SamplerEvaluator(kd.evals.EvaluatorBase):
   """
 
   # Sampler parameters
+  cache_length: int = 4096
   max_new_tokens: int
   pad_length: int | None = None
 
@@ -85,6 +89,7 @@ class SamplerEvaluator(kd.evals.EvaluatorBase):
         model=self.model,
         params=state.params,
         tokenizer=self._task.tokenizer,
+        cache_length=self.cache_length,
         pad_length=self.pad_length,
     )
 
