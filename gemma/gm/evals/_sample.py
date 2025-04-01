@@ -29,6 +29,7 @@ import jax
 from kauldron import kd
 from kauldron.utils import config_util
 from kauldron.utils import immutabledict
+from kauldron.utils import utils
 
 
 class SamplerEvaluator(kd.evals.EvaluatorBase):
@@ -129,7 +130,7 @@ class SamplerEvaluator(kd.evals.EvaluatorBase):
     # train loop, so re-enable it here.
     with jax.transfer_guard('allow'):
 
-      for ex in self.ds_iter:
+      for _, ex in utils.enum_iter(self.ds_iter, desc=self.name):
         prompts, images = self._get_prompt_and_image_from_batch(ex)
 
         images = kd.sharding.device_put(images, sharding)
