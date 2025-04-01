@@ -39,6 +39,9 @@ class SamplerEvaluator(kd.evals.EvaluatorBase):
   Attributes:
     max_new_tokens: Maximum number of new tokens to generate. In total, the
       model will process `input_length + max_new_tokens`.
+    pad_length: Pad length for the input. This is useful to ensure the prompt is
+      always the same length during sampling, which can be helful to avoid
+      re-compilation.
     num_batches: Number of batches. If `None`, sample the entire dataset.
     ds: Dataset to evaluate on. Note that the dataset must be unbatched and
       contain raw `str` fields.
@@ -52,6 +55,7 @@ class SamplerEvaluator(kd.evals.EvaluatorBase):
 
   # Sampler parameters
   max_new_tokens: int
+  pad_length: int | None = None
 
   # Dataset parameters
   num_batches: Optional[int] = None
@@ -81,6 +85,7 @@ class SamplerEvaluator(kd.evals.EvaluatorBase):
         model=self.model,
         params=state.params,
         tokenizer=self._task.tokenizer,
+        pad_length=self.pad_length,
     )
 
     # TODO(epot): Better sharding, a few options:

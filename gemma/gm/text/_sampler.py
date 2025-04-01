@@ -33,7 +33,6 @@ import jax
 import jax.numpy as jnp
 from kauldron import kd
 from kauldron.typing import Array, Float, Int, PRNGKey, PRNGKeyLike, UInt8  # pylint: disable=g-multiple-import,g-importing-member
-
 import numpy as np
 
 
@@ -108,6 +107,9 @@ class Sampler:
     max_out_length: Length of the output buffer for a single turn. Static value
       used to avoid trigering a jit recompilation. Shouldn't be changed unless
       you have a task where the model generates really long outputs.
+    pad_length: If provided, pad the prompt to this length. This is useful to
+      ensure the prompt is always the same length during sampling, which can be
+      helful to avoid re-compilation.
   """
   # pylint: enable=g-docstring-quotes
 
@@ -121,6 +123,7 @@ class Sampler:
   # TODO(epot): Support and test rolling cache.
   cache_length: int = 4096
   max_out_length: int = 2048
+  pad_length: int | None = None
 
   def __post_init__(self):
     # If not provided, initialize the tokenizer.
@@ -245,11 +248,12 @@ class Sampler:
       last_state: When `return_state=True`, the state can be propagated across
         calls to the sampler, for multi-turn conversations. Use
         `gm.text.ChatSampler` for a simpler API which handles the state for you.
-      sharding: If provided, shard the tokens according to the
-        specified sharding. Users are responsible for ensuring the tokenized
-        prompt is compatible with the sharding. For example, if
+      sharding: If provided, shard the tokens according to the specified
+        sharding. Users are responsible for ensuring the tokenized prompt is
+        compatible with the sharding. For example, if
         `sharding=kd.sharding.FIRST_DIM`, the number of prompts must be
         divisible by the number of devices.
+
     Returns:
       The sampled output.
     '''
@@ -264,6 +268,7 @@ class Sampler:
     tokens, is_single_prompt = self._encode_prompts(
         prompt,
         add_bos=last_state is None,  # Only add BOS for the first turn.
+        pad_length=self.pad_length,
     )
     tokens = kd.sharding.with_sharding_constraint(tokens, sharding)
     images = _normalize_images(images, is_single_prompt=is_single_prompt)
@@ -359,12 +364,15 @@ class Sampler:
       prompt: str | Sequence[str],
       *,
       add_bos: bool,
+      pad_length: int | None = None,
   ) -> tuple[Float['B L'], bool]:
     """Encode the prompts."""
     prompt, is_single_prompt = _normalize_prompt(prompt)
     tokens = [self.tokenizer.encode(p, add_bos=add_bos) for p in prompt]
 
-    max_prompt_len = max(len(t) for t in tokens)
+    # Notice that if pad_length exceeds the maximum length of the prompts,
+    # an error will be raised by the `.pad` function below.
+    max_prompt_len = pad_length or max(len(t) for t in tokens)
 
     # Batch tokens together
     tokens = _functional.pad(tokens, max_length=max_prompt_len)
