@@ -68,9 +68,8 @@ def get_config():
       model=gm.nn.QLoRA(
           rank=rank,
           quant_method=_quantization_utils.QuantizationMethod.INT4,
-          model=gm.nn.Gemma3_4B(
+          model=gm.nn.Gemma3_1B(
               tokens="batch.input",
-              text_only=True,  # QLoRA currently doesn't support multimodal
           ),
       ),
       # Load the weights from the pretrained checkpoint
@@ -78,7 +77,7 @@ def get_config():
       # weights.
       init_transform=gm.ckpts.SkipLoRA(
           wrapped=gm.ckpts.LoadCheckpoint(
-              path=gm.ckpts.CheckpointPath.GEMMA3_4B_IT,
+              path=gm.ckpts.CheckpointPath.GEMMA3_1B_IT,
           )
       ),
       # Training
