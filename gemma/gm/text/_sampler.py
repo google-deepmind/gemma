@@ -14,7 +14,7 @@
 
 """Sampler for text."""
 
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 import dataclasses
 import functools
 import random as py_random
@@ -157,13 +157,14 @@ class Sampler:
       self,
       prompt: str,
       *,
-      images: UInt8['N? H W C'] | None = None,
+      images: UInt8['N? H W C'] | None = ...,
       max_new_tokens: int | None = ...,
+      stream: Literal[False] = ...,
       sampling: _sampling.SamplingMethod = ...,
       rng: PRNGKeyLike | None = ...,
       return_state: Literal[False] = ...,
       last_state: _sampler_call.SamplingState | None = ...,
-      sharding: kd.sharding.ShardingTree | None = None,
+      sharding: kd.sharding.ShardingTree | None = ...,
   ) -> str:
     ...
 
@@ -173,32 +174,53 @@ class Sampler:
       self,
       prompt: Sequence[str],
       *,
-      images: Sequence[UInt8['N H W C']] | None = None,
+      images: Sequence[UInt8['N H W C']] | None = ...,
       max_new_tokens: int | None = ...,
+      stream: Literal[False] = ...,
       sampling: _sampling.SamplingMethod = ...,
       rng: PRNGKeyLike | None = ...,
       return_state: Literal[False] = ...,
       last_state: _sampler_call.SamplingState | None = ...,
-      sharding: kd.sharding.ShardingTree | None = None,
+      sharding: kd.sharding.ShardingTree | None = ...,
   ) -> list[str]:
     ...
 
-  # `return_logits=True` returns detailed output (`... -> SamplerOutput`).
+  # `return_state=True` returns detailed output (`... -> SamplerOutput`).
   # Supports both batched (`list[str]`) and unbatched (`str`) inputs.
   @typing.overload
   def sample(
       self,
       prompt: str | Sequence[str],
       *,
-      images: UInt8['B? N? H W C'] | None = None,
+      images: UInt8['B? N? H W C'] | None = ...,
       max_new_tokens: int | None = ...,
+      stream: Literal[False] = ...,
       sampling: _sampling.SamplingMethod = ...,
       rng: PRNGKeyLike | None = ...,
       return_state: Literal[True] = ...,
       last_state: _sampler_call.SamplingState | None = ...,
-      sharding: kd.sharding.ShardingTree | None = None,
+      sharding: kd.sharding.ShardingTree | None = ...,
   ) -> SamplerOutput:
     ...
+
+  # TODO(epot): Re-activate this. Currently pytype is confused when adding
+  # this, so disabling it. It's ok, as it's mostly for Colab use.
+  # # Streaming version (`stream=True`), yields tokens as they get predicted.
+  # @typing.overload
+  # def sample(
+  #     self,
+  #     prompt: str | Sequence[str],
+  #     *,
+  #     images: UInt8['B? N? H W C'] | None = ...,
+  #     max_new_tokens: int = ...,
+  #     stream: Literal[True] = ...,
+  #     sampling: _sampling.SamplingMethod = ...,
+  #     rng: PRNGKeyLike | None = ...,
+  #     return_state: bool = ...,
+  #     last_state: _sampler_call.SamplingState | None = ...,
+  #     sharding: kd.sharding.ShardingTree | None = ...,
+  # ) -> Iterator[str | SamplerOutput]:
+  #   ...
 
   def sample(
       self,
@@ -206,6 +228,7 @@ class Sampler:
       *,
       images=None,
       max_new_tokens=None,
+      stream=False,
       sampling=None,
       rng=None,
       return_state=False,
@@ -239,6 +262,7 @@ class Sampler:
         the prompt.
       max_new_tokens: Maximum number of new tokens to generate. The transformer
         will process `input_length + max_new_tokens`.
+      stream: If `True`, yields tokens as they get predicted.
       sampling: Sampling method to use. If given, will override the default
         sampling method.
       rng: Seed to use for the sampling method. If `None`, a random seed is
@@ -272,6 +296,12 @@ class Sampler:
     )
     tokens = kd.sharding.with_sharding_constraint(tokens, sharding)
     images = _normalize_images(images, is_single_prompt=is_single_prompt)
+
+    if stream and not is_single_prompt:
+      raise ValueError(
+          'Streaming is not supported for batched prompts. Let us know if you'
+          ' need this feature.'
+      )
 
     # Cache size in the pre-fill phase.
     # Note that it includes the previous turns and MM tokens.
@@ -327,6 +357,7 @@ class Sampler:
         max_out_length=self.max_out_length,
         special_tokens=self.tokenizer.special_tokens,
     )
+
     state = sampler.sample(
         # Dynamic attributes. If the shape changes, will trigger a
         # recompilation.
@@ -338,26 +369,21 @@ class Sampler:
         max_new_tokens=jnp.asarray(max_new_tokens),
         init_cache_length=init_cache_length,
         rng=rng,
+        stream=stream,
     )
 
-    # TODO(epot): Check that the text ends with an exit token (i.e. the
-    # cache buffer hasn't been filled up).
-
-    # Decode the logits.
-    predicted_texts = [self.tokenizer.decode(t) for t in state.predicted_tokens]
-
-    # # Unbatch the single prompts.
-    if is_single_prompt:
-      (predicted_texts,) = predicted_texts
-
-    # Returns either text or detailed output.
-    if return_state:
-      return SamplerOutput(
-          text=predicted_texts,
-          state=state,
+    if stream:
+      return self._stream_decode_state(  # pytype: disable=bad-return-type
+          state,
+          return_state=return_state,
       )
     else:
-      return predicted_texts  # pytype: disable=bad-return-type
+      return self._decode_state(  # pytype: disable=bad-return-type
+          state,
+          predicted_tokens=state.predicted_tokens,
+          is_single_prompt=is_single_prompt,
+          return_state=return_state,
+      )
 
   def _encode_prompts(
       self,
@@ -378,6 +404,48 @@ class Sampler:
     tokens = _functional.pad(tokens, max_length=max_prompt_len)
     tokens = jnp.asarray(tokens)
     return tokens, is_single_prompt
+
+  def _decode_state(
+      self,
+      state: _sampler_call.SamplingState,
+      predicted_tokens: Int['B L'],
+      *,
+      is_single_prompt: bool,
+      return_state: bool,
+  ) -> str | list[str] | SamplerOutput:
+    """Decode the output state."""
+    # TODO(epot): Check that the text ends with an exit token (i.e. the
+    # cache buffer hasn't been filled up).
+
+    # Decode the logits.
+    predicted_texts = [self.tokenizer.decode(t) for t in predicted_tokens]
+
+    # # Unbatch the single prompts.
+    if is_single_prompt:
+      (predicted_texts,) = predicted_texts
+
+    # Returns either text or detailed output.
+    if return_state:
+      return SamplerOutput(
+          text=predicted_texts,
+          state=state,
+      )
+    else:
+      return predicted_texts  # pytype: disable=bad-return-type
+
+  def _stream_decode_state(
+      self,
+      state_iter: Iterator[_sampler_call.SamplingState],
+      *,
+      return_state: bool,
+  ):
+    for i, state in enumerate(state_iter):
+      yield self._decode_state(
+          state,
+          predicted_tokens=state.predicted_tokens[..., i],
+          is_single_prompt=True,
+          return_state=return_state,
+      )
 
   @functools.cached_property
   def _normalized_forbidden_tokens(self) -> tuple[int, ...] | None:

@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 import dataclasses
 import functools
 
@@ -124,7 +125,8 @@ class SamplerCall:
       max_new_tokens: Int[''],
       init_cache_length: int,
       rng: PRNGKey,
-  ) -> SamplingState:  # TODO(epot): Add type.
+      stream: bool = False,
+  ) -> SamplingState | Iterator[SamplingState]:
     """Sample the prompt."""
 
     # Pre-fill the KV cache and initial model input.
@@ -139,18 +141,12 @@ class SamplerCall:
     )
 
     # Sample autoregressively.
-    state = self._sample_loop(
+    sample_fn = self._stream_sample_loop if stream else self._sample_loop
+    state = sample_fn(
         params=params,
         state=init_state,
         max_new_tokens=max_new_tokens,
     )
-
-    # Mask out tokens predicted after the end tokens.
-    predicted_tokens = _mask_tokens_after_end_tokens(
-        state.predicted_tokens,
-        end_tokens=self.end_tokens,
-    )
-    state = dataclasses.replace(state, predicted_tokens=predicted_tokens)
 
     return state
 
@@ -252,6 +248,8 @@ class SamplerCall:
   ) -> SamplingState:
     """Internal sampling function (to be jitted)."""
 
+    # ******** Sampling Loop. ********
+
     step_fn = functools.partial(self._sample_step, params=params)
 
     def cond_fn(state: SamplingState):
@@ -259,7 +257,36 @@ class SamplerCall:
       # at least one of the samples is not done.
       return (state.step < max_new_tokens) & ~jnp.all(state.done)
 
-    return jax.lax.while_loop(cond_fn, step_fn, state)
+    state = jax.lax.while_loop(cond_fn, step_fn, state)
+
+    # ******** Post-processing after the loop. ********
+
+    # Mask out tokens predicted after the end tokens.
+    # TODO(epot): Could integrate this directly in the `_sample_step` function.
+    predicted_tokens = _mask_tokens_after_end_tokens(
+        state.predicted_tokens,
+        end_tokens=self.end_tokens,
+    )
+    state = dataclasses.replace(state, predicted_tokens=predicted_tokens)
+    return state
+
+  def _stream_sample_loop(
+      self,
+      *,
+      params: params_lib.Params,
+      state: SamplingState,
+      max_new_tokens: Int[''],
+  ) -> Iterator[SamplingState]:
+    """Streaming sampling function."""
+    # Sample autoregressively.
+    for _ in range(max_new_tokens):
+      state = self._sample_step(
+          params=params,
+          state=state,
+      )
+      yield state
+      if state.done[0].tolist():
+        break
 
   @functools.partial(jax.jit, static_argnames=('self',))
   @typechecked
