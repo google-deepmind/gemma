@@ -16,7 +16,7 @@
 
 import dataclasses
 import functools
-from typing import Any
+from typing import Any, Dict, Mapping, Optional
 
 from flax import linen as nn
 from flax.linen import dtypes as flax_dtypes
@@ -60,6 +60,23 @@ class QLoRA(nn.Module):
   @nn.compact
   def __call__(self, *args, **kwargs):
     """Calls the model with QLoRA applied to its weights."""
+    # Get RNG keys for evaluation safety
+    rngs = kwargs.get('rngs', None)
+    
+    # Create a dictionary of RNGs if it doesn't exist
+    if rngs is None:
+      # During application (evaluation), provide a deterministic RNG key
+      # This is used only for non-initialization paths in the QLoRA adapters
+      deterministic_rng = jax.random.PRNGKey(0)
+      rngs = {'params': deterministic_rng}
+      kwargs['rngs'] = rngs
+    elif 'params' not in rngs:
+      # Ensure params key exists
+      deterministic_rng = jax.random.PRNGKey(0)
+      rngs = dict(rngs)
+      rngs['params'] = deterministic_rng
+      kwargs['rngs'] = rngs
+      
     replace_module_fn = functools.partial(
         _replace_by_qlora,
         rank=self.rank,
@@ -186,6 +203,8 @@ class _QLoRAEinsum(nn.Module):
     # Add the LoRA adaptation
     # Use a consistent name for each adapter to ensure proper RNG key handling
     adapter_name = f'lora_{self.weight_name}'
+    
+    # Make sure the adapter gets proper RNG handling
     adapter = peft.QLoRAEinsumAdapter(
         name=adapter_name,
         rank=self.rank,
