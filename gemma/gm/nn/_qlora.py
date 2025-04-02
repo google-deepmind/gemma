@@ -166,7 +166,11 @@ class _QLoRAEinsum(nn.Module):
   @nn.compact
   def __call__(self, eqn: str, x: jax.Array) -> jax.Array:
     eqn = self.process_einsum_str(eqn)
-    kernel = self.param(self.weight_name, self.wrapped.kernel_init, self.shape)
+    kernel = self.param(
+        self.weight_name,
+        self.wrapped.initializer if hasattr(self.wrapped, 'initializer') else nn.initializers.normal(),
+        self.shape,
+    )
     x, kernel, _ = flax_dtypes.promote_dtype(x, kernel, None, dtype=x.dtype)
 
     # Quantize the kernel
@@ -180,8 +184,10 @@ class _QLoRAEinsum(nn.Module):
     y = jnp.einsum(eqn, x, kernel)
 
     # Add the LoRA adaptation
+    # Use a unique name for each adapter to avoid name collision errors
+    adapter_name = f'lora_{self.weight_name}'
     adapter = peft.QLoRAEinsumAdapter(
-        name='lora',
+        name=adapter_name,
         rank=self.rank,
         einsum_str=eqn,
         shape=self.shape,

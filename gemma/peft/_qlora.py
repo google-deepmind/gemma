@@ -105,8 +105,10 @@ class QLoRADense(nn.Module):
       y += b
 
     # Add the LoRA adaptation
+    # Use a unique name for the adapter based on the input shape to avoid name collisions
+    adapter_name = f'lora_dense_{hash(str(inputs.shape))}_{id(self)}'
     adapter = QLoRADenseAdapter(
-        name='lora',
+        name=adapter_name,
         rank=self.rank,
         features=self.wrapped.features,
         dtype=self.dtype,
@@ -228,8 +230,10 @@ class QLoRAEinsum(nn.Module):
       y += bias
 
     # Add the LoRA adaptation
+    # Use a unique name for the adapter based on the input shape to avoid name collisions
+    adapter_name = f'lora_{hash(str(inputs.shape))}_{id(self)}'
     adapter = QLoRAEinsumAdapter(
-        name='lora',
+        name=adapter_name,
         rank=self.rank,
         einsum_str=einsum_str,
         shape=self.wrapped.shape,
