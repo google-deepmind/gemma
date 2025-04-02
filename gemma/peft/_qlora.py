@@ -45,11 +45,15 @@ class QLoRADenseAdapter(nn.Module):
 
   @nn.compact
   def __call__(self, inputs: Array) -> Array:
+    # Use unique parameter names to avoid RNG collisions
+    a_name = f'a_{id(self)}'
+    b_name = f'b_{id(self)}'
+    
     a = self.param(  # pytype: disable=wrong-keyword-args
-        'a', self.a_init, (inputs.shape[-1], self.rank), dtype=self.dtype
+        a_name, self.a_init, (inputs.shape[-1], self.rank), dtype=self.dtype
     )
     b = self.param(  # pytype: disable=wrong-keyword-args
-        'b', self.b_init, (self.rank, self.features), dtype=self.dtype
+        b_name, self.b_init, (self.rank, self.features), dtype=self.dtype
     )
     return inputs @ a @ b
 
@@ -146,8 +150,13 @@ class QLoRAEinsumAdapter(nn.Module):
     (lora_einsum_str, a_shape, b_shape) = out
 
     self._lora_einsum_str = lora_einsum_str
-    self._a = self.param('a', self.a_init, a_shape, dtype=self.dtype)  # pytype: disable=wrong-keyword-args
-    self._b = self.param('b', self.b_init, b_shape, dtype=self.dtype)  # pytype: disable=wrong-keyword-args
+    
+    # Use unique parameter names to avoid RNG collisions
+    a_name = f'a_{id(self)}'
+    b_name = f'b_{id(self)}'
+    
+    self._a = self.param(a_name, self.a_init, a_shape, dtype=self.dtype)  # pytype: disable=wrong-keyword-args
+    self._b = self.param(b_name, self.b_init, b_shape, dtype=self.dtype)  # pytype: disable=wrong-keyword-args
 
   def __call__(self, inputs: Array) -> Array:
     return jnp.einsum(self._lora_einsum_str, inputs, self._a, self._b)
