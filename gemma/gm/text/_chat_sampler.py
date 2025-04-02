@@ -14,7 +14,7 @@
 
 """Chat sampler."""
 
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 import dataclasses
 import functools
 
@@ -57,6 +57,7 @@ class ChatSampler:
     model: Gemma transformer model.
     params: Model parameters.
     multi_turn: If `True`, reuse the previous turns as context.
+    print_stream: If `True`, will print the sampled output as it is generated.
     tokenizer: Tokenizer.
     sampling: Sampling method to use. Default to greedy sampling.
     forbidden_tokens: List of tokens that are forbidden to be generated. If
@@ -77,6 +78,7 @@ class ChatSampler:
   model: _transformer.Transformer
   params: params_lib.Params = dataclasses.field(repr=False)
   multi_turn: bool = False
+  print_stream: bool = False
   tokenizer: _tokenizer.Tokenizer = None  # pytype: disable=annotation-type-mismatch
   sampling: _sampling.SamplingMethod = dataclasses.field(
       default_factory=_sampling.Greedy
@@ -129,6 +131,7 @@ class ChatSampler:
       rng: PRNGKeyLike | None = None,
       max_new_tokens: int | None = None,
       multi_turn: bool | None = None,
+      print_stream: bool | None = None,
   ) -> str:
     # pylint: disable=g-docstring-quotes
     '''Samples a string from the model.
@@ -161,12 +164,16 @@ class ChatSampler:
         filled.
       multi_turn: If `True`, reuse the previous turns as context. Overrites the
         `multi_turn` attribute.
+      print_stream: If `True`, will print the sampled output as it is generated.
+        Overrites the `multi_turn` attribute.
 
     Returns:
       The sampled output.
     '''
     if multi_turn is None:
       multi_turn = self.multi_turn
+    if print_stream is None:
+      print_stream = self.print_stream
 
     # Save the prompt (before formatting!).
     unformatted_prompt = prompt
@@ -186,7 +193,7 @@ class ChatSampler:
           'Multi-turn with images on the second turn is not supported yet.'
       )
 
-    out = self.sampler.sample(
+    out = self.sampler.sample(  # pytype: disable=wrong-arg-types
         prompt,
         images=images,
         sampling=sampling,
@@ -194,10 +201,16 @@ class ChatSampler:
         rng=rng,
         return_state=True,
         last_state=self.last_state,
+        stream=print_stream,
     )
 
+    # In streaming mode, the output is an iterator, yielding tokens one at a
+    # time.
+    if print_stream:
+      out = _print_stream(out)
+    assert isinstance(out, _sampler.SamplerOutput)  # For pytype.
     assert isinstance(out.text, str)  # For pytype.
-    model_output = out.text.removesuffix('<end_of_turn>')
+    model_output = out.text.removesuffix('<end_of_turn>')  # pytype: disable=attribute-error
 
     # Save the turns (after un-formatting).
     # Only save the user turn after the sampling has successfully finished.
@@ -205,3 +218,17 @@ class ChatSampler:
     self.turns.append(_template.ModelTurn(model_output))
     object.__setattr__(self, 'last_state', out.state)
     return model_output
+
+
+def _print_stream(
+    out: Iterator[_sampler.SamplerOutput],
+) -> _sampler.SamplerOutput:
+  """Prints the streaming output."""
+  text_tokens = []
+  for state in out:
+    text_tokens.append(state.text)
+    if state.text == '<end_of_turn>':  # Last token is not printed.
+      continue
+    print(state.text, end='', flush=True)
+  out = dataclasses.replace(state, text=''.join(text_tokens))  # pylint: disable=undefined-variable,undefined-loop-variable
+  return out
