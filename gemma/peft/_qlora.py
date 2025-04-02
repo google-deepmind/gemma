@@ -45,20 +45,12 @@ class QLoRADenseAdapter(nn.Module):
 
   @nn.compact
   def __call__(self, inputs: Array) -> Array:
-    # Create adapter parameters within the lora namespace for proper RNG handling
-    # and to ensure they're recognized as LoRA params by split_params
-    lora = self.param(
-        'lora',
-        lambda _: {},
-        None,
-    )
-    
-    # Use standard parameter names that will be detected by split_params
+    # Use standard parameter names 'a' and 'b' that match the original LoRA implementation
     a = self.param(  # pytype: disable=wrong-keyword-args
-        'lora_a', self.a_init, (inputs.shape[-1], self.rank), dtype=self.dtype
+        'a', self.a_init, (inputs.shape[-1], self.rank), dtype=self.dtype
     )
     b = self.param(  # pytype: disable=wrong-keyword-args
-        'lora_b', self.b_init, (self.rank, self.features), dtype=self.dtype
+        'b', self.b_init, (self.rank, self.features), dtype=self.dtype
     )
     return inputs @ a @ b
 
@@ -156,23 +148,16 @@ class QLoRAEinsumAdapter(nn.Module):
 
     self._lora_einsum_str = lora_einsum_str
     
-    # Create adapter parameters within the lora namespace to ensure they're
-    # recognized as LoRA params and to have proper RNG handling
-    lora = self.param(
-        'lora',
-        lambda _: {},
-        None,
-    )
-    
-    # Standard 'a' and 'b' param names are expected by split_params
+    # Use standard 'a' and 'b' param names expected by split_params
+    # This matches the approach in the original LoRAEinsumAdapter
     self._a = self.param(
-        'lora_a', 
+        'a', 
         self.a_init, 
         a_shape, 
         dtype=self.dtype
     )
     self._b = self.param(
-        'lora_b', 
+        'b', 
         self.b_init, 
         b_shape, 
         dtype=self.dtype
