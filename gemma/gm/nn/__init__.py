@@ -37,6 +37,7 @@ with _epy.lazy_api_imports(globals()):
   # Wrapper (LoRA, quantization, DPO,...)
   # ****************************************************************************
   from gemma.gm.nn._lora import LoRA
+  from gemma.gm.nn._qlora import QLoRA
   from gemma.gm.nn._quantization import QuantizationAwareWrapper
   from gemma.gm.nn._quantization import IntWrapper
   from gemma.gm.nn._policy import AnchoredPolicy
