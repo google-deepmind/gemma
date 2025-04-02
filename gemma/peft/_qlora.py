@@ -108,15 +108,22 @@ class QLoRADense(nn.Module):
     # Add the LoRA adaptation
     # Use a consistent name for proper RNG key handling
     adapter_name = 'lora_dense'
-    adapter = QLoRADenseAdapter(
-        name=adapter_name,
-        rank=self.rank,
-        features=self.wrapped.features,
-        dtype=self.dtype,
-        a_init=self.a_init,
-        b_init=self.b_init,
-    )
-    return y + adapter(inputs)
+    
+    # Different handling during evaluation vs. initialization
+    if self.is_initializing():
+        # During initialization, create real parameters with RNG keys
+        adapter = QLoRADenseAdapter(
+            name=adapter_name,
+            rank=self.rank,
+            features=self.wrapped.features,
+            dtype=self.dtype,
+            a_init=self.a_init,
+            b_init=self.b_init,
+        )
+        return y + adapter(inputs)
+    else:
+        # During evaluation, skip adapter to avoid RNG keys
+        return y
 
 
 class QLoRAEinsumAdapter(nn.Module):

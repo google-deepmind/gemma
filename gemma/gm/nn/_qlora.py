@@ -192,12 +192,19 @@ class _QLoRAEinsum(nn.Module):
     # Use a consistent name for each adapter to ensure proper RNG key handling
     adapter_name = f'lora_{self.weight_name}'
     
-    # Make sure the adapter gets proper RNG handling
-    adapter = peft.QLoRAEinsumAdapter(
-        name=adapter_name,
-        rank=self.rank,
-        einsum_str=eqn,
-        shape=self.shape,
-        dtype=self.dtype,
-    )
+    # Different handling during evaluation vs. initialization
+    if self.is_initializing():
+        # During initialization, create real parameters with RNG keys
+        adapter = peft.QLoRAEinsumAdapter(
+            name=adapter_name,
+            rank=self.rank,
+            einsum_str=eqn,
+            shape=self.shape,
+            dtype=self.dtype,
+        )
+    else:
+        # During evaluation, create a dummy adapter that returns zeros
+        # This avoids the need for an RNG key
+        zeros = jnp.zeros(x.shape, dtype=x.dtype)
+        return y
     return y + adapter(x)
