@@ -184,7 +184,7 @@ class _QLoRAEinsum(nn.Module):
     y = jnp.einsum(eqn, x, kernel)
 
     # Add the LoRA adaptation
-    # Use a unique name for each adapter to avoid name collision errors
+    # Use a consistent name for each adapter to ensure proper RNG key handling
     adapter_name = f'lora_{self.weight_name}'
     adapter = peft.QLoRAEinsumAdapter(
         name=adapter_name,

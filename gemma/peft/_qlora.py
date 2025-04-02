@@ -45,15 +45,20 @@ class QLoRADenseAdapter(nn.Module):
 
   @nn.compact
   def __call__(self, inputs: Array) -> Array:
-    # Use unique parameter names to avoid RNG collisions
-    a_name = f'a_{id(self)}'
-    b_name = f'b_{id(self)}'
+    # Create adapter parameters within the lora namespace for proper RNG handling
+    # and to ensure they're recognized as LoRA params by split_params
+    lora = self.param(
+        'lora',
+        lambda _: {},
+        None,
+    )
     
+    # Use standard parameter names that will be detected by split_params
     a = self.param(  # pytype: disable=wrong-keyword-args
-        a_name, self.a_init, (inputs.shape[-1], self.rank), dtype=self.dtype
+        'lora_a', self.a_init, (inputs.shape[-1], self.rank), dtype=self.dtype
     )
     b = self.param(  # pytype: disable=wrong-keyword-args
-        b_name, self.b_init, (self.rank, self.features), dtype=self.dtype
+        'lora_b', self.b_init, (self.rank, self.features), dtype=self.dtype
     )
     return inputs @ a @ b
 
@@ -109,8 +114,8 @@ class QLoRADense(nn.Module):
       y += b
 
     # Add the LoRA adaptation
-    # Use a unique name for the adapter based on the input shape to avoid name collisions
-    adapter_name = f'lora_dense_{hash(str(inputs.shape))}_{id(self)}'
+    # Use a consistent name for proper RNG key handling
+    adapter_name = 'lora_dense'
     adapter = QLoRADenseAdapter(
         name=adapter_name,
         rank=self.rank,
@@ -151,12 +156,27 @@ class QLoRAEinsumAdapter(nn.Module):
 
     self._lora_einsum_str = lora_einsum_str
     
-    # Use unique parameter names to avoid RNG collisions
-    a_name = f'a_{id(self)}'
-    b_name = f'b_{id(self)}'
+    # Create adapter parameters within the lora namespace to ensure they're
+    # recognized as LoRA params and to have proper RNG handling
+    lora = self.param(
+        'lora',
+        lambda _: {},
+        None,
+    )
     
-    self._a = self.param(a_name, self.a_init, a_shape, dtype=self.dtype)  # pytype: disable=wrong-keyword-args
-    self._b = self.param(b_name, self.b_init, b_shape, dtype=self.dtype)  # pytype: disable=wrong-keyword-args
+    # Standard 'a' and 'b' param names are expected by split_params
+    self._a = self.param(
+        'lora_a', 
+        self.a_init, 
+        a_shape, 
+        dtype=self.dtype
+    )
+    self._b = self.param(
+        'lora_b', 
+        self.b_init, 
+        b_shape, 
+        dtype=self.dtype
+    )
 
   def __call__(self, inputs: Array) -> Array:
     return jnp.einsum(self._lora_einsum_str, inputs, self._a, self._b)
@@ -239,8 +259,8 @@ class QLoRAEinsum(nn.Module):
       y += bias
 
     # Add the LoRA adaptation
-    # Use a unique name for the adapter based on the input shape to avoid name collisions
-    adapter_name = f'lora_{hash(str(inputs.shape))}_{id(self)}'
+    # Use a consistent name for proper RNG key handling
+    adapter_name = 'lora_einsum'
     adapter = QLoRAEinsumAdapter(
         name=adapter_name,
         rank=self.rank,
