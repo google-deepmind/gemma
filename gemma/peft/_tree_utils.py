@@ -83,8 +83,14 @@ def split_params(params: _ParamsDict) -> SplittedParams:
           original_subtree[key] = {}
           lora_subtree[key] = {}
           _split_recursive(value, original_subtree[key], lora_subtree[key])
-      elif key != 'lora':
+      # Handle both standard 'lora' key and QLoRA unique parameter names
+      elif key != 'lora' and not (key.startswith('a_') or key.startswith('b_')):
         original_subtree[key] = value
+      # Put QLoRA unique parameter names in the lora tree
+      elif key.startswith('a_') or key.startswith('b_'):
+        if 'lora' not in lora_subtree:
+          lora_subtree['lora'] = {}
+        lora_subtree['lora'][key] = value
 
   _split_recursive(params, original_tree, lora_tree)
 
