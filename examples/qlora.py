@@ -12,10 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Example of using QLoRA (Quantized Low-Rank Adaptation) for fine-tuning Gemma.
+"""Example of using QLoRA (Quantized Low-Rank Adaptation) for fine-tuning Gemma 3.
 
 QLoRA is a technique that combines quantized weights with Low-Rank Adapters
 to enable parameter-efficient fine-tuning of large language models.
+This example demonstrates QLoRA with Gemma 3 models (4B and 12B).
 
 References:
   QLoRA: Efficient Finetuning of Quantized LLMs
@@ -36,6 +37,7 @@ from gemma.gm import ckpts as ckpt_lib
 from gemma.gm import nn as gm_nn
 from gemma.gm import text as gm_text
 from gemma.gm.data import _tasks as tasks
+from gemma.peft import _quantization_utils
 from gemma.peft import _tree_utils
 import jax
 from jax import numpy as jnp
@@ -44,10 +46,9 @@ import optax
 _CKPT_PATH = flags.DEFINE_string(
     "ckpt_path", None, "Path to checkpoint, relative to dir."
 )
-_TOKENIZER_PATH = flags.DEFINE_string("tokenizer_path", None, "Path to tokenizer.")
 _OUTPUT_DIR = flags.DEFINE_string("output_dir", None, "Directory to save outputs.")
 _MODEL_SIZE = flags.DEFINE_string(
-    "model_size", "2b", "Size of model to load. Options: 2b, 9b."
+    "model_size", "4b", "Size of model to load. Options: 4b, 12b."
 )
 _LEARNING_RATE = flags.DEFINE_float(
     "learning_rate", 1e-4, "Learning rate for fine-tuning."
@@ -61,24 +62,24 @@ _SAVE_STEPS = flags.DEFINE_integer("save_steps", 100, "Save checkpoint every N s
 
 def create_model_and_tokenizer():
   """Initializes model, QLoRA wrapper, and tokenizer."""
-  tokenizer = gm_text.Tokenizer.from_file(_TOKENIZER_PATH.value)
+  tokenizer = gm_text.Gemma3Tokenizer()
 
   # Initialize model based on size
-  if _MODEL_SIZE.value == "2b":
-    model_cls = gm_nn.Gemma2_2B
-  elif _MODEL_SIZE.value == "9b":
-    model_cls = gm_nn.Gemma2_9B
+  if _MODEL_SIZE.value == "4b":
+    model_cls = gm_nn.Gemma3_4B
+  elif _MODEL_SIZE.value == "12b":
+    model_cls = gm_nn.Gemma3_12B
   else:
     raise ValueError(f"Invalid model size: {_MODEL_SIZE.value}")
 
-  # Initialize the base model
-  base_model = model_cls()
+  # Initialize the base model with text_only=True since we're not using vision capabilities
+  base_model = model_cls(text_only=True)
   
   # Wrap with QLoRA
   model = gm_nn.QLoRA(
       model=base_model,
       rank=_RANK.value,
-      quant_method="INT4",
+      quant_method=_quantization_utils.QuantizationMethod.INT4,
   )
 
   # Load the checkpoint
@@ -238,8 +239,8 @@ def main(argv: Sequence[str]) -> None:
   steps_per_epoch = len(dataset) // _BATCH_SIZE.value
   total_steps = steps_per_epoch * _EPOCHS.value
   
-  logging.info("Starting QLoRA fine-tuning")
-  logging.info(f"Model: {_MODEL_SIZE.value}, Rank: {_RANK.value}")
+  logging.info("Starting QLoRA fine-tuning for Gemma 3")
+  logging.info(f"Model: Gemma 3 {_MODEL_SIZE.value}, Rank: {_RANK.value}")
   logging.info(f"Total steps: {total_steps}, Steps per epoch: {steps_per_epoch}")
   
   for step in range(total_steps):

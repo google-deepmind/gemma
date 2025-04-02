@@ -214,7 +214,7 @@ class QLoRAEinsum(nn.Module):
         kernel,
         self.quant_method,
         axis_to_reduce=_quantization.get_axis_to_reduce_from_einsum_str(
-            einsum_str=self.wrapped.name
+            einsum_str=einsum_str
         ),
     )
 
