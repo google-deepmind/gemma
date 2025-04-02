@@ -60,22 +60,10 @@ class QLoRA(nn.Module):
   @nn.compact
   def __call__(self, *args, **kwargs):
     """Calls the model with QLoRA applied to its weights."""
-    # Get RNG keys for evaluation safety
-    rngs = kwargs.get('rngs', None)
-    
-    # Create a dictionary of RNGs if it doesn't exist
-    if rngs is None:
-      # During application (evaluation), provide a deterministic RNG key
-      # This is used only for non-initialization paths in the QLoRA adapters
-      deterministic_rng = jax.random.PRNGKey(0)
-      rngs = {'params': deterministic_rng}
-      kwargs['rngs'] = rngs
-    elif 'params' not in rngs:
-      # Ensure params key exists
-      deterministic_rng = jax.random.PRNGKey(0)
-      rngs = dict(rngs)
-      rngs['params'] = deterministic_rng
-      kwargs['rngs'] = rngs
+    # Store a reference to the deterministic RNG key in the module's scope
+    # This makes it available to the adapters without modifying function arguments
+    if not self.has_variable('qlora_rng', 'params_key'):
+      self.variable('qlora_rng', 'params_key', lambda: jax.random.PRNGKey(0))
       
     replace_module_fn = functools.partial(
         _replace_by_qlora,
