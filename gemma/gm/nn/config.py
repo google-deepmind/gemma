@@ -14,11 +14,14 @@
 
 """Symbols needed to build new `TransformerConfig`."""
 
-# pylint: disable=g-importing-member,unused-import
+# pylint: disable=g-importing-member,unused-import,g-import-not-at-top
 
-from gemma.gm.nn._transformer import ModelInfo
-from gemma.modules import AttentionType
-from gemma.transformer import GEMMA3_ATTENTION_PATTERN
-from gemma.transformer import make_attention_layers_types
-from gemma.transformer import QueryPreAttentionNormalisation
-from gemma.transformer import TransformerConfig
+from etils import epy as _epy
+
+with _epy.lazy_api_imports(globals()):
+  from gemma.gm.nn._transformer import ModelInfo
+  from gemma.modules import AttentionType
+  from gemma.transformer import GEMMA3_ATTENTION_PATTERN
+  from gemma.transformer import make_attention_layers_types
+  from gemma.transformer import QueryPreAttentionNormalisation
+  from gemma.transformer import TransformerConfig
