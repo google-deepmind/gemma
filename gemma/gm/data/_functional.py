@@ -78,7 +78,8 @@ def _pad(
   if not truncate and seq_length > max_length:
     raise ValueError(
         f"Cannot pad sequence of length {seq_length}. Is longer than the"
-        f" max length {max_length}. Set `truncate=True`."
+        f" max length {max_length}. Set `truncate=True` to truncate the sequence or"
+        f" increase max_length to at least {seq_length}."
     )
   sentence_tokens = element[..., :max_length]
 

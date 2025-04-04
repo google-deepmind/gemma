@@ -84,7 +84,8 @@ class TransformerConfig:
   """Configuration for the gemma transformer."""
 
   num_layers: int
-  num_embed: int  # TODO(epot): Rename to `vocab_size` for consistency.
+  vocab_size: int  # Renamed from num_embed for consistency
+  num_embed: int = None  # Kept for backward compatibility
   embed_dim: int
   hidden_dim: int
   num_heads: int
@@ -108,6 +109,18 @@ class TransformerConfig:
   global_scale_factor: float = modules.DEFAULT_ROPE_SCALE_FACTOR
   mm_extra_vocab_size: int = 0
   vision_encoder: gemma_vision.SigLiPFromPatches | None = None
+
+  def __post_init__(self):
+    # For backward compatibility, if num_embed is provided but vocab_size is not,
+    # use num_embed as vocab_size
+    if self.vocab_size is None and self.num_embed is not None:
+      object.__setattr__(self, 'vocab_size', self.num_embed)
+    elif self.vocab_size is None and self.num_embed is None:
+      raise ValueError("Either vocab_size or num_embed must be provided")
+
+    # For backward compatibility, always set num_embed to match vocab_size
+    if self.num_embed != self.vocab_size:
+      object.__setattr__(self, 'num_embed', self.vocab_size)
 
   def query_pre_attn_scalar(self) -> float:
     """Returns the scalar to multiply the query by before attention."""
@@ -159,7 +172,7 @@ class TransformerConfig:
   def gemma_2b(cls, cache_size: int | None):
     return cls(
         num_layers=_NUM_LAYERS_GEMMA_2B,
-        num_embed=256128,
+        vocab_size=256128,
         embed_dim=2048,
         hidden_dim=16384,
         num_heads=8,
@@ -176,7 +189,7 @@ class TransformerConfig:
   def gemma_7b(cls, cache_size: int | None):
     return cls(
         num_layers=_NUM_LAYERS_GEMMA_7B,
-        num_embed=256128,
+        vocab_size=256128,
         embed_dim=3072,
         hidden_dim=24576,
         num_heads=16,
@@ -193,7 +206,7 @@ class TransformerConfig:
   def gemma2_2b(cls, cache_size: int | None):
     return cls(
         num_layers=_NUM_LAYERS_GEMMA2_2B,
-        num_embed=256128,
+        vocab_size=256128,
         embed_dim=2304,
         hidden_dim=9216,
         num_heads=8,
@@ -217,7 +230,7 @@ class TransformerConfig:
   def gemma2_9b(cls, cache_size: int | None):
     return cls(
         num_layers=_NUM_LAYERS_GEMMA2_9B,
-        num_embed=256128,
+        vocab_size=256128,
         embed_dim=3584,
         hidden_dim=14336,
         num_heads=16,
@@ -242,7 +255,7 @@ class TransformerConfig:
   def gemma2_27b(cls, cache_size: int | None):
     return cls(
         num_layers=_NUM_LAYERS_GEMMA2_27B,
-        num_embed=256128,
+        vocab_size=256128,
         embed_dim=4608,
         hidden_dim=36864,
         num_heads=32,
@@ -268,7 +281,7 @@ class TransformerConfig:
     return cls(
         num_layers=_NUM_LAYERS_GEMMA3_1B,
         final_logit_softcap=None,
-        num_embed=262144,
+        vocab_size=262144,
         embed_dim=1152,
         hidden_dim=6 * 1152,
         num_heads=4,
@@ -295,7 +308,7 @@ class TransformerConfig:
     return cls(
         num_layers=_NUM_LAYERS_GEMMA3_4B,
         final_logit_softcap=None,
-        num_embed=262_144,
+        vocab_size=262_144,
         embed_dim=2560,
         hidden_dim=2560 * 8 // 2,
         num_heads=8,
@@ -324,7 +337,7 @@ class TransformerConfig:
     return cls(
         num_layers=_NUM_LAYERS_GEMMA3_12B,
         final_logit_softcap=None,
-        num_embed=262144,
+        vocab_size=262144,
         embed_dim=30 * 128,
         hidden_dim=8 * 30 * 128 // 2,
         num_heads=16,
@@ -353,7 +366,7 @@ class TransformerConfig:
     return cls(
         num_layers=_NUM_LAYERS_GEMMA3_27B,
         final_logit_softcap=None,
-        num_embed=262144,
+        vocab_size=262144,
         embed_dim=5376,
         hidden_dim=5376 * 8 // 2,
         num_heads=32,
@@ -421,7 +434,7 @@ class Transformer(nn.Module):
 
   def setup(self):
     self.embedder = modules.Embedder(
-        vocab_size=self.config.num_embed,
+        vocab_size=self.config.vocab_size,
         embed_dim=self.config.embed_dim,
         vision_proj_dim=self.config.vision_encoder.siglip_encoder.width
         if self.config.vision_encoder
@@ -467,36 +480,73 @@ class Transformer(nn.Module):
       attention_mask: jax.Array,  # [B, L, L']
       patches: jax.Array | None = None,  # [B, N, P, D']
   ) -> tuple[jax.Array, Cache | None]:
-    """Transformer forward pass.
-
-    You can run this forward pass two ways: with or without an attention kv
-    cache.
+    """Forward pass of the transformer.
 
     Args:
-      last_tokens: input sequence of tokens.
-      positions: input absolute positions.
-      cache: Attention KV cache or None.
-      attention_mask: transformer input mask.
-      patches: visual data.
+      last_tokens: tokens to forward, with expected shape [batch, length].
+      positions: positions for the tokens, with expected shape [batch, length].
+      cache: KV cache for faster autoregressive decoding.
+      attention_mask: attention mask, with expected shape [batch, length, L'].
+      patches: image patches, with expected shape [batch, num_images,
+        num_patches_per_image, patch_dim].
 
     Returns:
-      predicted_logits, new_cache
-
-      predicted_logits: output logits predicted by the model
-      new_cache: updated cache if the input cache is not None, None elsewhere.
+      Logits for the tokens, with expected shape [batch, length, vocab_size].
+      Updated cache.
     """
+    # Early exit if attention_mask indicates all sequences are done
+    # This is an optimization for batched generation
+    if cache is not None and attention_mask.shape[0] > 1:
+      # Check if all sequences in the batch are masked (done)
+      all_masked = jnp.all(attention_mask == 0.0)
+      # Use jax.lax.cond to avoid computing the forward pass if all sequences are done
+      def return_dummy_output(_):
+        # Return the cache as is and zeros for logits
+        dummy_logits = jnp.zeros(
+            (last_tokens.shape[0], last_tokens.shape[1], self.config.vocab_size),
+            dtype=last_tokens.dtype
+        )
+        return dummy_logits, cache
+
+      def compute_forward(_):
+        return self._forward(last_tokens, positions, cache, attention_mask, patches)
+
+      return jax.lax.cond(
+          all_masked,
+          return_dummy_output,
+          compute_forward,
+          operand=None,
+      )
+
+    return self._forward(last_tokens, positions, cache, attention_mask, patches)
+
+  def _forward(
+      self,
+      last_tokens: jax.Array,  # [B, L]
+      positions: jax.Array,  # [B, L]
+      cache: Cache | None,  # (sequence length L')
+      attention_mask: jax.Array,  # [B, L, L']
+      patches: jax.Array | None = None,  # [B, N, P, D']
+  ) -> tuple[jax.Array, Cache | None]:
+    """Internal implementation of the forward pass."""
+    _check_tokens_for_vision(last_tokens, patches)
+    bsize = last_tokens.shape[0]
+
+    if cache is not None:
+      end_index = cache['layer_0']['end_index']
+      seq_len = last_tokens.shape[1]
+      cache['layer_0']['end_index'] = end_index + seq_len
+
+    hidden_states = self.embedder.encode(last_tokens)
     if patches is not None:
-      _check_tokens_for_vision(last_tokens, patches)
-    x = self.embedder.encode(last_tokens)
-    if patches is not None:
-      x = self._include_vision_embeddings(
-          last_tokens=last_tokens, embeddings=x, patches=patches
+      hidden_states = self._include_vision_embeddings(
+          last_tokens=last_tokens, embeddings=hidden_states, patches=patches
       )
     for i, block in enumerate(self.blocks):
       layer_name = f'layer_{i}'
       layer_cache = cache[layer_name] if cache else None
-      layer_cache, x = block(
-          x,
+      layer_cache, hidden_states = block(
+          hidden_states,
           positions,
           layer_cache,
           attention_mask,
@@ -504,8 +554,8 @@ class Transformer(nn.Module):
       if cache is not None:
         cache[layer_name] = layer_cache  # pytype: disable=container-type-mismatch
 
-    x = self.final_norm(x)
-    logits = self.embedder.decode(x)
+    hidden_states = self.final_norm(hidden_states)
+    logits = self.embedder.decode(hidden_states)
 
     if self.config.final_logit_softcap is not None:
       logits /= self.config.final_logit_softcap

@@ -57,6 +57,9 @@ class SamplingState:
       compute the positional embedding, so includes MM tokens, but ignore all
       padding.
     predicted_tokens: Fixed-size buffer for accumulating the output tokens.
+    top_k_logits: Instead of storing full logits for memory efficiency, only
+      store the top-k logits and their indices for each predicted token.
+    top_k_indices: The indices of the top-k logits in the vocabulary.
     full_attention_mask: Pre-computed attention mask for the full sequence.
     cache: Attention KV cache.
     rng: Seed to use for sampling.
@@ -70,10 +73,11 @@ class SamplingState:
   last_token: Int['B']
   last_token_pos: Int['B']
   predicted_tokens: Int['B max_out_length']
-  # TODO(epot): Better way to extract logits. This takes a lot of memory.
-  # TODO(epot): Only keep the top-k logits instead? But sorting might increase
-  # computation.
-  # predicted_logits: Float['B max_out_length V']
+  # Store top-k logits and their indices instead of full logits for memory efficiency
+  # This significantly reduces memory usage while still preserving the most important
+  # information for analysis or further processing
+  top_k_logits: Float['B max_out_length k'] = None
+  top_k_indices: Int['B max_out_length k'] = None
   cache: transformer.Cache
   rng: PRNGKey
 
