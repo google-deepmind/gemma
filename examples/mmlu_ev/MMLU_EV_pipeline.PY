@@ -9,7 +9,7 @@ pipe = pipeline("text-generation", model="google/gemma-3-27b-it") # choose the 2
 
 import random
 
-sampales=random.sample(list(Test_set),100) # taking 100 samples form the data set .
+sampales=random.sample(list(Test_set),100) # taking 100 samples form the data set ..
 
 '''
 example of the dat set :

@@ -18,7 +18,7 @@ def ANS_GEN(q, choices): # ans
     inputs = tokenizer(write, return_tensors="pt").to("cuda")
 
     outputs = model.generate(**inputs, max_length=300)
-    output = tokenizer.decode(outputs[0], skip_special_tokens=True)
+    output = tokenizer.decode(outputs[0], skip_special_tokens=True)#
 
 
     for choice in choices:
