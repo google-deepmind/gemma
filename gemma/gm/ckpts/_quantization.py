@@ -18,13 +18,13 @@ from __future__ import annotations
 
 from typing import Any
 
-from gemma import params as params_lib
+from gemma.gm.typing import _common
 import jax
 
 
 def convert_to_qat_checkpoint(
-    params: params_lib.Params, *, checkpoint_kernel_key='w'
-) -> params_lib.Params:
+    params: _common.Params, *, checkpoint_kernel_key='w'
+) -> _common.Params:
   """map regular checkpoint to QAT checkpoint."""
 
   def is_leaf(data: Any) -> bool:

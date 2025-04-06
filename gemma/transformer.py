@@ -20,12 +20,10 @@ import typing
 from typing import Iterable
 import warnings
 
-
 import einops
 from flax import linen as nn
 from gemma import layers
 from gemma import modules
-from gemma import params as params_lib
 from gemma.multimodal import vision as gemma_vision
 import jax
 import jax.numpy as jnp
@@ -119,9 +117,10 @@ class TransformerConfig:
       case QueryPreAttentionNormalisation.BY_ONE_OVER_SQRT_HEAD_DIM | _:
         return self.head_dim**-0.5
 
+  # TODO(epot): Remove this method
   @classmethod
   def from_params(
-      cls, params: params_lib.Params, cache_size: int | None = 1024
+      cls, params, cache_size: int | None = 1024
   ) -> 'TransformerConfig':
     """Creates a TransformerConfig from loaded parameters.
 

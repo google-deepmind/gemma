@@ -22,12 +22,12 @@ import typing
 from typing import Literal
 
 from etils import enp
-from gemma import params as params_lib
 from gemma.gm.data import _functional
 from gemma.gm.nn import _transformer
 from gemma.gm.text import _sampler_call
 from gemma.gm.text import _sampling
 from gemma.gm.text import _tokenizer
+from gemma.gm.typing import _common
 from gemma.gm.vision import _token_utils
 import jax
 import jax.numpy as jnp
@@ -114,7 +114,7 @@ class Sampler:
   # pylint: enable=g-docstring-quotes
 
   model: _transformer.Transformer
-  params: params_lib.Params
+  params: _common.Params
   tokenizer: _tokenizer.Tokenizer = None  # pytype: disable=annotation-type-mismatch
   sampling: _sampling.SamplingMethod = dataclasses.field(
       default_factory=_sampling.Greedy
