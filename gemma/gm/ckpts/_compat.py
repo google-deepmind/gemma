@@ -12,75 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Utils for loading Gemma params."""
+"""Reformatting Gemma params."""
 
-import functools
-from typing import Any, Mapping, Optional
+from __future__ import annotations
 
 import flax
-import jax
-import jax.numpy as jnp
-import orbax.checkpoint
-
-Params = Mapping[str, Any]
-
-_SIGLIP_PARAMS_PATH = 'not supported'
-
-
-def load_siglip_params(checkpoint_path: str = _SIGLIP_PARAMS_PATH) -> Params:
-  """Loads SigLIP parameters."""
-  params = load_params(checkpoint_path)['donated_carry']['params']
-  out_params = {}
-  for key in params:
-    new_key = str(key).replace('SigLiPFromPatches_0/', '')
-    if 'MlpBlock' in new_key:
-      new_key = new_key.replace('Dense', 'DenseGeneral')
-    out_params[new_key] = params[key]
-  return nest_params(out_params)
-
-
-def load_and_format_params(
-    path: str,
-    load_siglip: bool = False,
-) -> Params:
-  """Loads parameters and formats them for compatibility."""
-  params = load_params(path)
-  param_state = jax.tree_util.tree_map(jnp.array, params)
-  remapped_params = param_remapper(param_state)
-  nested_params = nest_params(remapped_params)
-  if load_siglip:
-    nested_params['transformer']['vision_encoder'] = load_siglip_params()
-  return nested_params
-
-
-def load_metadata(path: str) -> Optional[Any]:
-  """Loads metadata from a checkpoint path."""
-  checkpointer = orbax.checkpoint.PyTreeCheckpointer()
-  metadata = checkpointer.metadata(path)
-  return metadata
-
-
-@functools.cache
-def load_params(path: str) -> Params:
-  """Loads parameters from a checkpoint path."""
-  checkpointer = orbax.checkpoint.PyTreeCheckpointer()
-  params = checkpointer.restore(path)
-  return params
-
-
-def format_and_save_params(
-    params: Params,
-    path: str,
-) -> None:
-  """Formats and saves a parameter checkpoint to the path."""
-  params = flatten_and_remap_params(params)
-  save_params(params, path)
-
-
-def save_params(params: Params, path: str) -> None:
-  """Saves the given parameters to the given path."""
-  checkpointer = orbax.checkpoint.PyTreeCheckpointer()
-  checkpointer.save(path, params)
+from gemma.gm.typing._common import Params  # pylint: disable=g-importing-member
 
 
 def param_remapper(orig_params: Params) -> Params:

@@ -23,12 +23,12 @@ import functools
 import einops
 from etils import epy
 import flax
-from gemma import params as params_lib
 from gemma import transformer
 from gemma.gm.data import _functional
 from gemma.gm.nn import _transformer
 from gemma.gm.text import _sampling
 from gemma.gm.text import _tokenizer
+from gemma.gm.typing import _common
 from gemma.gm.utils import _attention_mask
 from gemma.gm.vision import _token_utils
 import jax
@@ -117,7 +117,7 @@ class SamplerCall:
   def sample(
       self,
       *,
-      params: params_lib.Params,
+      params: _common.Params,
       tokens: Int['B L'],
       images: UInt8['B N H W C'] | None,
       cache: transformer.Cache,
@@ -154,7 +154,7 @@ class SamplerCall:
   def _init_state(
       self,
       *,
-      params: params_lib.Params,
+      params: _common.Params,
       cache: transformer.Cache,
       tokens: Int['B L'],
       images: UInt8['B N H W C'] | None,
@@ -242,7 +242,7 @@ class SamplerCall:
   def _sample_loop(
       self,
       *,
-      params: params_lib.Params,
+      params: _common.Params,
       state: SamplingState,
       max_new_tokens: Int[''],
   ) -> SamplingState:
@@ -273,7 +273,7 @@ class SamplerCall:
   def _stream_sample_loop(
       self,
       *,
-      params: params_lib.Params,
+      params: _common.Params,
       state: SamplingState,
       max_new_tokens: Int[''],
   ) -> Iterator[SamplingState]:
@@ -294,7 +294,7 @@ class SamplerCall:
       self,
       state: SamplingState,
       *,
-      params: params_lib.Params,
+      params: _common.Params,
   ) -> SamplingState:
     """Single sampling step."""
 

@@ -26,8 +26,9 @@ from typing import Any, TypeVar
 
 from etils import epath
 import flax
-from gemma import params as params_lib
+from gemma.gm.ckpts import _compat
 from gemma.gm.ckpts import _quantization
+from gemma.gm.typing._common import Params  # pylint: disable=g-importing-member
 import jax
 from kauldron import kd
 import numpy as np
@@ -90,10 +91,10 @@ class _CheckpointType(enum.StrEnum):
 class _CheckpointTree:
   """Util class to convert checkpoint structures."""
 
-  tree: params_lib.Params
+  tree: Params
 
   @classmethod
-  def shape_dtype_struct_like(cls, tree: params_lib.Params) -> _CheckpointTree:
+  def shape_dtype_struct_like(cls, tree: Params) -> _CheckpointTree:
     """Returns a tree matching the input tree, but with `jax.ShapeDtypeStruct`."""
     tree = jax.tree.map(_as_shape_dtype_struct, tree)
     return _CheckpointTree(tree=tree)
@@ -109,7 +110,7 @@ class _CheckpointTree:
       return _CheckpointType.NESTED
 
   @functools.cached_property
-  def nested_tree(self) -> params_lib.Params:
+  def nested_tree(self) -> Params:
     """Returns the tree matching the NESTED checkpoint structure."""
     if self.type == _CheckpointType.FLAT:
       return _flat_to_nested(self.tree)
@@ -127,7 +128,7 @@ class _CheckpointTree:
       tree = _remove_mm_params(tree)
     return _CheckpointTree(tree=tree)
 
-  def make_tree_for_params(self, params: _CheckpointTree) -> params_lib.Params:
+  def make_tree_for_params(self, params: _CheckpointTree) -> Params:
     """Returns the tree matching the checkpoint structure."""
     metadata = _wrap_skip(self)
 
@@ -158,7 +159,7 @@ class _CheckpointTree:
 
 
 def save_params(
-    params: params_lib.Params,
+    params: Params,
     path: epath.PathLike,
 ) -> None:
   """Save the params to a checkpoint.
@@ -174,12 +175,12 @@ def save_params(
 def load_params(
     path: epath.PathLike,
     *,
-    params: params_lib.Params | None = None,
+    params: Params | None = None,
     donate: bool = True,
     text_only: bool = False,
     sharding: kd.sharding.ShardingTree | None = None,
     quantize: bool = False,
-) -> params_lib.Params:
+) -> Params:
   """Restore the params from a checkpoint.
 
   Args:
@@ -279,7 +280,7 @@ def load_params(
 # ======================== Structure reformat utils ========================
 
 
-def _flat_to_nested(params: params_lib.Params) -> params_lib.Params:
+def _flat_to_nested(params: Params) -> Params:
   """Reformat the params from FLAT to NESTED."""
   params = _copy(params)
   # Split the params for the MM and the transformer.
@@ -300,7 +301,7 @@ def _flat_to_nested(params: params_lib.Params) -> params_lib.Params:
   return transformer_params
 
 
-def _nested_to_flat(params: params_lib.Params) -> params_lib.Params:
+def _nested_to_flat(params: Params) -> Params:
   """Reformat the params from NESTED to FLAT."""
   params = _copy(params)  # Copy to allow mutating the tree.
 
@@ -314,19 +315,15 @@ def _nested_to_flat(params: params_lib.Params) -> params_lib.Params:
   return transformer_params | mm_params
 
 
-def _nested_to_flat_single(
-    params: params_lib.Params, *, name: str
-) -> params_lib.Params:
-  params = params_lib.flatten_and_remap_params(params)
+def _nested_to_flat_single(params: Params, *, name: str) -> Params:
+  params = _compat.flatten_and_remap_params(params)
   params = {f'{name}/{k}': v for k, v in params.items()}
   return params
 
 
-def _flat_to_nested_single(
-    params: params_lib.Params, *, name: str
-) -> params_lib.Params:
-  params = params_lib.param_remapper(params)
-  params = params_lib.nest_params(params)
+def _flat_to_nested_single(params: Params, *, name: str) -> Params:
+  params = _compat.param_remapper(params)
+  params = _compat.nest_params(params)
   params = params[name]
   return params
 
@@ -345,9 +342,7 @@ def _remove_mm_params(params):
   return params
 
 
-def _add_skip_mm_params(
-    params: params_lib.Params, metadata: _CheckpointTree
-) -> params_lib.Params:
+def _add_skip_mm_params(params: Params, metadata: _CheckpointTree) -> Params:
   """Add skip MM params to restore."""
   params = _copy(params)
   params_with_mm = metadata.nested_tree
@@ -363,7 +358,7 @@ def _add_skip_mm_params(
   return params
 
 
-def _is_flat_layout(params: params_lib.Params) -> bool:
+def _is_flat_layout(params: Params) -> bool:
   """Returns True is the structure is the legacy one."""
   return all(
       k.startswith(('transformer/', 'SigLiPFromPatches_0/'))
@@ -371,7 +366,7 @@ def _is_flat_layout(params: params_lib.Params) -> bool:
   )
 
 
-def _is_kauldron_layout(params: params_lib.Params) -> bool:
+def _is_kauldron_layout(params: Params) -> bool:
   """Returns True is the structure is the Kauldron one."""
   return set(params) == {'collections', 'opt_state', 'params', 'step'}
 

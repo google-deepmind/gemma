@@ -18,7 +18,6 @@ from collections.abc import Iterator, Sequence
 import dataclasses
 import functools
 
-from gemma import params as params_lib
 # from gemma.gm.data import _functional
 from gemma.gm.nn import _transformer
 from gemma.gm.text import _sampler
@@ -26,6 +25,7 @@ from gemma.gm.text import _sampler_call
 from gemma.gm.text import _sampling
 from gemma.gm.text import _template
 from gemma.gm.text import _tokenizer
+from gemma.gm.typing import _common
 # from gemma.gm.vision import _token_utils
 from kauldron.typing import PRNGKeyLike, UInt8  # pylint: disable=g-multiple-import,g-importing-member
 
@@ -76,7 +76,7 @@ class ChatSampler:
   # TODO(epot): Custom repr to avoid displaying the full weights.
 
   model: _transformer.Transformer
-  params: params_lib.Params = dataclasses.field(repr=False)
+  params: _common.Params = dataclasses.field(repr=False)
   multi_turn: bool = False
   print_stream: bool = False
   tokenizer: _tokenizer.Tokenizer = None  # pytype: disable=annotation-type-mismatch
