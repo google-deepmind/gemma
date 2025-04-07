@@ -29,7 +29,6 @@ from gemma.gm.utils import _dtype_params
 from gemma.gm.utils import _jax_utils
 from gemma.gm.vision import _token_utils
 from gemma.multimodal import vision as gemma_vision
-import jax
 import jax.numpy as jnp
 from kauldron import kd
 from kauldron import kontext
@@ -241,7 +240,7 @@ class Transformer(transformer.Transformer):
     )
 
   @functools.partial(
-      jax.jit,
+      nn.jit,
       static_argnames=(
           'self',
           'batch_size',
