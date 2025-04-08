@@ -55,6 +55,9 @@ with _epy.lazy_api_imports(globals()):
   from gemma.modules import FeedForward
   from gemma.modules import AttentionType
 
+  # Model inputs
+  from gemma.transformer import Cache
+
   # Model outputs
   from gemma.gm.nn._transformer import Output
   from gemma.gm.nn._policy import AnchoredPolicyOutput
