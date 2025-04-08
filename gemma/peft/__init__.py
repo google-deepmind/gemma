@@ -34,6 +34,7 @@ from gemma.peft._tree_utils import unfuse_params
 from gemma.peft._quantization_utils import QuantizationMethod
 from gemma.peft._quantization_utils import quantize
 from gemma.peft._quantization import simulate_quantize
+from gemma.peft._quantization import get_tranpose_axis_from_einsum_str
 from gemma.peft._quantization import get_axis_to_reduce_from_einsum_str
 from gemma.peft._quantization import SimulateQuantizedDense
 from gemma.peft._quantization import SimulateQuantizedEinsum
