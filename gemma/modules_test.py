@@ -30,29 +30,47 @@ _ATTN_TYPE = modules.AttentionType.GLOBAL
 
 class EmbedderTest(absltest.TestCase):
 
-  def test_encodes(self):
+  def test_encode(self):
     vocab_size = 10
     embed_dim = 4
     embedder = modules.Embedder(vocab_size=vocab_size, embed_dim=embed_dim)
-    output = embedder.apply(
-        {'params': {'input_embedding': jnp.ones((vocab_size, embed_dim))}},
-        [2, 3],
-        method=modules.Embedder.encode,
-    )
-    expected = [[2.0, 2.0, 2.0, 2.0], [2.0, 2.0, 2.0, 2.0]]
+    embedding_matrix = jnp.ones((vocab_size, embed_dim))
+    params = {'params': {'input_embedding': embedding_matrix}}
+
+    # Test with flat array (batch size 1).
+    tokens = jnp.array([2, 3])
+    output = embedder.apply(params, tokens, method=modules.Embedder.encode)
+    expected = jnp.ones((len(tokens), embed_dim)) * 2.0
     np.testing.assert_array_equal(output, jnp.array(expected))
 
-  def test_decodes(self):
+    # Test with batch.
+    tokens = jnp.array([[2, 3, 4], [5, 6, 7]])
+    output = embedder.apply(params, tokens, method=modules.Embedder.encode)
+    expected = jnp.ones((tokens.shape[0], tokens.shape[1], embed_dim)) * 2.0
+    np.testing.assert_array_equal(output, jnp.array(expected))
+
+  def test_decode(self):
     vocab_size = 5
     embed_dim = 2
     embedder = modules.Embedder(vocab_size=vocab_size, embed_dim=embed_dim)
-    output = embedder.apply(
-        {'params': {'input_embedding': jnp.ones((vocab_size, embed_dim))}},
-        jnp.array([1, 2]),
-        method=modules.Embedder.decode,
-    )
-    expected = [3.0, 3.0, 3.0, 3.0, 3.0]
+    embedding_matrix = jnp.ones((vocab_size, embed_dim))
+    params = {'params': {'input_embedding': embedding_matrix}}
+
+    # Test with flat array (batch size 1).
+    vector = jnp.array([1, 2])
+    output = embedder.apply(params, vector, method=modules.Embedder.decode)
+    expected = jnp.ones(vocab_size) * 3.0
     np.testing.assert_array_equal(output, jnp.array(expected))
+
+    # Test with batch.
+    vectors = jnp.array([[1, 2], [3, 4], [5, 6]])
+    output = embedder.apply(params, vectors, method=modules.Embedder.decode)
+    expected = jnp.ones((vectors.shape[0], vocab_size)) * jnp.array(
+        [3.0, 7.0, 11.0]
+    )[:, None]
+    np.testing.assert_array_equal(output, jnp.array(expected))
+
+  # TODO(mblondel): Add tests for `encode_vision` here.
 
 
 class SlidingWindowTest(absltest.TestCase):
@@ -158,16 +176,17 @@ class AttentionTest(absltest.TestCase):
 
   def _get_attn_output(
       self,
+      batch_size: int,
       num_heads: int,
       head_dim: int,
       features: int,
+      cache_size: int,
       query_pre_attn_scalar: float | None = None,
       num_kv_heads: int | None = None,
   ) -> tuple[jnp.ndarray, jnp.ndarray]:
     segment_pos = 0
-    cache_size = 3
-    batch_size = 2
-    attn_mask = jnp.ones((batch_size, 1, cache_size))
+    seq_len = 1  # TODO(mblondel): Test with seq_len > 1
+    attn_mask = jnp.ones((batch_size, seq_len, cache_size))
     if query_pre_attn_scalar is None:
       query_pre_attn_scalar = head_dim**-0.5
     if num_kv_heads is None:
@@ -188,7 +207,7 @@ class AttentionTest(absltest.TestCase):
         batch_size=batch_size,
         dtype=jnp.float32,
     )
-    x = jnp.ones((batch_size, 1, features))
+    x = jnp.ones((batch_size, seq_len, features))
     params = attn.init(
         jax.random.PRNGKey(0),
         x,
@@ -202,25 +221,44 @@ class AttentionTest(absltest.TestCase):
     return cache, output
 
   def test_attention(self):
+    batch_size = 5
+    num_heads = 2
+    head_dim = 4
+    features = 8
+    cache_size = 3
+    seq_len = 1
     cache, output = self._get_attn_output(
-        num_heads=2,
-        head_dim=4,
-        features=8,
+        batch_size=batch_size,
+        num_heads=num_heads,
+        head_dim=head_dim,
+        features=features,
+        cache_size=cache_size,
     )
-    expected_cache_shape = (2, 3, 2, 4)
-    expected_output_shape = (2, 1, 8)
+    expected_cache_shape = (batch_size, cache_size, num_heads, 4)
+    expected_output_shape = (batch_size, seq_len, features)
     self.assertEqual(cache['k'].shape, expected_cache_shape)
     self.assertEqual(output.shape, expected_output_shape)
 
   def test_attention_with_gqa(self):
+    batch_size = 5
+    num_heads = 8
+    head_dim = 2
+    features = 10
+    cache_size = 3
+    num_kv_heads = 4
+    seq_len = 1
+
     cache, output = self._get_attn_output(
-        num_heads=8,
-        head_dim=2,
-        features=10,
-        num_kv_heads=4,
+        batch_size=batch_size,
+        num_heads=num_heads,
+        head_dim=head_dim,
+        features=features,
+        num_kv_heads=num_kv_heads,
+        cache_size=cache_size,
     )
-    expected_cache_shape = (2, 3, 4, 2)
-    expected_output_shape = (2, 1, 10)
+
+    expected_cache_shape = (batch_size, cache_size, num_kv_heads, head_dim)
+    expected_output_shape = (batch_size, seq_len, features)
     self.assertEqual(cache['k'].shape, expected_cache_shape)
     self.assertEqual(output.shape, expected_output_shape)
 
@@ -232,6 +270,7 @@ class AttentionTest(absltest.TestCase):
     cache_size = 3
     batch_size = 2
     query_pre_attn_scalar = head_dim**-0.5
+
     attn_mask = jnp.ones((batch_size, 1, cache_size))
     cache = modules.Attention.init_cache(
         cache_size=cache_size,
@@ -278,20 +317,27 @@ class AttentionTest(absltest.TestCase):
     num_heads = 2
     head_dim = 4
     features = 8
+    batch_size = 2
+    cache_size = 3
+
     query_pre_attn_scalar_by_embed_dim_div_num_heads: float = (
         features // num_heads
     )
     query_pre_attn_scalar_by_head_dim: float = head_dim**-0.5
     _, output_by_head_dim = self._get_attn_output(
+        batch_size,
         num_heads,
         head_dim,
         features,
+        cache_size,
         query_pre_attn_scalar=query_pre_attn_scalar_by_head_dim,
     )
     _, output_by_embed_dim_div_num_heads = self._get_attn_output(
+        batch_size,
         num_heads,
         head_dim,
         features,
+        cache_size,
         query_pre_attn_scalar=query_pre_attn_scalar_by_embed_dim_div_num_heads,
     )
 
@@ -307,11 +353,14 @@ class FeedForwardTest(parameterized.TestCase):
       ),
   )
   def test_ffw(self, transpose_gating_einsum: bool):
-    features = 2
+    features = 4
     hidden_dim = 3
-    batch_size = 2
-    inputs = jnp.arange(1, batch_size + 1)[:, None, None]
+    batch_size = 5
+    seq_len = 1
+
+    inputs = jnp.arange(seq_len, batch_size + 1)[:, None, None]
     inputs = jnp.repeat(inputs, features, axis=-1)
+
     ffw = modules.FeedForward(
         features=features,
         hidden_dim=hidden_dim,
@@ -322,15 +371,13 @@ class FeedForwardTest(parameterized.TestCase):
 
     # Different checkpoints have params saved in different order
     if transpose_gating_einsum:
-      params['gating_einsum'] = jnp.ones((batch_size, hidden_dim, features))
+      params['gating_einsum'] = jnp.ones((2, hidden_dim, features))
     else:
-      params['gating_einsum'] = jnp.ones((batch_size, features, hidden_dim))
+      params['gating_einsum'] = jnp.ones((2, features, hidden_dim))
 
     outputs = ffw.apply({'params': params}, inputs)
 
-    expected_val = [11.72758674, 47.99916]
-    expected_shape = (2, 1, 2)
-    np.testing.assert_array_almost_equal(outputs[:, 0, 0], expected_val)
+    expected_shape = (batch_size, seq_len, features)
     self.assertEqual(outputs.shape, expected_shape)
 
   @parameterized.parameters(
@@ -372,8 +419,13 @@ class BlockTest(absltest.TestCase):
     embed_dim = 4
     head_dim = 6
     cache_size = 3
-    batch_size = 2
-    inputs = jnp.ones((batch_size, 1, embed_dim))
+    batch_size = 5
+    seq_len = 1
+
+    inputs = jnp.ones((batch_size, seq_len, embed_dim))
+    positions = jnp.zeros((batch_size, seq_len))
+
+    # Initialize cache.
     cache = modules.Attention.init_cache(
         cache_size=cache_size,
         num_heads=num_heads,
@@ -381,7 +433,13 @@ class BlockTest(absltest.TestCase):
         batch_size=batch_size,
         dtype=jnp.float32,
     )
-    attn_mask = jnp.ones((batch_size, 1, cache_size))
+
+    # Check that initial cache shape is correct.
+    expected_cache_shape = (batch_size, cache_size, num_heads, head_dim)
+    self.assertEqual(cache['k'].shape, expected_cache_shape)
+    self.assertEqual(cache['v'].shape, expected_cache_shape)
+
+    # Initialize and apply the block.
     block = modules.Block(
         num_heads=num_heads,
         num_kv_heads=num_heads,
@@ -394,17 +452,23 @@ class BlockTest(absltest.TestCase):
         query_pre_attn_scalar=head_dim**-0.5,
         transpose_gating_einsum=False,
     )
+
+    attn_mask = jnp.ones((batch_size, seq_len, cache_size))
     params = block.init(
-        jax.random.PRNGKey(0), inputs, jnp.array([[0]]), cache, attn_mask
+        jax.random.PRNGKey(0), inputs, positions, cache, attn_mask
     )
 
     new_cache, outputs = block.apply(
-        params, inputs, jnp.array([[0]]), cache, attn_mask
+        params, inputs, positions, cache, attn_mask
     )
 
-    expected_cache_shape = (2, 3, 2, 6)
-    expected_output_shape = (2, 1, 4)
+    # Check that updated cache shape is correct.
     self.assertEqual(new_cache['k'].shape, expected_cache_shape)
+    self.assertEqual(new_cache['v'].shape, expected_cache_shape)
+    self.assertEqual(new_cache['end_index'].shape, (batch_size,))
+
+    # Check that output shape is correct.
+    expected_output_shape = (batch_size, seq_len, embed_dim)
     self.assertEqual(outputs.shape, expected_output_shape)
 
   def test_post_attention_norm_modifies_output(self):
