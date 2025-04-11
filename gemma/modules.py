@@ -247,7 +247,7 @@ class Attention(nn.Module):
       b, t, k, g, s = logits.shape
       logits = logits.reshape((b, t, k * g, s))
     else:
-      # [batch_size, seq_len, num_heads, head_dim]
+      # [batch_size, seq_len, num_heads, cache_size]
       logits = jnp.einsum('BTNH,BSNH->BTNS', query_scaled, key_proj)
 
     if self.attn_logits_soft_cap is not None:
