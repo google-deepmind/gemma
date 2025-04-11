@@ -177,6 +177,7 @@ class AttentionTest(absltest.TestCase):
   def _get_attn_output(
       self,
       batch_size: int,
+      seq_len: int,
       num_heads: int,
       head_dim: int,
       features: int,
@@ -184,14 +185,14 @@ class AttentionTest(absltest.TestCase):
       query_pre_attn_scalar: float | None = None,
       num_kv_heads: int | None = None,
   ) -> tuple[jnp.ndarray, jnp.ndarray]:
-    segment_pos = 0
-    seq_len = 1  # TODO(mblondel): Test with seq_len > 1
-    attn_mask = jnp.ones((batch_size, seq_len, cache_size))
+
     if query_pre_attn_scalar is None:
       query_pre_attn_scalar = head_dim**-0.5
+
     if num_kv_heads is None:
       # num_kv_heads is only different from num_heads in the GQA case.
       num_kv_heads = num_heads
+
     attn = modules.Attention(
         num_heads=num_heads,
         num_kv_heads=num_kv_heads,
@@ -200,6 +201,14 @@ class AttentionTest(absltest.TestCase):
         attn_type=_ATTN_TYPE,
         query_pre_attn_scalar=query_pre_attn_scalar,
     )
+
+    rng = jax.random.PRNGKey(0)
+    x = jnp.ones((batch_size, seq_len, features))
+    segment_pos = (
+        jnp.repeat(jnp.arange(seq_len), batch_size)
+        .reshape(seq_len, batch_size)
+        .T
+    )
     cache = modules.Attention.init_cache(
         cache_size=cache_size,
         num_heads=num_kv_heads,
@@ -207,17 +216,11 @@ class AttentionTest(absltest.TestCase):
         batch_size=batch_size,
         dtype=jnp.float32,
     )
-    x = jnp.ones((batch_size, seq_len, features))
-    params = attn.init(
-        jax.random.PRNGKey(0),
-        x,
-        jnp.array([[segment_pos]]),
-        cache,
-        attn_mask,
-    )
-    cache, output = attn.apply(
-        params, x, jnp.array([[segment_pos]]), cache, attn_mask
-    )
+    attn_mask = jnp.ones((batch_size, seq_len, cache_size))
+
+    params = attn.init(rng, x, segment_pos, cache, attn_mask)
+    cache, output = attn.apply(params, x, segment_pos, cache, attn_mask)
+
     return cache, output
 
   def test_attention(self):
@@ -225,18 +228,22 @@ class AttentionTest(absltest.TestCase):
     num_heads = 2
     head_dim = 4
     features = 8
-    cache_size = 3
-    seq_len = 1
+    cache_size = 7
+    seq_len = 6
+
     cache, output = self._get_attn_output(
         batch_size=batch_size,
+        seq_len=seq_len,
         num_heads=num_heads,
         head_dim=head_dim,
         features=features,
         cache_size=cache_size,
     )
+
     expected_cache_shape = (batch_size, cache_size, num_heads, 4)
     expected_output_shape = (batch_size, seq_len, features)
     self.assertEqual(cache['k'].shape, expected_cache_shape)
+    self.assertEqual(cache['v'].shape, expected_cache_shape)
     self.assertEqual(output.shape, expected_output_shape)
 
   def test_attention_with_gqa(self):
@@ -244,12 +251,13 @@ class AttentionTest(absltest.TestCase):
     num_heads = 8
     head_dim = 2
     features = 10
-    cache_size = 3
+    cache_size = 7
     num_kv_heads = 4
-    seq_len = 1
+    seq_len = 6
 
     cache, output = self._get_attn_output(
         batch_size=batch_size,
+        seq_len=seq_len,
         num_heads=num_heads,
         head_dim=head_dim,
         features=features,
@@ -260,26 +268,18 @@ class AttentionTest(absltest.TestCase):
     expected_cache_shape = (batch_size, cache_size, num_kv_heads, head_dim)
     expected_output_shape = (batch_size, seq_len, features)
     self.assertEqual(cache['k'].shape, expected_cache_shape)
+    self.assertEqual(cache['v'].shape, expected_cache_shape)
     self.assertEqual(output.shape, expected_output_shape)
 
   def test_sliding_window(self):
     num_heads = 2
     head_dim = 4
     features = 8
-    segment_pos = 0
-    cache_size = 3
+    cache_size = 7
     batch_size = 2
     query_pre_attn_scalar = head_dim**-0.5
+    seq_len = 6
 
-    attn_mask = jnp.ones((batch_size, 1, cache_size))
-    cache = modules.Attention.init_cache(
-        cache_size=cache_size,
-        num_heads=num_heads,
-        head_dim=head_dim,
-        batch_size=batch_size,
-        dtype=jnp.float32,
-    )
-    x = jnp.ones((batch_size, 1, features))
     attn = modules.Attention(
         num_heads=num_heads,
         num_kv_heads=num_heads,
@@ -288,16 +288,26 @@ class AttentionTest(absltest.TestCase):
         attn_type=_ATTN_TYPE,
         query_pre_attn_scalar=query_pre_attn_scalar,
     )
-    params = attn.init(
-        jax.random.PRNGKey(0),
-        x,
-        jnp.array([[segment_pos]]),
-        cache,
-        attn_mask,
+
+    rng = jax.random.PRNGKey(0)
+    x = jnp.ones((batch_size, seq_len, features))
+    segment_pos = (
+        jnp.repeat(jnp.arange(seq_len), batch_size)
+        .reshape(seq_len, batch_size)
+        .T
     )
-    _, output = attn.apply(
-        params, x, jnp.array([[segment_pos]]), cache, attn_mask
+    cache = modules.Attention.init_cache(
+        cache_size=cache_size,
+        num_heads=num_heads,
+        head_dim=head_dim,
+        batch_size=batch_size,
+        dtype=jnp.float32,
     )
+    attn_mask = jnp.ones((batch_size, seq_len, cache_size))
+
+    params = attn.init(rng, x, segment_pos, cache, attn_mask)
+    _, output = attn.apply(params, x, segment_pos, cache, attn_mask)
+
     sliding_attn = modules.Attention(
         num_heads=num_heads,
         num_kv_heads=num_heads,
@@ -308,7 +318,7 @@ class AttentionTest(absltest.TestCase):
         query_pre_attn_scalar=query_pre_attn_scalar,
     )
     _, sliding_output = sliding_attn.apply(
-        params, x, jnp.array([[segment_pos]]), cache, attn_mask
+        params, x, segment_pos, cache, attn_mask
     )
 
     self.assertFalse((output == sliding_output).all())
@@ -319,6 +329,7 @@ class AttentionTest(absltest.TestCase):
     features = 8
     batch_size = 2
     cache_size = 3
+    seq_len = 1
 
     query_pre_attn_scalar_by_embed_dim_div_num_heads: float = (
         features // num_heads
@@ -326,6 +337,7 @@ class AttentionTest(absltest.TestCase):
     query_pre_attn_scalar_by_head_dim: float = head_dim**-0.5
     _, output_by_head_dim = self._get_attn_output(
         batch_size,
+        seq_len,
         num_heads,
         head_dim,
         features,
@@ -334,6 +346,7 @@ class AttentionTest(absltest.TestCase):
     )
     _, output_by_embed_dim_div_num_heads = self._get_attn_output(
         batch_size,
+        seq_len,
         num_heads,
         head_dim,
         features,

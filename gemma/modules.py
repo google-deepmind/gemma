@@ -192,8 +192,6 @@ class Attention(nn.Module):
       cache: Updated attention KV cache.
       outputs: Output sequence of shape [batch_size, seq_len, embed_dim].
     """
-    seq_len = x.shape[1]
-
     if self.use_qkv_einsum:
       # [batch_size, seq_len, num_heads, head_dim]
       query_proj, key_proj, value_proj = self.qkv_einsum('BTD,SNDH->SBTNH', x)
@@ -294,6 +292,7 @@ class Attention(nn.Module):
     attn_output = self.attn_vec_einsum('BTNH,NHD->BTD', encoded)
 
     if cache is not None:
+      seq_len = x.shape[1]
       new_cache = {
           # [batch_size, cache_size, num_heads, head_dim]
           'v': value_proj,
