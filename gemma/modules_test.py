@@ -23,6 +23,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
+jax.config.update('jax_threefry_partitionable', False)
 
 _ATTN_TYPE = modules.AttentionType.GLOBAL
 
