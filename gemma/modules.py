@@ -24,6 +24,11 @@ import jax.numpy as jnp
 K_MASK = -2.3819763e38  # Set to a large negative number.
 DEFAULT_ROPE_BASE_FREQUENCY = 10_000
 DEFAULT_ROPE_SCALE_FACTOR = 1.0
+
+# A dictionary with the following array shapes as keys:
+# v: [batch_size, cache_size, num_heads, head_dim]
+# k: [batch_size, cache_size, num_heads, head_dim]
+# end_index: [batch_size]
 LayerCache = dict[str, jax.Array]
 
 
@@ -73,6 +78,7 @@ class Embedder(nn.Module):
   vision_proj_dim: int | None = None
 
   def setup(self):
+    # Embedding matrix of shape [vocab_size, embed_dim]
     self.input_embedding_table = self.param(
         'input_embedding',
         nn.initializers.normal(),
@@ -91,11 +97,30 @@ class Embedder(nn.Module):
       )
 
   def encode(self, x: jax.Array) -> jax.Array:
+    """Encodes the input tokens.
+
+    Args:
+      x: Input tokens of shape [seq_len] or [batch_size, seq_len], where
+        each token is an integer in [0, vocab_size).
+
+    Returns:
+      Encoded tokens of shape [seq_len, embed_dim] or [batch_size, seq_len,
+      embed_dim].
+    """
     x = self.input_embedding_table[(x,)]
     x *= jnp.sqrt(self.embed_dim).astype(x.dtype)
     return x
 
   def decode(self, x: jax.Array) -> jax.Array:
+    """Decodes the input vectors.
+
+    Args:
+      x: Array of shape [seq_len, embed_dim] or [batch_size, seq_len,
+        embed_dim].
+
+    Returns:
+      Array of shape [seq_len, vocab_size] or [batch_size, seq_len, vocab_size].
+    """
     return jnp.dot(x, self.input_embedding_table.T)
 
   def encode_vision(self, x: jax.Array) -> jax.Array:
@@ -155,9 +180,22 @@ class Attention(nn.Module):
       cache: LayerCache | None,
       attn_mask: jax.Array,
   ) -> tuple[LayerCache | None, jax.Array]:
+    """Applies multi-head attention to the inputs.
+
+    Args:
+      x: Input sequence of shape [batch_size, seq_len, embed_dim].
+      segment_pos: Input absolute positions of shape [batch_size, seq_len].
+      cache: KV cache or None.
+      attn_mask: Attention mask of shape [batch_size, seq_len, cache_size].
+
+    Returns:
+      cache: Updated attention KV cache.
+      outputs: Output sequence of shape [batch_size, seq_len, embed_dim].
+    """
     seq_len = x.shape[1]
 
     if self.use_qkv_einsum:
+      # [batch_size, seq_len, num_heads, head_dim]
       query_proj, key_proj, value_proj = self.qkv_einsum('BTD,SNDH->SBTNH', x)
     else:
       query_proj = self.q_einsum('BTD,NDH->BTNH', x)
@@ -174,6 +212,7 @@ class Attention(nn.Module):
         scale_factor=self.rope_scale_factor,
     )
     query_scaled = query_proj * self.query_pre_attn_scalar
+
     key_proj = positional_embeddings.apply_rope(
         key_proj,
         segment_pos,
@@ -185,12 +224,17 @@ class Attention(nn.Module):
     # Save the KV values to the cache.
     if cache is not None:
       end_index = cache['end_index'][0]
-      slice_indices = (0, end_index % cache['v'].shape[1], 0, 0)
+      cache_size = cache['v'].shape[1]
+      slice_indices = (0, end_index % cache_size, 0, 0)
+
+      # [batch_size, cache_size, num_heads, head_dim]
       value_proj = jax.lax.dynamic_update_slice(
           cache['v'],
           value_proj,
           slice_indices,
       )
+
+      # [batch_size, cache_size, num_heads, head_dim]
       key_proj = jax.lax.dynamic_update_slice(
           cache['k'], key_proj, slice_indices
       )
@@ -205,6 +249,7 @@ class Attention(nn.Module):
       b, t, k, g, s = logits.shape
       logits = logits.reshape((b, t, k * g, s))
     else:
+      # [batch_size, seq_len, num_heads, head_dim]
       logits = jnp.einsum('BTNH,BSNH->BTNS', query_scaled, key_proj)
 
     if self.attn_logits_soft_cap is not None:
@@ -223,10 +268,15 @@ class Attention(nn.Module):
           cache_len=attn_mask.shape[-1],
           sliding_window_size=self.sliding_window_size,
       )
+      # [batch_size, seq_len, cache_size]
       attn_mask *= sliding_mask
 
+    # [batch_size, seq_len, num_heads, cache_size]
     padded_logits = jnp.where((jnp.expand_dims(attn_mask, -2)), logits, K_MASK)
+
+    # [batch_size, seq_len, num_heads, cache_size]
     probs = jax.nn.softmax(padded_logits, axis=-1).astype(key_proj.dtype)
+
     if self.use_gqa:
       # Reshape matrices to enable einsums over groups.
       b, t, kg, h = probs.shape
@@ -237,13 +287,19 @@ class Attention(nn.Module):
       b, t, k, g, h = encoded.shape
       encoded = encoded.reshape((b, t, k * g, h))
     else:
+      # [batch_size, seq_len, num_heads, head_dim]
       encoded = jnp.einsum('BTNS,BSNH->BTNH', probs, value_proj)
+
+    # [batch_size, seq_len, features]
     attn_output = self.attn_vec_einsum('BTNH,NHD->BTD', encoded)
 
     if cache is not None:
       new_cache = {
+          # [batch_size, cache_size, num_heads, head_dim]
           'v': value_proj,
+          # [batch_size, cache_size, num_heads, head_dim]
           'k': key_proj,
+          # [batch_size]
           'end_index': cache['end_index'] + seq_len,
       }
     else:
@@ -275,12 +331,20 @@ class Attention(nn.Module):
 class FeedForward(nn.Module):
   """Feed forward module."""
 
-  features: int
+  features: int  # features = embed_dim
   hidden_dim: int
   transpose_gating_einsum: bool
 
   @nn.compact
   def __call__(self, x):
+    """Applies the feed forward module.
+
+    Args:
+      x: Input sequence of shape [batch_size, seq_len, features].
+
+    Returns:
+      Output sequence of shape [batch_size, seq_len, features].
+    """
     # Some versions use an alternate parameter ordering that
     # transposes hidden_dim and features.
     if self.transpose_gating_einsum:
@@ -299,15 +363,20 @@ class FeedForward(nn.Module):
     # Use the same scope for backwards compatibility with existing checkpoints
     # created before using `layers.Einsum` here.
     nn.share_scope(self, gating)
+
+    # [batch_size, seq_len, 2, hidden_dim]
     gate = gating(eq, x)
+    # [batch_size, seq_len, hidden_dim]
     activations = nn.gelu(gate[..., 0, :]) * gate[..., 1, :]
 
-    # Down projection
+    # Project back from hidden_dim to features.
     linear = layers.Einsum(
         shape=(self.hidden_dim, self.features),
         weight_name='linear',
     )
     nn.share_scope(self, linear)
+
+    # [batch_size, seq_len, features]
     outputs = linear('...H,HF->...F', activations)
 
     return outputs
@@ -334,6 +403,7 @@ class Block(nn.Module):
 
   def setup(self):
     self.pre_attention_norm = layers.RMSNorm()
+
     self.attn = Attention(
         num_heads=self.num_heads,
         features=self.embed_dim,
@@ -347,16 +417,19 @@ class Block(nn.Module):
         sliding_window_size=self.sliding_window_size,
         use_qk_norm=self.use_qk_norm,
     )
+
     self.post_attention_norm = None
     if self.use_post_attn_norm:
       self.post_attention_norm = layers.RMSNorm()
 
     self.pre_ffw_norm = layers.RMSNorm()
+
     self.mlp = FeedForward(
         features=self.embed_dim,
         hidden_dim=self.hidden_dim,
         transpose_gating_einsum=self.transpose_gating_einsum,
     )
+
     self.post_ffw_norm = None
     if self.use_post_ffw_norm:
       self.post_ffw_norm = layers.RMSNorm()
@@ -368,19 +441,43 @@ class Block(nn.Module):
       cache: LayerCache | None,
       attn_mask: jax.Array,
   ) -> tuple[LayerCache | None, jax.Array]:
+    """Applies the block to the inputs.
+
+    Args:
+      x: Input sequence of shape [batch_size, seq_len, embed_dim].
+      segment_pos: Input absolute positions of shape [batch_size, seq_len].
+      cache: KV cache or None.
+      attn_mask: Attention mask of shape [batch_size, seq_len, cache_size].
+
+    Returns:
+      cache: Updated attention KV cache.
+      outputs: Output sequence of shape [batch_size, seq_len, embed_dim].
+    """
     inputs_normalized = self.pre_attention_norm(x)
+
+    # attn_output.shape = [batch_size, seq_len, embed_dim]
+    # cache["k"].shape = [batch_size, cache_size, num_heads, head_dim]
+    # cache["v"].shape = [batch_size, cache_size, num_heads, head_dim]
+    # cache["end_index"].shape = [batch_size]
     cache, attn_output = self.attn(
         inputs_normalized,
         segment_pos,
         cache,
         attn_mask,
     )
+
     if self.post_attention_norm is not None:
       attn_output = self.post_attention_norm(attn_output)
+
     attn_output += x
+
     outputs = self.pre_ffw_norm(attn_output)
+
     outputs = self.mlp(outputs)
+
     if self.post_ffw_norm is not None:
       outputs = self.post_ffw_norm(outputs)
+
     outputs += attn_output
+
     return cache, outputs
