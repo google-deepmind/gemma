@@ -74,7 +74,7 @@ class SamplerEvaluator(kd.evals.EvaluatorBase):
   metrics: Mapping[str, kd.metrics.Metric] = dataclasses.field(
       default_factory=dict
   )
-  summaries: Mapping[str, kd.summaries.Summary] = dataclasses.field(
+  summaries: Mapping[str, kd.metrics.Metric] = dataclasses.field(
       default_factory=dict
   )
 
