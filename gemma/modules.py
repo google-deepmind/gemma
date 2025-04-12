@@ -247,7 +247,8 @@ class Attention(nn.Module):
       b, t, k, g, s = logits.shape
       logits = logits.reshape((b, t, k * g, s))
     else:
-      # [batch_size, seq_len, num_heads, head_dim]
+      # [batch_size, seq_len, num_heads, cache_size]
+      # If cache is None, then cache_size = seq_len.
       logits = jnp.einsum('BTNH,BSNH->BTNS', query_scaled, key_proj)
 
     if self.attn_logits_soft_cap is not None:
@@ -272,6 +273,7 @@ class Attention(nn.Module):
     # [batch_size, seq_len, num_heads, cache_size]
     padded_logits = jnp.where((jnp.expand_dims(attn_mask, -2)), logits, K_MASK)
 
+    # Multi-head attention matrices.
     # [batch_size, seq_len, num_heads, cache_size]
     probs = jax.nn.softmax(padded_logits, axis=-1).astype(key_proj.dtype)
 
