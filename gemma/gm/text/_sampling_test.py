@@ -14,7 +14,7 @@
 
 from gemma import gm
 import jax.numpy
-import numpy as np  # pylint: disable=unused-import
+import numpy as np
 
 
 def test_greedy_sampling():
@@ -35,3 +35,26 @@ def test_random_sampling():
   logits = jax.random.normal(rng, shape=(batch_size, vocab_size))
   tokens = sampling.get_next_tokens(logits, rng)
   assert tokens.shape == (batch_size,)
+
+
+def test_topk_sampling():
+  sampling = gm.text.TopkSampling(k=3)
+  rng = jax.random.PRNGKey(0)
+  batch_size = 2
+  vocab_size = 5
+  logits = jax.random.normal(rng, shape=(batch_size, vocab_size))
+  tokens = sampling.get_next_tokens(logits, rng)
+  assert tokens.shape == (batch_size,)
+
+
+def test_top1_sampling_matches_greedy_sampling():
+  greedy = gm.text.Greedy()
+  top1_sampling = gm.text.TopkSampling(k=1)
+  rng = jax.random.PRNGKey(0)
+  batch_size = 2
+  vocab_size = 5
+  logits = jax.random.normal(rng, shape=(batch_size, vocab_size))
+  tokens_greedy = greedy.get_next_tokens(logits, rng)
+  tokens_top1 = top1_sampling.get_next_tokens(logits, rng)
+  np.testing.assert_array_equal(tokens_greedy, tokens_top1)
+

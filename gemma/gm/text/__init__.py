@@ -31,10 +31,11 @@ with _epy.lazy_api_imports(globals()):
   from gemma.gm.text._chat_sampler import ChatSampler
 
   # Sampling methods
-  # TODO(epot): Add `TopK`,...
+  # TODO(mblondel): Add nucleus sampling
   from gemma.gm.text._sampling import SamplingMethod
   from gemma.gm.text._sampling import Greedy
   from gemma.gm.text._sampling import RandomSampling
+  from gemma.gm.text._sampling import TopkSampling
 
   # Other utils
   # from gemma.gm.text import _template as template
