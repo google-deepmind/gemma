@@ -36,7 +36,7 @@ class Gemma3_500m(_transformer.Transformer):  # pylint: disable=invalid-name
       use_qk_norm=True,
       attention_types=config.make_attention_layers_types(
           pattern=config.GEMMA3_ATTENTION_PATTERN,
-          num_layers=12,
+          num_layers=22,
       ),
       query_pre_attn_norm=config.QueryPreAttentionNormalisation.BY_ONE_OVER_SQRT_HEAD_DIM,
       attn_logits_soft_cap=None,
