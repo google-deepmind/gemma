@@ -17,6 +17,7 @@
 import abc
 import dataclasses
 
+from gemma.gm.utils import _jax_utils
 import jax
 import jax.numpy as jnp
 from kauldron.typing import Float, Int, PRNGKey, typechecked  # pylint: disable=g-multiple-import,g-importing-member
@@ -52,8 +53,28 @@ class Greedy(SamplingMethod):
 @dataclasses.dataclass(frozen=True, kw_only=True)
 class RandomSampling(SamplingMethod):
   """Simple random sampling."""
+
   temperature: float = 1.0
 
   @typechecked
   def get_next_tokens(self, logits: Float['*B V'], rng: PRNGKey) -> Int['*B']:
     return jax.random.categorical(rng, logits / self.temperature, axis=-1)
+
+
+@dataclasses.dataclass(frozen=True, kw_only=True)
+class TopkSampling(SamplingMethod):
+  """Top-k sampling."""
+
+  temperature: float = 1.0
+  k: int = 1
+
+  @_jax_utils.flatten_unflatten_batch_dim()
+  @typechecked
+  def get_next_tokens(self, logits: Float['*B V'], rng: PRNGKey) -> Int['*B']:
+    batch_size = logits.shape[0]
+    topk_values, topk_indices = jax.lax.top_k(logits, self.k)
+    sampled_topk_indices = jax.random.categorical(
+        rng, topk_values / self.temperature, axis=-1
+    )
+    batch_indices = jnp.arange(batch_size)
+    return topk_indices[batch_indices, sampled_topk_indices]
