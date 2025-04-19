@@ -263,8 +263,8 @@ class Sampler:
       max_new_tokens: Maximum number of new tokens to generate. The transformer
         will process `input_length + max_new_tokens`.
       stream: If `True`, yields tokens as they get predicted.
-      sampling: Sampling method to use. If given, will override the default
-        sampling method.
+      sampling: Sampling method to use. If given, will override the sampling
+        method provided in `__init__` (default: greedy).
       rng: Seed to use for the sampling method. If `None`, a random seed is
         used. Can be a seed `int` or a `jax.random.PRNGKey` object.
       return_state: If `True`, returns `SamplerOutput` object with additional
