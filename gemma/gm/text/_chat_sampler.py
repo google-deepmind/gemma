@@ -21,7 +21,7 @@ import functools
 # from gemma.gm.data import _functional
 from gemma.gm.nn import _transformer
 from gemma.gm.text import _sampler
-from gemma.gm.text import _sampler_call
+from gemma.gm.text import _sampler_loop
 from gemma.gm.text import _sampling
 from gemma.gm.text import _template
 from gemma.gm.text import _tokenizer
@@ -92,7 +92,7 @@ class ChatSampler:
   # Internal variables, but exposed for power users.
 
   # Last state of the sampler.
-  last_state: _sampler_call.SamplingState = dataclasses.field(  # pytype: disable=annotation-type-mismatch
+  last_state: _sampler_loop.SamplingState = dataclasses.field(  # pytype: disable=annotation-type-mismatch
       default=None, repr=False
   )
   turns: list[_template.Turn] = dataclasses.field(default_factory=list)
@@ -187,11 +187,6 @@ class ChatSampler:
       # might interfere if user manually use the cache.
       object.__setattr__(self, 'last_state', None)
       object.__setattr__(self, 'turns', [])
-
-    if self.last_state is not None and images is not None:
-      raise NotImplementedError(
-          'Multi-turn with images on the second turn is not supported yet.'
-      )
 
     out = self.sampler.sample(  # pytype: disable=wrong-arg-types
         prompt,
