@@ -45,7 +45,6 @@ class Gemma3_500m(_transformer.Transformer):  # pylint: disable=invalid-name
       local_base_frequency=10_000,
       global_base_frequency=1_000_000,
       vision_encoder=None,
-      max_cache_length=None,
   )
 
   INFO = _transformer.ModelInfo(

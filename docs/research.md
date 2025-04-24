@@ -31,7 +31,6 @@ class MyTinyTransformer(gm.nn.Transformer):
       transpose_gating_einsum=True,
       local_base_frequency=10_000,
       global_base_frequency=1_000_000,
-      max_cache_length=None,
       vision_encoder=None,  # Text-only
   )
 

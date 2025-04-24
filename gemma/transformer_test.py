@@ -14,7 +14,6 @@
 
 """Tests for the Gemma transformer."""
 
-from unittest import mock
 from absl.testing import absltest
 from absl.testing import parameterized
 from gemma import modules
@@ -33,44 +32,11 @@ class TransformerConfigTest(parameterized.TestCase):
       dict(ctor=transformer_lib.TransformerConfig.gemma2_27b),
   )
   def test_known_architectures(self, ctor):
-    transformer_config = ctor(cache_size=16)
+    transformer_config = ctor()
     self.assertIsInstance(transformer_config, transformer_lib.TransformerConfig)
 
 
 class TransformerTest(parameterized.TestCase):
-
-  @parameterized.parameters(
-      dict(
-          num_layers=transformer_lib._NUM_LAYERS_GEMMA_2B,
-          expected_call='gemma_2b',
-      ),
-      dict(
-          num_layers=transformer_lib._NUM_LAYERS_GEMMA_7B,
-          expected_call='gemma_7b',
-      ),
-      dict(
-          num_layers=transformer_lib._NUM_LAYERS_GEMMA2_2B,
-          expected_call='gemma2_2b',
-      ),
-      dict(
-          num_layers=transformer_lib._NUM_LAYERS_GEMMA2_9B,
-          expected_call='gemma2_9b',
-      ),
-      dict(
-          num_layers=transformer_lib._NUM_LAYERS_GEMMA2_27B,
-          expected_call='gemma2_27b',
-      ),
-  )
-  def test_params_load(self, num_layers, expected_call):
-    mock_transformer = {
-        'transformer': {f'layer_{i}': None for i in range(num_layers)}
-    }
-
-    with mock.patch.object(
-        transformer_lib.TransformerConfig, expected_call
-    ) as mock_method:
-      transformer_lib.TransformerConfig.from_params(mock_transformer)
-      mock_method.assert_called_once()
 
   @parameterized.parameters(
       # Prime number to ease shape tracing
@@ -127,13 +93,14 @@ class TransformerTest(parameterized.TestCase):
         num_heads=num_heads,
         head_dim=head_dim,
         num_kv_heads=num_kv_heads,
-        max_cache_length=cache_size,
         final_logit_softcap=None,
         attention_types=[modules.AttentionType.GLOBAL] * num_layers,
         use_post_attn_norm=False,
         use_post_ffw_norm=False,
     )
-    cache = config.init_cache(batch_size, dtype=jnp.float32)
+    cache = config.init_cache(
+        batch_size, dtype=jnp.float32, cache_length=cache_size
+    )
     attention_mask = jnp.ones((batch_size, 1, cache_size), dtype=jnp.bool)
     with jax.numpy_rank_promotion('raise'):
       transformer = transformer_lib.Transformer(config=config)
@@ -179,7 +146,6 @@ class TransformerTest(parameterized.TestCase):
         num_kv_heads=1,
         hidden_dim=4,
         head_dim=4,
-        max_cache_length=cache_size,
         attention_types=[modules.AttentionType.GLOBAL] * 3,
         use_post_attn_norm=False,
         use_post_ffw_norm=False,
@@ -203,7 +169,9 @@ class TransformerTest(parameterized.TestCase):
     all_outputs = []
     for config in [config_soft_cap, config_no_soft_cap]:
       with jax.numpy_rank_promotion('raise'):
-        cache = config.init_cache(batch_size, dtype=jnp.float32)
+        cache = config.init_cache(
+            batch_size, dtype=jnp.float32, cache_length=cache_size
+        )
         transformer = transformer_lib.Transformer(config=config)
 
         params = transformer.init(
@@ -242,7 +210,6 @@ class TransformerTest(parameterized.TestCase):
               num_heads=3,
               head_dim=4,
               num_kv_heads=3,
-              max_cache_length=2,
               final_logit_softcap=None,
               attention_types=[modules.AttentionType.GLOBAL] * 2,
               use_post_attn_norm=False,
@@ -254,7 +221,7 @@ class TransformerTest(parameterized.TestCase):
       )
   ])
   def test_creates_cache(self, config, keys, k_shape, v_shape):
-    cache = config.init_cache(1)
+    cache = config.init_cache(1, cache_length=2)
     self.assertEqual(list(cache.keys()), keys)
     self.assertEqual(cache['layer_0']['k'].shape, k_shape)
     self.assertEqual(cache['layer_0']['v'].shape, v_shape)
@@ -271,7 +238,6 @@ class TransformerTest(parameterized.TestCase):
               num_heads=3,
               head_dim=4,
               num_kv_heads=3,
-              max_cache_length=6,
               final_logit_softcap=None,
               attention_types=[modules.AttentionType.GLOBAL] * 2,
               use_post_attn_norm=False,
@@ -285,12 +251,15 @@ class TransformerTest(parameterized.TestCase):
       seq_size: int,
       config: transformer_lib.TransformerConfig,
   ):
+    cache_length = 6
     token_input = jnp.ones((batch_size, seq_size), dtype=jnp.int32)
-    empty_cache = config.init_cache(batch_size, dtype=jnp.float32)
+    empty_cache = config.init_cache(
+        batch_size, dtype=jnp.float32, cache_length=cache_length
+    )
     with jax.numpy_rank_promotion('raise'):
       transformer = transformer_lib.Transformer(config=config)
       attention_mask = jnp.ones(
-          (batch_size, seq_size, config.max_cache_length), dtype=jnp.bool
+          (batch_size, seq_size, cache_length), dtype=jnp.bool
       )
       positions = transformer_lib.build_positions_from_mask(token_input != 0)
       params = transformer.init(
@@ -326,14 +295,13 @@ class TransformerTest(parameterized.TestCase):
         num_heads=3,
         head_dim=4,
         num_kv_heads=3,
-        max_cache_length=6,
         final_logit_softcap=None,
         attention_types=[modules.AttentionType.GLOBAL] * 2,
         use_post_attn_norm=False,
         use_post_ffw_norm=False,
     )
 
-    cache = config.init_cache(batch_size=1, dtype=jnp.float32)
+    cache = config.init_cache(batch_size=1, dtype=jnp.float32, cache_length=6)
     self.assertTrue(cache)
 
   @parameterized.named_parameters([

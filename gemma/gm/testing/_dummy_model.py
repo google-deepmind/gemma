@@ -29,7 +29,6 @@ class DummyGemma(_transformer.Transformer):  # pylint: disable=invalid-name
       num_heads=2,
       num_kv_heads=2,
       head_dim=128,
-      max_cache_length=None,
       final_logit_softcap=None,
       attention_types=(config_lib.AttentionType.GLOBAL,),
       use_post_attn_norm=None,

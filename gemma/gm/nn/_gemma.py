@@ -28,7 +28,7 @@ class Gemma2_2B(_transformer.Transformer):  # pylint: disable=invalid-name
   """Gemma2 transformer architecture."""
 
   config: transformer.TransformerConfig = (
-      transformer.TransformerConfig.gemma2_2b(cache_size=None)
+      transformer.TransformerConfig.gemma2_2b()
   )
 
   INFO = _transformer.ModelInfo(
@@ -41,7 +41,7 @@ class Gemma2_9B(_transformer.Transformer):  # pylint: disable=invalid-name
   """Gemma2 transformer architecture."""
 
   config: transformer.TransformerConfig = (
-      transformer.TransformerConfig.gemma2_9b(cache_size=None)
+      transformer.TransformerConfig.gemma2_9b()
   )
 
   INFO = _transformer.ModelInfo(
@@ -54,7 +54,7 @@ class Gemma2_27B(_transformer.Transformer):  # pylint: disable=invalid-name
   """Gemma2 transformer architecture."""
 
   config: transformer.TransformerConfig = (
-      transformer.TransformerConfig.gemma2_27b(cache_size=None)
+      transformer.TransformerConfig.gemma2_27b()
   )
 
   INFO = _transformer.ModelInfo(
