@@ -92,7 +92,6 @@ class TransformerConfig:
   use_post_attn_norm: bool
   use_post_ffw_norm: bool
   attention_types: Iterable[modules.AttentionType]
-  max_cache_length: int | None = 1024
   query_pre_attn_norm: QueryPreAttentionNormalisation = (
       QueryPreAttentionNormalisation.BY_ONE_OVER_SQRT_HEAD_DIM
   )
@@ -104,7 +103,6 @@ class TransformerConfig:
   global_base_frequency: int = modules.DEFAULT_ROPE_BASE_FREQUENCY
   local_scale_factor: float = modules.DEFAULT_ROPE_SCALE_FACTOR
   global_scale_factor: float = modules.DEFAULT_ROPE_SCALE_FACTOR
-  mm_extra_vocab_size: int = 0
   vision_encoder: gemma_vision.SigLiPFromPatches | None = None
 
   def query_pre_attn_scalar(self) -> float:
@@ -117,45 +115,8 @@ class TransformerConfig:
       case QueryPreAttentionNormalisation.BY_ONE_OVER_SQRT_HEAD_DIM | _:
         return self.head_dim**-0.5
 
-  # TODO(epot): Remove this method
   @classmethod
-  def from_params(
-      cls, params, cache_size: int | None = 1024
-  ) -> 'TransformerConfig':
-    """Creates a TransformerConfig from loaded parameters.
-
-    Args:
-      params: Model parameters
-      cache_size: Number of tokens to cache
-
-    Returns:
-      TransformerConfig.
-    """
-    layer_names = [
-        name for name in params['transformer'].keys() if 'layer' in name
-    ]
-    layer_names = [name.replace('layer_', '') for name in layer_names]
-    num_layers = max([int(layer) for layer in layer_names]) + 1
-
-    if num_layers == _NUM_LAYERS_GEMMA_2B:
-      return cls.gemma_2b(cache_size)
-    if num_layers == _NUM_LAYERS_GEMMA_7B:
-      return cls.gemma_7b(cache_size)
-    if num_layers == _NUM_LAYERS_GEMMA2_2B:
-      return cls.gemma2_2b(cache_size)
-    if num_layers == _NUM_LAYERS_GEMMA2_9B:
-      return cls.gemma2_9b(cache_size)
-    if num_layers == _NUM_LAYERS_GEMMA2_27B:
-      return cls.gemma2_27b(cache_size)
-    if num_layers == _NUM_LAYERS_GEMMA3_4B:
-      return cls.gemma3_4b(text_only=False)
-
-    raise ValueError(
-        'Params are not a Gemma 2b, 7b, or Gemma 2 2b, 9b, or 27b variant.'
-    )
-
-  @classmethod
-  def gemma_2b(cls, cache_size: int | None):
+  def gemma_2b(cls):
     return cls(
         num_layers=_NUM_LAYERS_GEMMA_2B,
         num_embed=256128,
@@ -168,11 +129,10 @@ class TransformerConfig:
         attention_types=(modules.AttentionType.GLOBAL,) * _NUM_LAYERS_GEMMA_2B,
         use_post_attn_norm=False,
         use_post_ffw_norm=False,
-        max_cache_length=cache_size,
     )
 
   @classmethod
-  def gemma_7b(cls, cache_size: int | None):
+  def gemma_7b(cls):
     return cls(
         num_layers=_NUM_LAYERS_GEMMA_7B,
         num_embed=256128,
@@ -185,11 +145,10 @@ class TransformerConfig:
         attention_types=(modules.AttentionType.GLOBAL,) * _NUM_LAYERS_GEMMA_7B,
         use_post_attn_norm=False,
         use_post_ffw_norm=False,
-        max_cache_length=cache_size,
     )
 
   @classmethod
-  def gemma2_2b(cls, cache_size: int | None):
+  def gemma2_2b(cls):
     return cls(
         num_layers=_NUM_LAYERS_GEMMA2_2B,
         num_embed=256128,
@@ -206,14 +165,13 @@ class TransformerConfig:
         * int(_NUM_LAYERS_GEMMA2_2B / 2),
         use_post_attn_norm=True,
         use_post_ffw_norm=True,
-        max_cache_length=cache_size,
         query_pre_attn_norm=QueryPreAttentionNormalisation.BY_ONE_OVER_SQRT_HEAD_DIM,
         attn_logits_soft_cap=50.0,
         sliding_window_size=4096,
     )
 
   @classmethod
-  def gemma2_9b(cls, cache_size: int | None):
+  def gemma2_9b(cls):
     return cls(
         num_layers=_NUM_LAYERS_GEMMA2_9B,
         num_embed=256128,
@@ -230,7 +188,6 @@ class TransformerConfig:
         * int(_NUM_LAYERS_GEMMA2_9B / 2),
         use_post_attn_norm=True,
         use_post_ffw_norm=True,
-        max_cache_length=cache_size,
         query_pre_attn_norm=QueryPreAttentionNormalisation.BY_ONE_OVER_SQRT_HEAD_DIM,
         attn_logits_soft_cap=50.0,
         sliding_window_size=4096,
@@ -238,7 +195,7 @@ class TransformerConfig:
     )
 
   @classmethod
-  def gemma2_27b(cls, cache_size: int | None):
+  def gemma2_27b(cls):
     return cls(
         num_layers=_NUM_LAYERS_GEMMA2_27B,
         num_embed=256128,
@@ -255,7 +212,6 @@ class TransformerConfig:
             modules.AttentionType.GLOBAL,
         )
         * int(_NUM_LAYERS_GEMMA2_27B / 2),
-        max_cache_length=cache_size,
         query_pre_attn_norm=QueryPreAttentionNormalisation.BY_ONE_OVER_SQRT_EMBED_DIM_DIV_NUM_HEADS,
         attn_logits_soft_cap=50.0,
         sliding_window_size=4096,
@@ -286,7 +242,6 @@ class TransformerConfig:
         local_base_frequency=10_000,
         global_base_frequency=1_000_000,
         vision_encoder=None,
-        max_cache_length=None,
     )
 
   @classmethod
@@ -314,8 +269,6 @@ class TransformerConfig:
         global_base_frequency=1_000_000,
         global_scale_factor=8.0,
         vision_encoder=None if text_only else gemma_vision.SigLiPFromPatches(),
-        mm_extra_vocab_size=0 if text_only else 128,
-        max_cache_length=None,
     )
 
   @classmethod
@@ -343,8 +296,6 @@ class TransformerConfig:
         global_base_frequency=1_000_000,
         global_scale_factor=8.0,
         vision_encoder=None if text_only else gemma_vision.SigLiPFromPatches(),
-        mm_extra_vocab_size=0 if text_only else 128,
-        max_cache_length=None,
     )
 
   @classmethod
@@ -372,8 +323,6 @@ class TransformerConfig:
         global_base_frequency=1_000_000,
         global_scale_factor=8.0,
         vision_encoder=None if text_only else gemma_vision.SigLiPFromPatches(),
-        mm_extra_vocab_size=0 if text_only else 128,
-        max_cache_length=None,
     )
 
   def init_cache(
@@ -381,10 +330,9 @@ class TransformerConfig:
       batch_size: int,
       dtype: jnp.dtype = jnp.bfloat16,
       *,
-      cache_length: int | None = None,
+      cache_length: int,
   ) -> Cache:
     """Initializes a new Transformer cache."""
-    cache_length = cache_length or self.max_cache_length
     if cache_length is None:
       raise ValueError(
           'Missing `cache_length=` kwarg when calling `init_cache()`.'

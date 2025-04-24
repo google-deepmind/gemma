@@ -104,17 +104,6 @@ class Transformer(transformer.Transformer):
   INFO: ClassVar[ModelInfo] = ModelInfo()
 
   def __post_init__(self):
-
-    # TODO(epot): Config should not have `max_cache_length` parameter as
-    # this is a sampling argument independent of the model architecture.
-    # Also rather than inheriting from Transformer, could try unify the API
-    # in a single class.
-    if self.config.max_cache_length is not None:
-      raise ValueError(
-          'The config `max_cache_length` should be None. Got:'
-          f' {self.config.max_cache_length}. Instead, the cache size is set'
-          ' directly in the sampler.'
-      )
     super().__post_init__()
 
   # Calling `model.apply` on Colab makes the Kernel crash unless it is jitted.
