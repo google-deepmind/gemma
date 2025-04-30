@@ -47,13 +47,13 @@ with _epy.lazy_api_imports(globals()):
   # ****************************************************************************
   # Allow users to create their own transformers.
   # TODO(epot): Also expose the Vision encoder model as standalone.
-  from gemma.layers import Einsum
-  from gemma.layers import RMSNorm
-  from gemma.modules import Embedder
-  from gemma.modules import Attention
-  from gemma.modules import Block
-  from gemma.modules import FeedForward
-  from gemma.modules import AttentionType
+  from gemma.gm.nn._layers import Einsum
+  from gemma.gm.nn._layers import RMSNorm
+  from gemma.gm.nn._modules import Embedder
+  from gemma.gm.nn._modules import Attention
+  from gemma.gm.nn._modules import Block
+  from gemma.gm.nn._modules import FeedForward
+  from gemma.gm.nn._modules import AttentionType
 
   # Model inputs
   from gemma.gm.nn._config import Cache

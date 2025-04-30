@@ -23,5 +23,5 @@ with _epy.lazy_api_imports(globals()):
   from gemma.gm.nn._config import QueryPreAttentionNormalisation
   from gemma.gm.nn._config import TransformerConfig
   from gemma.gm.nn._gemma import GEMMA3_ATTENTION_PATTERN
+  from gemma.gm.nn._modules import AttentionType
   from gemma.gm.nn._transformer import ModelInfo
-  from gemma.modules import AttentionType

@@ -24,10 +24,10 @@ from typing import Any, ClassVar
 import einops
 import flax
 from flax import linen as nn
-from gemma import layers
-from gemma import modules
 from gemma.gm.math import _pos_utils
 from gemma.gm.nn import _config
+from gemma.gm.nn import _layers
+from gemma.gm.nn import _modules
 from gemma.gm.utils import _attention_mask
 from gemma.gm.utils import _dtype_params
 from gemma.gm.utils import _jax_utils
@@ -112,7 +112,7 @@ class Transformer(nn.Module):
     super().__post_init__()
 
   def setup(self):
-    self.embedder = modules.Embedder(
+    self.embedder = _modules.Embedder(
         vocab_size=self.config.num_embed,
         embed_dim=self.config.embed_dim,
         vision_proj_dim=self.config.vision_encoder.siglip_encoder.width
@@ -121,7 +121,7 @@ class Transformer(nn.Module):
     )
 
     self.blocks = [
-        modules.Block(
+        _modules.Block(
             name=f'layer_{i}',
             num_heads=self.config.num_heads,
             num_kv_heads=self.config.num_kv_heads,
@@ -137,17 +137,17 @@ class Transformer(nn.Module):
             transpose_gating_einsum=self.config.transpose_gating_einsum,
             use_qk_norm=self.config.use_qk_norm,
             rope_base_frequency=self.config.local_base_frequency
-            if attn_type == modules.AttentionType.LOCAL_SLIDING
+            if attn_type == _modules.AttentionType.LOCAL_SLIDING
             else self.config.global_base_frequency,
             rope_scale_factor=self.config.local_scale_factor
-            if attn_type == modules.AttentionType.LOCAL_SLIDING
+            if attn_type == _modules.AttentionType.LOCAL_SLIDING
             else self.config.global_scale_factor,
         )
         for i, attn_type in zip(
             range(self.config.num_layers), self.config.attention_types
         )
     ]
-    self.final_norm = layers.RMSNorm()
+    self.final_norm = _layers.RMSNorm()
 
     self.vision_encoder = self.config.vision_encoder
 

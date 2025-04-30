@@ -17,4 +17,4 @@
 # pylint: disable=g-importing-member,g-import-not-at-top
 
 # Positional embeddings.
-from gemma.positional_embeddings import apply_rope
+from gemma.gm.math._positional_embeddings import apply_rope

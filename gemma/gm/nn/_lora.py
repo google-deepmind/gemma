@@ -19,8 +19,8 @@ import functools
 from typing import Any
 
 from flax import linen as nn
-from gemma import layers
 from gemma import peft
+from gemma.gm.nn import _layers
 import jax
 import jax.numpy as jnp
 from kauldron import kontext
@@ -94,7 +94,7 @@ def _replace_by_lora(
       return peft.LoRADense(rank=rank, dtype=dtype, wrapped=module)
     case nn.Einsum():
       return peft.LoRAEinsum(rank=rank, dtype=dtype, wrapped=module)
-    case layers.Einsum():
+    case _layers.Einsum():
       # This hack is required because the FeedForward layer call two different
       # Einsum with using `nn.share_scope`, so the two wrappers need a different
       # name.
@@ -114,7 +114,7 @@ class _LoRAEinsum(nn.Module):
   _: dataclasses.KW_ONLY
   rank: int
   dtype: np.dtype
-  wrapped: layers.Einsum
+  wrapped: _layers.Einsum
 
   # Do not use `nn.share_scope` here as the `wrapped` module inside
   # `FeedForward` already uses `nn.share_scope`, so the two Einsum used in
