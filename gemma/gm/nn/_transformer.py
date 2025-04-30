@@ -26,7 +26,8 @@ import flax
 from flax import linen as nn
 from gemma import layers
 from gemma import modules
-from gemma import transformer
+from gemma.gm.math import _pos_utils
+from gemma.gm.nn import _config
 from gemma.gm.utils import _attention_mask
 from gemma.gm.utils import _dtype_params
 from gemma.gm.utils import _jax_utils
@@ -63,7 +64,7 @@ class Output:
 
   # When `return_last_only`, `logits` is `*B V`
   logits: Float['*B L V'] | Float['*B V']
-  cache: transformer.Cache | None
+  cache: _config.Cache | None
   hidden_states: Float['*B L D'] | Float['*B D'] | None
 
 
@@ -103,7 +104,7 @@ class Transformer(nn.Module):
   tokens: kontext.Key = kontext.REQUIRED
   images: kontext.Key | None = None
 
-  config: transformer.TransformerConfig
+  config: _config.TransformerConfig
   # Model info to specifiy the tokenizer version and default checkpoint.
   INFO: ClassVar[ModelInfo] = ModelInfo()
 
@@ -187,7 +188,7 @@ class Transformer(nn.Module):
       # TODO(epot): Cleanup and simplify the API.
       positions: Int['*B L'] | None = None,
       positions_offset: Int['*B'] | None = None,
-      cache: transformer.Cache | None = None,
+      cache: _config.Cache | None = None,
       # During training and pre-filling, the attention mask is `*B L L`
       # When sampling (after prefilling), tokens are decoded one by one,
       # so the attention mask is `*B 1 cache_length`
@@ -305,7 +306,7 @@ class Transformer(nn.Module):
       dtype: jnp.dtype[Any],
       cache_length: int,
       sharding: kd.sharding.ShardingTree | None = None,
-  ) -> transformer.Cache:
+  ) -> _config.Cache:
     cache = self.config.init_cache(
         batch_size=batch_size,
         dtype=dtype,
@@ -359,7 +360,7 @@ class Transformer(nn.Module):
     # tokens inserted for the images.
     # This is what the `gm.text.Sampler` implementation does.
     if positions is None:
-      positions = transformer.build_positions_from_mask(inputs_mask)
+      positions = _pos_utils.build_positions_from_mask(inputs_mask)
       # For multi-turn, during the pre-fill phase, the positions should be
       # shifted to take into account the previous turns.
       if positions_offset is not None:

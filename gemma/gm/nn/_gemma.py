@@ -19,8 +19,8 @@ from __future__ import annotations
 import dataclasses
 
 from gemma import modules
-from gemma import transformer
 from gemma.gm.ckpts import _paths
+from gemma.gm.nn import _config
 from gemma.gm.nn import _transformer
 from gemma.multimodal import vision as gemma_vision
 
@@ -48,7 +48,7 @@ GEMMA3_ATTENTION_PATTERN = (
 class Gemma2_2B(_transformer.Transformer):  # pylint: disable=invalid-name
   """Gemma2 transformer architecture."""
 
-  config: transformer.TransformerConfig = transformer.TransformerConfig(
+  config: _config.TransformerConfig = _config.TransformerConfig(
       num_embed=256128,
       embed_dim=2304,
       hidden_dim=9216,
@@ -63,7 +63,7 @@ class Gemma2_2B(_transformer.Transformer):  # pylint: disable=invalid-name
       * int(_NUM_LAYERS_GEMMA2_2B / 2),
       use_post_attn_norm=True,
       use_post_ffw_norm=True,
-      query_pre_attn_norm=transformer.QueryPreAttentionNormalisation.BY_ONE_OVER_SQRT_HEAD_DIM,
+      query_pre_attn_norm=_config.QueryPreAttentionNormalisation.BY_ONE_OVER_SQRT_HEAD_DIM,
       attn_logits_soft_cap=50.0,
       sliding_window_size=4096,
   )
@@ -77,7 +77,7 @@ class Gemma2_2B(_transformer.Transformer):  # pylint: disable=invalid-name
 class Gemma2_9B(_transformer.Transformer):  # pylint: disable=invalid-name
   """Gemma2 transformer architecture."""
 
-  config: transformer.TransformerConfig = transformer.TransformerConfig(
+  config: _config.TransformerConfig = _config.TransformerConfig(
       num_embed=256128,
       embed_dim=3584,
       hidden_dim=14336,
@@ -92,7 +92,7 @@ class Gemma2_9B(_transformer.Transformer):  # pylint: disable=invalid-name
       * int(_NUM_LAYERS_GEMMA2_9B / 2),
       use_post_attn_norm=True,
       use_post_ffw_norm=True,
-      query_pre_attn_norm=transformer.QueryPreAttentionNormalisation.BY_ONE_OVER_SQRT_HEAD_DIM,
+      query_pre_attn_norm=_config.QueryPreAttentionNormalisation.BY_ONE_OVER_SQRT_HEAD_DIM,
       attn_logits_soft_cap=50.0,
       sliding_window_size=4096,
       transpose_gating_einsum=True,
@@ -107,7 +107,7 @@ class Gemma2_9B(_transformer.Transformer):  # pylint: disable=invalid-name
 class Gemma2_27B(_transformer.Transformer):  # pylint: disable=invalid-name
   """Gemma2 transformer architecture."""
 
-  config: transformer.TransformerConfig = transformer.TransformerConfig(
+  config: _config.TransformerConfig = _config.TransformerConfig(
       num_embed=256128,
       embed_dim=4608,
       hidden_dim=36864,
@@ -122,7 +122,7 @@ class Gemma2_27B(_transformer.Transformer):  # pylint: disable=invalid-name
           modules.AttentionType.GLOBAL,
       )
       * int(_NUM_LAYERS_GEMMA2_27B / 2),
-      query_pre_attn_norm=transformer.QueryPreAttentionNormalisation.BY_ONE_OVER_SQRT_EMBED_DIM_DIV_NUM_HEADS,
+      query_pre_attn_norm=_config.QueryPreAttentionNormalisation.BY_ONE_OVER_SQRT_EMBED_DIM_DIV_NUM_HEADS,
       attn_logits_soft_cap=50.0,
       sliding_window_size=4096,
       transpose_gating_einsum=True,
@@ -137,7 +137,7 @@ class Gemma2_27B(_transformer.Transformer):  # pylint: disable=invalid-name
 class Gemma3_1B(_transformer.Transformer):  # pylint: disable=invalid-name
   """Gemma3 transformer architecture."""
 
-  config: transformer.TransformerConfig = transformer.TransformerConfig(
+  config: _config.TransformerConfig = _config.TransformerConfig(
       final_logit_softcap=None,
       num_embed=262144,
       embed_dim=1152,
@@ -148,10 +148,10 @@ class Gemma3_1B(_transformer.Transformer):  # pylint: disable=invalid-name
       use_post_attn_norm=True,
       use_post_ffw_norm=True,
       use_qk_norm=True,
-      attention_types=transformer.make_attention_layers_types(
+      attention_types=_config.make_attention_layers_types(
           GEMMA3_ATTENTION_PATTERN, num_layers=_NUM_LAYERS_GEMMA3_1B
       ),
-      query_pre_attn_norm=transformer.QueryPreAttentionNormalisation.BY_ONE_OVER_SQRT_HEAD_DIM,
+      query_pre_attn_norm=_config.QueryPreAttentionNormalisation.BY_ONE_OVER_SQRT_HEAD_DIM,
       attn_logits_soft_cap=None,
       sliding_window_size=512,
       transpose_gating_einsum=True,
@@ -189,7 +189,7 @@ class _Gemma3Base(_transformer.Transformer):
 class Gemma3_4B(_Gemma3Base):  # pylint: disable=invalid-name
   """Gemma3 transformer architecture."""
 
-  config: transformer.TransformerConfig = transformer.TransformerConfig(
+  config: _config.TransformerConfig = _config.TransformerConfig(
       final_logit_softcap=None,
       num_embed=262_144,
       embed_dim=2560,
@@ -200,10 +200,10 @@ class Gemma3_4B(_Gemma3Base):  # pylint: disable=invalid-name
       use_post_attn_norm=True,
       use_post_ffw_norm=True,
       use_qk_norm=True,
-      attention_types=transformer.make_attention_layers_types(
+      attention_types=_config.make_attention_layers_types(
           GEMMA3_ATTENTION_PATTERN, num_layers=_NUM_LAYERS_GEMMA3_4B
       ),
-      query_pre_attn_norm=transformer.QueryPreAttentionNormalisation.BY_ONE_OVER_SQRT_HEAD_DIM,
+      query_pre_attn_norm=_config.QueryPreAttentionNormalisation.BY_ONE_OVER_SQRT_HEAD_DIM,
       attn_logits_soft_cap=None,
       sliding_window_size=1024,
       transpose_gating_einsum=True,
@@ -221,7 +221,7 @@ class Gemma3_4B(_Gemma3Base):  # pylint: disable=invalid-name
 
 class Gemma3_12B(_Gemma3Base):  # pylint: disable=invalid-name
   """Gemma3 transformer architecture."""
-  config: transformer.TransformerConfig = transformer.TransformerConfig(
+  config: _config.TransformerConfig = _config.TransformerConfig(
       final_logit_softcap=None,
       num_embed=262144,
       embed_dim=30 * 128,
@@ -232,10 +232,10 @@ class Gemma3_12B(_Gemma3Base):  # pylint: disable=invalid-name
       use_post_attn_norm=True,
       use_post_ffw_norm=True,
       use_qk_norm=True,
-      attention_types=transformer.make_attention_layers_types(
+      attention_types=_config.make_attention_layers_types(
           GEMMA3_ATTENTION_PATTERN, num_layers=_NUM_LAYERS_GEMMA3_12B
       ),
-      query_pre_attn_norm=transformer.QueryPreAttentionNormalisation.BY_ONE_OVER_SQRT_HEAD_DIM,
+      query_pre_attn_norm=_config.QueryPreAttentionNormalisation.BY_ONE_OVER_SQRT_HEAD_DIM,
       attn_logits_soft_cap=None,
       sliding_window_size=1024,
       transpose_gating_einsum=True,
@@ -252,7 +252,7 @@ class Gemma3_12B(_Gemma3Base):  # pylint: disable=invalid-name
 
 class Gemma3_27B(_Gemma3Base):  # pylint: disable=invalid-name
   """Gemma3 transformer architecture."""
-  config: transformer.TransformerConfig = transformer.TransformerConfig(
+  config: _config.TransformerConfig = _config.TransformerConfig(
       final_logit_softcap=None,
       num_embed=262144,
       embed_dim=5376,
@@ -263,10 +263,10 @@ class Gemma3_27B(_Gemma3Base):  # pylint: disable=invalid-name
       use_post_attn_norm=True,
       use_post_ffw_norm=True,
       use_qk_norm=True,
-      attention_types=transformer.make_attention_layers_types(
+      attention_types=_config.make_attention_layers_types(
           GEMMA3_ATTENTION_PATTERN, num_layers=_NUM_LAYERS_GEMMA3_27B
       ),
-      query_pre_attn_norm=transformer.QueryPreAttentionNormalisation.BY_ONE_OVER_SQRT_EMBED_DIM_DIV_NUM_HEADS,
+      query_pre_attn_norm=_config.QueryPreAttentionNormalisation.BY_ONE_OVER_SQRT_EMBED_DIM_DIV_NUM_HEADS,
       attn_logits_soft_cap=None,
       sliding_window_size=1024,
       transpose_gating_einsum=True,

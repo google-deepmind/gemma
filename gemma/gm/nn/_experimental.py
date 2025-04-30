@@ -14,15 +14,15 @@
 
 """Experimental models."""
 
-from gemma import transformer
+from gemma.gm.nn import _config
+from gemma.gm.nn import _gemma
 from gemma.gm.nn import _transformer
-from gemma.gm.nn import config
 
 
 class Gemma3_500m(_transformer.Transformer):  # pylint: disable=invalid-name
   """Gemma3 500m transformer architecture."""
 
-  config: transformer.TransformerConfig = config.TransformerConfig(
+  config: _config.TransformerConfig = _config.TransformerConfig(
       final_logit_softcap=None,
       num_embed=262144,
       embed_dim=896,
@@ -33,11 +33,11 @@ class Gemma3_500m(_transformer.Transformer):  # pylint: disable=invalid-name
       use_post_attn_norm=True,
       use_post_ffw_norm=True,
       use_qk_norm=True,
-      attention_types=config.make_attention_layers_types(
-          pattern=config.GEMMA3_ATTENTION_PATTERN,
+      attention_types=_config.make_attention_layers_types(
+          pattern=_gemma.GEMMA3_ATTENTION_PATTERN,
           num_layers=22,
       ),
-      query_pre_attn_norm=config.QueryPreAttentionNormalisation.BY_ONE_OVER_SQRT_HEAD_DIM,
+      query_pre_attn_norm=_config.QueryPreAttentionNormalisation.BY_ONE_OVER_SQRT_HEAD_DIM,
       attn_logits_soft_cap=None,
       sliding_window_size=512,
       transpose_gating_einsum=True,

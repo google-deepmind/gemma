@@ -56,7 +56,7 @@ with _epy.lazy_api_imports(globals()):
   from gemma.modules import AttentionType
 
   # Model inputs
-  from gemma.transformer import Cache
+  from gemma.gm.nn._config import Cache
 
   # Model outputs
   from gemma.gm.nn._transformer import Output
