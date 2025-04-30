@@ -28,9 +28,9 @@ from gemma.gm.math import _pos_utils
 from gemma.gm.nn import _config
 from gemma.gm.nn import _layers
 from gemma.gm.nn import _modules
-from gemma.gm.utils import _attention_mask
 from gemma.gm.utils import _dtype_params
 from gemma.gm.utils import _jax_utils
+from gemma.gm.utils import _types
 from gemma.gm.vision import _token_utils
 from gemma.multimodal import vision as gemma_vision
 import jax.numpy as jnp
@@ -332,55 +332,49 @@ class Transformer(nn.Module):
       self._assert_support_mm()
       if len(images.shape) == 4:  # Expand optional `num_images` dimension
         images = einops.rearrange(images, 'b h w c -> b 1 h w c')
-      tokens = _token_utils.add_extra_tokens_for_images(
-          tokens,
-          max_num_images=images.shape[1],
-          num_tokens_per_image=self.vision_encoder.num_mm_tokens_per_image,  # pytype: disable=attribute-error
-      )
+
+    inputs = _types.Input(
+        text=tokens,
+        images=images,
+        config=self.config.input_config,
+    )
+    del tokens, images
 
     # Encode the text tokens
     # Could this be optimized to filter out the `SOFT_TOKEN_PLACEHOLDER` ?
     # Currently, The placeholders are required so the mask, positions are
     # correctly computed.
-    x = self.embedder.encode(tokens)
+    x = self.embedder.encode(inputs.tokens_with_mm)
 
     # Encode the vision tokens and merge them with the text embeddings.
-    if images is not None:
-      x = self._merge_mm_embeddings(tokens=tokens, embeddings=x, images=images)
+    if inputs.images is not None:
+      x = self._merge_mm_embeddings(
+          tokens=inputs.tokens_with_mm, embeddings=x, images=inputs.images
+      )
     elif self.vision_encoder is not None and self.is_initializing():
       # During initialization, call the vision encoder to ensure that the
       # params are correctly initialized.
       _ = self._encode_vision(_make_dummy_images(self.vision_encoder))
-
-    # Compute the mask (after the extra tokens are added)
-    inputs_mask = tokens != _PADDING_ID
 
     # Note: When `positions` and `attention_mask` are explicitly provided,
     # it's the user responsibility to correctly take into account the extra
     # tokens inserted for the images.
     # This is what the `gm.text.Sampler` implementation does.
     if positions is None:
-      positions = _pos_utils.build_positions_from_mask(inputs_mask)
+      positions = _pos_utils.build_positions_from_mask(inputs.inputs_mask)
       # For multi-turn, during the pre-fill phase, the positions should be
       # shifted to take into account the previous turns.
       if positions_offset is not None:
         positions += positions_offset[..., None]
 
     if attention_mask is None:
-      if images is not None:
-        bidirectional_mask = tokens == gemma_vision.TOKEN_PLACEHOLDER
-      else:
-        bidirectional_mask = None
-      attention_mask = _attention_mask.make_causal_bidirectional_attention_mask(
-          inputs_mask,
-          bidirectional_mask=bidirectional_mask,
-      )
+      attention_mask = inputs.attention_mask
 
     return _Inputs(
         embeddings=x,
         positions=positions,
         attention_mask=attention_mask,
-        inputs_mask=inputs_mask,
+        inputs_mask=inputs.inputs_mask,
     )
 
   @typechecked
