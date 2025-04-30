@@ -23,8 +23,8 @@ import functools
 import einops
 from etils import epy
 import flax
-from gemma import transformer
 from gemma.gm.data import _functional
+from gemma.gm.nn import _config
 from gemma.gm.nn import _transformer
 from gemma.gm.text import _sampling
 from gemma.gm.text import _tokenizer
@@ -74,7 +74,7 @@ class SamplingState:
   # TODO(epot): Only keep the top-k logits instead? But sorting might increase
   # computation.
   # predicted_logits: Float['B max_out_length V']
-  cache: transformer.Cache
+  cache: _config.Cache
   rng: PRNGKey
 
   # Static values (i.e. do not changes between steps)
@@ -120,7 +120,7 @@ class SamplerCall:
       params: _common.Params,
       tokens: Int['B L'],
       images: UInt8['B N H W C'] | None,
-      cache: transformer.Cache,
+      cache: _config.Cache,
       last_state: SamplingState | None,
       max_new_tokens: Int[''],
       init_cache_length: int,
@@ -155,7 +155,7 @@ class SamplerCall:
       self,
       *,
       params: _common.Params,
-      cache: transformer.Cache,
+      cache: _config.Cache,
       tokens: Int['B L'],
       images: UInt8['B N H W C'] | None,
       last_state: SamplingState | None,
@@ -456,8 +456,8 @@ def _slice_cache(cache, *, length: int):
 
 def _merge_cache(
     *,
-    old_cache: transformer.Cache,
-    new_cache: transformer.Cache,
+    old_cache: _config.Cache,
+    new_cache: _config.Cache,
     length: int,
 ):
   """Merges a new cache into an existing cache, updating 'k' and 'v' arrays.
