@@ -19,18 +19,18 @@ import dataclasses
 import enum
 import functools
 
-from gemma import modules
+from gemma.gm.nn import _modules
 from gemma.multimodal import vision as gemma_vision
 import jax.numpy as jnp
 
-Cache = dict[str, modules.LayerCache]
+Cache = dict[str, _modules.LayerCache]
 
 
 def make_attention_layers_types(
-    pattern: tuple[modules.AttentionType, ...],
+    pattern: tuple[_modules.AttentionType, ...],
     *,
     num_layers: int,
-) -> tuple[modules.AttentionType, ...]:
+) -> tuple[_modules.AttentionType, ...]:
   """Returns the list of attention types for every layers."""
 
   pattern_size = len(pattern)
@@ -67,7 +67,7 @@ class TransformerConfig:
   use_post_attn_norm: bool
   use_post_ffw_norm: bool
   # TODO(epot): Should be renamed `layers_types` or similar ?
-  attention_types: Sequence[modules.AttentionType]
+  attention_types: Sequence[_modules.AttentionType]
   query_pre_attn_norm: QueryPreAttentionNormalisation = (
       QueryPreAttentionNormalisation.BY_ONE_OVER_SQRT_HEAD_DIM
   )
@@ -75,10 +75,10 @@ class TransformerConfig:
   sliding_window_size: int | None = None
   transpose_gating_einsum: bool = False
   use_qk_norm: bool = False
-  local_base_frequency: int = modules.DEFAULT_ROPE_BASE_FREQUENCY
-  global_base_frequency: int = modules.DEFAULT_ROPE_BASE_FREQUENCY
-  local_scale_factor: float = modules.DEFAULT_ROPE_SCALE_FACTOR
-  global_scale_factor: float = modules.DEFAULT_ROPE_SCALE_FACTOR
+  local_base_frequency: int = _modules.DEFAULT_ROPE_BASE_FREQUENCY
+  global_base_frequency: int = _modules.DEFAULT_ROPE_BASE_FREQUENCY
+  local_scale_factor: float = _modules.DEFAULT_ROPE_SCALE_FACTOR
+  global_scale_factor: float = _modules.DEFAULT_ROPE_SCALE_FACTOR
   vision_encoder: gemma_vision.SigLiPFromPatches | None = None
 
   @functools.cached_property
@@ -108,7 +108,7 @@ class TransformerConfig:
           'Missing `cache_length=` kwarg when calling `init_cache()`.'
       )
     cache = {
-        f'layer_{i}': modules.Attention.init_cache(
+        f'layer_{i}': _modules.Attention.init_cache(
             cache_length,
             self.num_kv_heads,
             self.head_dim,

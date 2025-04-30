@@ -16,8 +16,8 @@
 
 import enum
 from flax import linen as nn
-from gemma import layers
-from gemma import positional_embeddings
+from gemma.gm.math import _positional_embeddings
+from gemma.gm.nn import _layers
 import jax
 import jax.numpy as jnp
 
@@ -91,8 +91,8 @@ class Embedder(nn.Module):
     #   embedding space of the text encoder. Those tokens are then merged with
     #   the text tokens inside `Transformer._include_vision_embeddings`.
     if self.vision_proj_dim:
-      self.mm_soft_embedding_norm = layers.RMSNorm()
-      self.mm_input_projection = layers.Einsum(
+      self.mm_soft_embedding_norm = _layers.RMSNorm()
+      self.mm_input_projection = _layers.Einsum(
           (self.vision_proj_dim, self.embed_dim)
       )
 
@@ -154,24 +154,24 @@ class Attention(nn.Module):
     return self.num_kv_heads != self.num_heads and self.num_kv_heads > 1
 
   def setup(self):
-    self.attn_vec_einsum = layers.Einsum(
+    self.attn_vec_einsum = _layers.Einsum(
         shape=(self.num_heads, self.head_dim, self.features),
     )
 
     if self.use_qkv_einsum:
-      self.qkv_einsum = layers.Einsum(
+      self.qkv_einsum = _layers.Einsum(
           shape=(3, self.num_heads, self.features, self.head_dim),
       )
     else:
-      self.q_einsum = layers.Einsum(
+      self.q_einsum = _layers.Einsum(
           shape=(self.num_heads, self.features, self.head_dim),
       )
-      self.kv_einsum = layers.Einsum(
+      self.kv_einsum = _layers.Einsum(
           shape=(2, self.num_kv_heads, self.features, self.head_dim),
       )
     if self.use_qk_norm:
-      self._query_norm = layers.RMSNorm()
-      self._key_norm = layers.RMSNorm()
+      self._query_norm = _layers.RMSNorm()
+      self._key_norm = _layers.RMSNorm()
 
   def __call__(
       self,
@@ -203,7 +203,7 @@ class Attention(nn.Module):
       query_proj = self._query_norm(query_proj)
       key_proj = self._key_norm(key_proj)
 
-    query_proj = positional_embeddings.apply_rope(
+    query_proj = _positional_embeddings.apply_rope(
         query_proj,
         segment_pos,
         base_frequency=self.rope_base_frequency,
@@ -211,7 +211,7 @@ class Attention(nn.Module):
     )
     query_scaled = query_proj * self.query_pre_attn_scalar
 
-    key_proj = positional_embeddings.apply_rope(
+    key_proj = _positional_embeddings.apply_rope(
         key_proj,
         segment_pos,
         base_frequency=self.rope_base_frequency,
@@ -350,19 +350,19 @@ class FeedForward(nn.Module):
     # transposes hidden_dim and features.
     if self.transpose_gating_einsum:
       eq = '...F,NHF->...NH'
-      gating = layers.Einsum(
+      gating = _layers.Einsum(
           shape=(2, self.hidden_dim, self.features),
           weight_name='gating_einsum',
       )
     else:
       eq = '...F,NFH->...NH'
-      gating = layers.Einsum(
+      gating = _layers.Einsum(
           shape=(2, self.features, self.hidden_dim),
           weight_name='gating_einsum',
       )
 
     # Use the same scope for backwards compatibility with existing checkpoints
-    # created before using `layers.Einsum` here.
+    # created before using `_layers.Einsum` here.
     nn.share_scope(self, gating)
 
     # [batch_size, seq_len, 2, hidden_dim]
@@ -371,7 +371,7 @@ class FeedForward(nn.Module):
     activations = nn.gelu(gate[..., 0, :]) * gate[..., 1, :]
 
     # Project back from hidden_dim to features.
-    linear = layers.Einsum(
+    linear = _layers.Einsum(
         shape=(self.hidden_dim, self.features),
         weight_name='linear',
     )
@@ -403,7 +403,7 @@ class Block(nn.Module):
   use_qk_norm: bool = False
 
   def setup(self):
-    self.pre_attention_norm = layers.RMSNorm()
+    self.pre_attention_norm = _layers.RMSNorm()
 
     self.attn = Attention(
         num_heads=self.num_heads,
@@ -421,9 +421,9 @@ class Block(nn.Module):
 
     self.post_attention_norm = None
     if self.use_post_attn_norm:
-      self.post_attention_norm = layers.RMSNorm()
+      self.post_attention_norm = _layers.RMSNorm()
 
-    self.pre_ffw_norm = layers.RMSNorm()
+    self.pre_ffw_norm = _layers.RMSNorm()
 
     self.mlp = FeedForward(
         features=self.embed_dim,
@@ -433,7 +433,7 @@ class Block(nn.Module):
 
     self.post_ffw_norm = None
     if self.use_post_ffw_norm:
-      self.post_ffw_norm = layers.RMSNorm()
+      self.post_ffw_norm = _layers.RMSNorm()
 
   def __call__(
       self,

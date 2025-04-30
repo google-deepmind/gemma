@@ -18,9 +18,9 @@ from __future__ import annotations
 
 import dataclasses
 
-from gemma import modules
 from gemma.gm.ckpts import _paths
 from gemma.gm.nn import _config
+from gemma.gm.nn import _modules
 from gemma.gm.nn import _transformer
 from gemma.multimodal import vision as gemma_vision
 
@@ -36,12 +36,12 @@ _NUM_LAYERS_GEMMA3_27B = 62
 
 
 GEMMA3_ATTENTION_PATTERN = (
-    modules.AttentionType.LOCAL_SLIDING,
-    modules.AttentionType.LOCAL_SLIDING,
-    modules.AttentionType.LOCAL_SLIDING,
-    modules.AttentionType.LOCAL_SLIDING,
-    modules.AttentionType.LOCAL_SLIDING,
-    modules.AttentionType.GLOBAL,
+    _modules.AttentionType.LOCAL_SLIDING,
+    _modules.AttentionType.LOCAL_SLIDING,
+    _modules.AttentionType.LOCAL_SLIDING,
+    _modules.AttentionType.LOCAL_SLIDING,
+    _modules.AttentionType.LOCAL_SLIDING,
+    _modules.AttentionType.GLOBAL,
 )
 
 
@@ -57,8 +57,8 @@ class Gemma2_2B(_transformer.Transformer):  # pylint: disable=invalid-name
       num_kv_heads=4,
       final_logit_softcap=30.0,
       attention_types=(
-          modules.AttentionType.LOCAL_SLIDING,
-          modules.AttentionType.GLOBAL,
+          _modules.AttentionType.LOCAL_SLIDING,
+          _modules.AttentionType.GLOBAL,
       )
       * int(_NUM_LAYERS_GEMMA2_2B / 2),
       use_post_attn_norm=True,
@@ -86,8 +86,8 @@ class Gemma2_9B(_transformer.Transformer):  # pylint: disable=invalid-name
       num_kv_heads=8,
       final_logit_softcap=30.0,
       attention_types=(
-          modules.AttentionType.LOCAL_SLIDING,
-          modules.AttentionType.GLOBAL,
+          _modules.AttentionType.LOCAL_SLIDING,
+          _modules.AttentionType.GLOBAL,
       )
       * int(_NUM_LAYERS_GEMMA2_9B / 2),
       use_post_attn_norm=True,
@@ -118,8 +118,8 @@ class Gemma2_27B(_transformer.Transformer):  # pylint: disable=invalid-name
       use_post_attn_norm=True,
       use_post_ffw_norm=True,
       attention_types=(
-          modules.AttentionType.LOCAL_SLIDING,
-          modules.AttentionType.GLOBAL,
+          _modules.AttentionType.LOCAL_SLIDING,
+          _modules.AttentionType.GLOBAL,
       )
       * int(_NUM_LAYERS_GEMMA2_27B / 2),
       query_pre_attn_norm=_config.QueryPreAttentionNormalisation.BY_ONE_OVER_SQRT_EMBED_DIM_DIV_NUM_HEADS,
@@ -221,6 +221,7 @@ class Gemma3_4B(_Gemma3Base):  # pylint: disable=invalid-name
 
 class Gemma3_12B(_Gemma3Base):  # pylint: disable=invalid-name
   """Gemma3 transformer architecture."""
+
   config: _config.TransformerConfig = _config.TransformerConfig(
       final_logit_softcap=None,
       num_embed=262144,
@@ -252,6 +253,7 @@ class Gemma3_12B(_Gemma3Base):  # pylint: disable=invalid-name
 
 class Gemma3_27B(_Gemma3Base):  # pylint: disable=invalid-name
   """Gemma3 transformer architecture."""
+
   config: _config.TransformerConfig = _config.TransformerConfig(
       final_logit_softcap=None,
       num_embed=262144,

@@ -20,8 +20,8 @@ from typing import Any
 
 from flax import linen as nn
 from flax.linen import dtypes as flax_dtypes
-from gemma import layers
 from gemma import peft
+from gemma.gm.nn import _layers
 from gemma.peft import _quantization
 import jax
 from jax import numpy as jnp
@@ -133,7 +133,7 @@ def _replace_by_simulated_quantization(
       return peft.SimulateQuantizedDense(wrapped=module, method=method)
     case nn.Einsum():
       return peft.SimulateQuantizedEinsum(wrapped=module, method=method)
-    case layers.Einsum():
+    case _layers.Einsum():
       # This hack is required because the FeedForward layer call two different
       # Einsum with using `nn.share_scope`, so the two wrappers need a different
       # name.
@@ -155,7 +155,7 @@ def _replace_by_int(module: nn.Module, dtype: jnp.dtype):
       return peft.IntDense(wrapped=module, dtype=dtype)
     case nn.Einsum():
       return peft.IntEinsum(wrapped=module, dtype=dtype)
-    case layers.Einsum():
+    case _layers.Einsum():
       # This hack is required because the FeedForward layer call two different
       # Einsum with using `nn.share_scope`, so the two wrappers need a different
       # name.
@@ -177,7 +177,7 @@ class _SimulateQuantizedEinsum(nn.Module):
   weight_name: str
   method: peft.QuantizationMethod
   kernel_init: nn.initializers.Initializer = nn.initializers.normal()
-  wrapped: layers.Einsum
+  wrapped: _layers.Einsum
 
   def __post_init__(self):
     super().__post_init__()
