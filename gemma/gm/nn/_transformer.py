@@ -18,11 +18,14 @@ from __future__ import annotations
 
 import dataclasses
 import functools
+import typing
 from typing import Any, ClassVar
 
 import einops
 import flax
 from flax import linen as nn
+from gemma import layers
+from gemma import modules
 from gemma import transformer
 from gemma.gm.utils import _attention_mask
 from gemma.gm.utils import _dtype_params
@@ -81,8 +84,7 @@ class _Inputs:
   inputs_mask: Bool['B L']
 
 
-# TODO(epot): Merge this class with `transformer.Transformer`
-class Transformer(transformer.Transformer):
+class Transformer(nn.Module):
   """Base transformer class.
 
   Attributes:
@@ -90,6 +92,7 @@ class Transformer(transformer.Transformer):
       Otherwise, return all logits. Default to `False`
     dtype: The parameter dtype. Default to `jnp.bfloat16`.
   """
+  _: dataclasses.KW_ONLY
 
   return_last_only: bool | None = None
 
@@ -100,11 +103,68 @@ class Transformer(transformer.Transformer):
   tokens: kontext.Key = kontext.REQUIRED
   images: kontext.Key | None = None
 
+  config: transformer.TransformerConfig
   # Model info to specifiy the tokenizer version and default checkpoint.
   INFO: ClassVar[ModelInfo] = ModelInfo()
 
   def __post_init__(self):
     super().__post_init__()
+
+  def setup(self):
+    self.embedder = modules.Embedder(
+        vocab_size=self.config.num_embed,
+        embed_dim=self.config.embed_dim,
+        vision_proj_dim=self.config.vision_encoder.siglip_encoder.width
+        if self.config.vision_encoder
+        else None,
+    )
+
+    self.blocks = [
+        modules.Block(
+            name=f'layer_{i}',
+            num_heads=self.config.num_heads,
+            num_kv_heads=self.config.num_kv_heads,
+            embed_dim=self.config.embed_dim,
+            head_dim=self.config.head_dim,
+            hidden_dim=self.config.hidden_dim,
+            sliding_window_size=self.config.sliding_window_size,
+            use_post_attn_norm=self.config.use_post_attn_norm,
+            use_post_ffw_norm=self.config.use_post_ffw_norm,
+            attn_logits_soft_cap=self.config.attn_logits_soft_cap,
+            attn_type=attn_type,
+            query_pre_attn_scalar=self.config.query_pre_attn_scalar(),
+            transpose_gating_einsum=self.config.transpose_gating_einsum,
+            use_qk_norm=self.config.use_qk_norm,
+            rope_base_frequency=self.config.local_base_frequency
+            if attn_type == modules.AttentionType.LOCAL_SLIDING
+            else self.config.global_base_frequency,
+            rope_scale_factor=self.config.local_scale_factor
+            if attn_type == modules.AttentionType.LOCAL_SLIDING
+            else self.config.global_scale_factor,
+        )
+        for i, attn_type in zip(
+            range(self.config.num_layers), self.config.attention_types
+        )
+    ]
+    self.final_norm = layers.RMSNorm()
+
+    self.vision_encoder = self.config.vision_encoder
+
+  if not typing.TYPE_CHECKING:
+
+    def __getattr__(self, name: str):
+      # It's convenient to be able to access the vision encoder directly.
+      # However it has to be initialized in setup, so can't use a standard
+      # `@property`
+      if name == 'vision_encoder':
+        return self.config.vision_encoder
+      return super().__getattr__(name)
+
+  else:  # For type checking / auto-complete
+
+    @property
+    def vision_encoder(self) -> gemma_vision.SigLiPFromPatches | None:
+      return self.config.vision_encoder
 
   # Calling `model.apply` on Colab makes the Kernel crash unless it is jitted.
   @functools.partial(
@@ -345,6 +405,7 @@ class Transformer(transformer.Transformer):
 
   def _encode_vision(self, images: UInt8['B N H W C']) -> Float['B N P D']:
     """Encode the images into the same space as the text embeddings."""
+    assert self.vision_encoder is not None
     patches = self.vision_encoder.patchify_images(images)
     soft_embeddings = self.vision_encoder(patches=patches, is_training=False)
     soft_embeddings = self.embedder.encode_vision(soft_embeddings)
