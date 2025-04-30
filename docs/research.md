@@ -10,7 +10,6 @@ Here is an example to create a text-only, 12 layers transformer:
 ```python
 class MyTinyTransformer(gm.nn.Transformer):
   config: gm.nn.config.TransformerConfig = gm.nn.config.TransformerConfig(
-      num_layers=12,
       final_logit_softcap=None,
       num_embed=262144,  # Vocab size, matching the tokenizer
       embed_dim=896,

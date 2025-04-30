@@ -23,7 +23,6 @@ class Gemma3_500m(_transformer.Transformer):  # pylint: disable=invalid-name
   """Gemma3 500m transformer architecture."""
 
   config: transformer.TransformerConfig = config.TransformerConfig(
-      num_layers=22,
       final_logit_softcap=None,
       num_embed=262144,
       embed_dim=896,
