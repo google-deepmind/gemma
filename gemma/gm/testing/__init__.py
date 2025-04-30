@@ -16,5 +16,13 @@
 
 # pylint: disable=g-importing-member
 
-from gemma.gm.testing._dummy_model import DummyGemma
-from gemma.gm.testing._dummy_tokenizer import DummyTokenizer
+
+from etils import epy as _epy
+
+# pylint: disable=g-import-not-at-top,g-importing-member
+
+with _epy.lazy_api_imports(globals()):
+
+  from gemma.gm.testing._dummy_model import DummyGemma
+  from gemma.gm.testing._dummy_tokenizer import DummyTokenizer
+  from gemma.gm.testing._fixtures import use_hermetic_tokenizer
