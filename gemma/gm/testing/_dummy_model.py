@@ -22,7 +22,6 @@ class DummyGemma(_transformer.Transformer):  # pylint: disable=invalid-name
   """Dummy transformer architecture, for testing."""
 
   config: config_lib.TransformerConfig = config_lib.TransformerConfig(
-      num_layers=1,
       num_embed=13,  # Vocab size matching `gm.testing.DummyTokenizer()`
       embed_dim=32,
       hidden_dim=128,

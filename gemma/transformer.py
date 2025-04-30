@@ -14,9 +14,10 @@
 
 """Gemma transformer."""
 
+from collections.abc import Sequence
 import dataclasses
 import enum
-from typing import Iterable
+import functools
 
 from gemma import modules
 from gemma.multimodal import vision as gemma_vision
@@ -76,7 +77,6 @@ GEMMA3_ATTENTION_PATTERN = (
 class TransformerConfig:
   """Configuration for the gemma transformer."""
 
-  num_layers: int
   num_embed: int  # TODO(epot): Rename to `vocab_size` for consistency.
   embed_dim: int
   hidden_dim: int
@@ -86,7 +86,8 @@ class TransformerConfig:
   final_logit_softcap: float | None
   use_post_attn_norm: bool
   use_post_ffw_norm: bool
-  attention_types: Iterable[modules.AttentionType]
+  # TODO(epot): Should be renamed `layers_types` or similar ?
+  attention_types: Sequence[modules.AttentionType]
   query_pre_attn_norm: QueryPreAttentionNormalisation = (
       QueryPreAttentionNormalisation.BY_ONE_OVER_SQRT_HEAD_DIM
   )
@@ -99,6 +100,10 @@ class TransformerConfig:
   local_scale_factor: float = modules.DEFAULT_ROPE_SCALE_FACTOR
   global_scale_factor: float = modules.DEFAULT_ROPE_SCALE_FACTOR
   vision_encoder: gemma_vision.SigLiPFromPatches | None = None
+
+  @functools.cached_property
+  def num_layers(self) -> int:
+    return len(self.attention_types)
 
   def query_pre_attn_scalar(self) -> float:
     """Returns the scalar to multiply the query by before attention."""
@@ -113,7 +118,6 @@ class TransformerConfig:
   @classmethod
   def gemma_2b(cls):
     return cls(
-        num_layers=_NUM_LAYERS_GEMMA_2B,
         num_embed=256128,
         embed_dim=2048,
         hidden_dim=16384,
@@ -129,7 +133,6 @@ class TransformerConfig:
   @classmethod
   def gemma_7b(cls):
     return cls(
-        num_layers=_NUM_LAYERS_GEMMA_7B,
         num_embed=256128,
         embed_dim=3072,
         hidden_dim=24576,
@@ -145,7 +148,6 @@ class TransformerConfig:
   @classmethod
   def gemma2_2b(cls):
     return cls(
-        num_layers=_NUM_LAYERS_GEMMA2_2B,
         num_embed=256128,
         embed_dim=2304,
         hidden_dim=9216,
@@ -168,7 +170,6 @@ class TransformerConfig:
   @classmethod
   def gemma2_9b(cls):
     return cls(
-        num_layers=_NUM_LAYERS_GEMMA2_9B,
         num_embed=256128,
         embed_dim=3584,
         hidden_dim=14336,
@@ -192,7 +193,6 @@ class TransformerConfig:
   @classmethod
   def gemma2_27b(cls):
     return cls(
-        num_layers=_NUM_LAYERS_GEMMA2_27B,
         num_embed=256128,
         embed_dim=4608,
         hidden_dim=36864,
@@ -216,7 +216,6 @@ class TransformerConfig:
   @classmethod
   def gemma3_1b(cls):
     return cls(
-        num_layers=_NUM_LAYERS_GEMMA3_1B,
         final_logit_softcap=None,
         num_embed=262144,
         embed_dim=1152,
@@ -242,7 +241,6 @@ class TransformerConfig:
   @classmethod
   def gemma3_4b(cls, *, text_only: bool = False):
     return cls(
-        num_layers=_NUM_LAYERS_GEMMA3_4B,
         final_logit_softcap=None,
         num_embed=262_144,
         embed_dim=2560,
@@ -269,7 +267,6 @@ class TransformerConfig:
   @classmethod
   def gemma3_12b(cls, *, text_only: bool = False):
     return cls(
-        num_layers=_NUM_LAYERS_GEMMA3_12B,
         final_logit_softcap=None,
         num_embed=262144,
         embed_dim=30 * 128,
@@ -296,7 +293,6 @@ class TransformerConfig:
   @classmethod
   def gemma3_27b(cls, *, text_only: bool = False):
     return cls(
-        num_layers=_NUM_LAYERS_GEMMA3_27B,
         final_logit_softcap=None,
         num_embed=262144,
         embed_dim=5376,
