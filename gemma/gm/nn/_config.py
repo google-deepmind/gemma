@@ -81,6 +81,7 @@ class TransformerConfig:
   local_scale_factor: float = _modules.DEFAULT_ROPE_SCALE_FACTOR
   global_scale_factor: float = _modules.DEFAULT_ROPE_SCALE_FACTOR
   vision_encoder: gemma_vision.SigLiPFromPatches | None = None
+  per_layer_input_dim: int = 0
 
   @functools.cached_property
   def num_layers(self) -> int:

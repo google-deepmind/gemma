@@ -605,3 +605,85 @@ def test_post_ffw_norm_modifies_output():
   # Normed and unnormed outputs should not be equal.
   with np.testing.assert_raises(AssertionError):
     np.testing.assert_array_almost_equal(normed_output, unnormed_output)
+
+
+def test_per_layer_mapping():
+  features = 4
+  per_layer_dim = 3
+  batch_size = 5
+  seq_len = 1
+
+  pli = jnp.ones((batch_size, seq_len, per_layer_dim))
+  x = jnp.ones((batch_size, seq_len, features))
+  per_layer_mapping = _modules.PerLayerMapping(
+      embed_dim=features,
+      per_layer_input_dim=per_layer_dim
+  )
+
+  params = per_layer_mapping.init(jax.random.PRNGKey(0), x, pli)
+  output = per_layer_mapping.apply(params, x, pli)
+  expected_shape = (batch_size, seq_len, features)
+  np.testing.assert_array_equal(output.shape, expected_shape)
+
+
+
+def test_block_with_per_layer_mapping():
+  num_heads = 2
+  embed_dim = 4
+  head_dim = 6
+  cache_size = 3
+  batch_size = 5
+  seq_len = 1
+  per_layer_dim = 3
+
+  inputs = jnp.ones((batch_size, seq_len, embed_dim))
+  positions = jnp.zeros((batch_size, seq_len))
+  pli = jnp.ones((batch_size, seq_len, per_layer_dim))
+
+  # Initialize cache.
+  cache = gm.nn.Attention.init_cache(
+      cache_size=cache_size,
+      num_heads=num_heads,
+      head_dim=head_dim,
+      batch_size=batch_size,
+      dtype=jnp.float32,
+  )
+
+  # Check that initial cache shape is correct.
+  expected_cache_shape = (batch_size, cache_size, num_heads, head_dim)
+  assert cache['k'].shape == expected_cache_shape
+  assert cache['v'].shape == expected_cache_shape
+
+  # Initialize and apply the block.
+  block = gm.nn.Block(
+      num_heads=num_heads,
+      num_kv_heads=num_heads,
+      embed_dim=embed_dim,
+      head_dim=head_dim,
+      hidden_dim=1,
+      use_post_attn_norm=False,
+      use_post_ffw_norm=False,
+      attn_type=_ATTN_TYPE,
+      query_pre_attn_scalar=head_dim**-0.5,
+      transpose_gating_einsum=False,
+      per_layer_input_dim=per_layer_dim,
+  )
+
+  attn_mask = jnp.ones((batch_size, seq_len, cache_size))
+  params = block.init(
+      jax.random.PRNGKey(0), inputs, positions, cache, attn_mask,
+      per_layer_input=pli
+  )
+
+  new_cache, outputs = block.apply(
+      params, inputs, positions, cache, attn_mask, per_layer_input=pli
+  )
+
+  # Check that updated cache shape is correct.
+  assert new_cache['k'].shape == expected_cache_shape
+  assert new_cache['v'].shape == expected_cache_shape
+  assert new_cache['end_index'].shape == (batch_size,)
+
+  # Check that output shape is correct.
+  expected_output_shape = (batch_size, seq_len, embed_dim)
+  assert outputs.shape == expected_output_shape

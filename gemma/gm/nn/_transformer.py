@@ -77,12 +77,14 @@ class _Inputs:
     positions: Input absolute positions.
     attention_mask: Transformer input mask.
     inputs_mask: Mask of the input tokens.
+    per_layer_inputs: Per-layer inputs, if used in model.
   """
 
   embeddings: Float['B L D']
   positions: Int['B L']
   attention_mask: Bool['B L cache_length']
   inputs_mask: Bool['B L']
+  per_layer_inputs: Float['B L P'] | None = None
 
 
 class Transformer(nn.Module):
@@ -118,6 +120,8 @@ class Transformer(nn.Module):
         vision_proj_dim=self.config.vision_encoder.siglip_encoder.width
         if self.config.vision_encoder
         else None,
+        num_layers=self.config.num_layers,
+        per_layer_input_dim=self.config.per_layer_input_dim,
     )
 
     self.blocks = [
@@ -248,6 +252,7 @@ class Transformer(nn.Module):
       del positions, attention_mask
 
       x = inputs.embeddings
+      per_layer_inputs = inputs.per_layer_inputs
 
       old_cache = cache or {}
       new_cache = {}
@@ -258,6 +263,9 @@ class Transformer(nn.Module):
             inputs.positions,
             old_cache.get(layer_name),
             inputs.attention_mask,
+            per_layer_input=per_layer_inputs[..., i, :]
+            if self.config.per_layer_input_dim
+            else None,
         )
         new_cache[layer_name] = layer_cache  # pytype: disable=container-type-mismatch
 
@@ -356,6 +364,15 @@ class Transformer(nn.Module):
       # params are correctly initialized.
       _ = self._encode_vision(_make_dummy_images(self.vision_encoder))
 
+    if self.config.per_layer_input_dim:
+      per_layer_inputs = self.embedder.encode_per_layer_input(
+          x, inputs.tokens_with_mm
+      )
+    else:
+      per_layer_inputs = None
+
+
+
     # Note: When `positions` and `attention_mask` are explicitly provided,
     # it's the user responsibility to correctly take into account the extra
     # tokens inserted for the images.
@@ -375,6 +392,7 @@ class Transformer(nn.Module):
         positions=positions,
         attention_mask=attention_mask,
         inputs_mask=inputs.inputs_mask,
+        per_layer_inputs=per_layer_inputs,
     )
 
   @typechecked
