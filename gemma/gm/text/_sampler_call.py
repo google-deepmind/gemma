@@ -163,8 +163,17 @@ class SamplerCall:
       # shape, as it also includes the previous turns.
       init_cache_length: int,
       rng: PRNGKey,
-  ) -> SamplingState:
-    """Prefills the KV cache."""
+  ) -> SamplingState:  # pylint: disable=g-doc-args
+    r"""Prefills the KV cache.
+
+    Discards the first token prediction and kv cache of the last token and let
+    `_sample_loop` start decoding from the last prompt token. This is to avoid
+    duplicated decoding logic in the code.
+
+    @TODO(epot): Could modify the function to use the first token prediction to
+    save one decoding step.
+    # /!\ !!! If doing this, remove the `-1` in `_merge_cache` !!!
+    """
     batch_size, _ = tokens.shape
 
     if last_state is None:
@@ -212,10 +221,6 @@ class SamplerCall:
         max_num_images=images.shape[1] if images is not None else 0,
         special_tokens=self.special_tokens,
     )
-
-    # TODO(epot): The first token was predicted, so could use this, but would
-    # require to duplicate the logic of `_sample_step`, so leave this for later
-    # /!\ !!! If doing this, remove the `-1` in `_merge_cache` !!!
 
     return SamplingState(
         step=jnp.asarray(0),
