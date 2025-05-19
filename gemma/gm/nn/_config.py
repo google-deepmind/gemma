@@ -20,6 +20,7 @@ import enum
 import functools
 
 from gemma.gm.nn import _modules
+from gemma.gm.text import _tokenizer
 from gemma.gm.utils import _types
 from gemma.multimodal import vision as gemma_vision
 import jax.numpy as jnp
@@ -99,15 +100,21 @@ class TransformerConfig:
   @functools.cached_property
   def input_config(self) -> _types.InputConfig:
     """Returns the input config for the transformer."""
+    # TODO(epot): Have the tokenizer version be part of the config
+    # instead.
+    special_tokens = _tokenizer.Gemma3Tokenizer.special_tokens
+
     if self.vision_encoder is not None:
       return _types.InputConfig(
           support_images=True,
           num_tokens_per_image=self.vision_encoder.num_mm_tokens_per_image,
+          special_tokens=special_tokens,
       )
     else:
       return _types.InputConfig(
           support_images=False,
           num_tokens_per_image=0,
+          special_tokens=special_tokens,
       )
 
   def init_cache(
