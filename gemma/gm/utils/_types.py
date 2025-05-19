@@ -14,13 +14,19 @@
 
 """Type utils."""
 
+from __future__ import annotations
+
 import dataclasses
 import functools
 
 import flax
+from gemma.gm.data import _functional
+from gemma.gm.math import _pos_utils
+from gemma.gm.text import _tokenizer
 from gemma.gm.utils import _attention_mask
 from gemma.gm.vision import _token_utils
 import jax
+import jax.numpy as jnp
 from kauldron.typing import Bool, Int, UInt8  # pylint: disable=g-multiple-import,g-importing-member
 
 _PADDING_ID = 0
@@ -32,6 +38,8 @@ class InputConfig:
 
   support_images: bool
   num_tokens_per_image: int
+  # <start_of_image>,...
+  special_tokens: type[_tokenizer.SpecialTokens]
 
 
 @flax.struct.dataclass(kw_only=True, frozen=True)
@@ -47,6 +55,8 @@ class Input:
     config: Model config.
   """
 
+  # Name `text` rather than `tokens` to avoid accidental usage instead of
+  # `tokens_with_mm`.
   text: Int['B length_no_mm']
   images: UInt8['B N H W C'] | None
 
@@ -58,6 +68,21 @@ class Input:
       raise ValueError(
           'Images are provided, but the model does not support vision.'
       )
+
+  def pad(self, length_with_mm: int) -> Input:
+    old_text_len = self.text.shape[-1]
+    extra_mm_tokens = self.length_with_mm - old_text_len
+    new_text_len = length_with_mm - extra_mm_tokens
+
+    return dataclasses.replace(
+        self,
+        text=_functional.pad(self.text, max_length=new_text_len),
+    )
+
+  @functools.cached_property
+  def batch_size(self) -> int:
+    """Batch size."""
+    return len(self.text)
 
   @functools.cached_property
   def max_num_images(self) -> int:
@@ -99,13 +124,13 @@ class Input:
   @property
   @jax.jit
   def inputs_mask(self) -> Bool['B length_with_mm']:
-    """Mask (after the extra tokens are added."""
+    """Mask (after the extra MM tokens are added)."""
     return self.tokens_with_mm != _PADDING_ID
 
   @property
   @jax.jit
   def attention_mask(self) -> Bool['B length_with_mm length_with_mm']:
-    """Attention mask for the input."""
+    """Attention mask for the input (include MM tokens)."""
 
     if self.images is not None:
       bidirectional_mask = (
@@ -118,3 +143,29 @@ class Input:
         self.inputs_mask,
         bidirectional_mask=bidirectional_mask,
     )
+
+  @property
+  @jax.jit
+  def positions(self) -> Int['B length_with_mm']:
+    """Positions for the input (always including the MM tokens)."""
+    return _pos_utils.build_positions_from_mask(self.inputs_mask)
+
+  @property
+  @jax.jit
+  def last_token_pos(self) -> Int['B']:
+    """Position of the last token in the sentence (after MM tokens)."""
+    # Could also be `self.positions.max(axis=-1)`
+    return jnp.sum(self.inputs_mask, axis=-1) - 1
+
+  @property
+  @jax.jit
+  def last_token(self) -> Int['B']:
+    """Last token in the sentence (after MM tokens).
+
+    Used as the first input token of the model for the auto-regressive sampling.
+    """
+    x = jnp.take_along_axis(
+        self.tokens_with_mm, self.last_token_pos[:, None], axis=-1
+    )
+    x = jnp.squeeze(x, axis=-1)
+    return x

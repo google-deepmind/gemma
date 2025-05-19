@@ -32,4 +32,6 @@ def build_positions_from_mask(input_mask: jax.Array) -> jax.Array:
   positions = jnp.cumsum(input_mask, axis=-1)
   # Subtract one for all positions from the first valid one as they are
   # 0-indexed
+  # The padded tokens are arbitrary position, but should not matter.
+  # Could multiply the result by `input_mask` to set the position to 0.
   return positions - (positions >= 1)
