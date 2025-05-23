@@ -13,25 +13,11 @@
 # limitations under the License.
 
 from gemma import gm
-from gemma.gm.text import _sampler_call
+from gemma.gm.text import _sampler_loop
+from gemma.gm.utils import _types
 import jax
 import jax.numpy as jnp
 import numpy as np
-
-
-def test_get_last_token_pos():
-
-  tokens = jnp.array([
-      [3, 4, 2, 0, 0],
-      [3, 4, 0, 0, 0],
-      [3, 4, 5, 7, 0],
-  ])
-
-  last_token_pos = _sampler_call._get_last_token_pos_before_mm(tokens)
-  last_token = _sampler_call._get_last_token(tokens)
-
-  np.testing.assert_array_equal(last_token_pos, np.array([2, 1, 3]))
-  np.testing.assert_array_equal(last_token, np.array([2, 4, 7]))
 
 
 def test_end_tokens_mask():
@@ -47,7 +33,7 @@ def test_end_tokens_mask():
           [1, 2, 11, 0, 0, 0],
       ],
   )
-  out = _sampler_call._mask_tokens_after_end_tokens(tokens, end_tokens=(10, 11))
+  out = _sampler_loop._mask_tokens_after_end_tokens(tokens, end_tokens=(10, 11))
   np.testing.assert_array_equal(out, expected)
 
 
@@ -66,10 +52,6 @@ def test_sampler():
       tokenizer=tokenizer,
       cache_length=128,
       max_out_length=128,
+      pad_length=None,
   )
   sampler.sample('Hello world')
-
-
-# TODO(epot):
-# def test_slice_cache():
-#   _sampler_call._slice_cache(cache=)
