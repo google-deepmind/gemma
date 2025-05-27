@@ -24,7 +24,6 @@ from typing import Any, ClassVar
 import einops
 import flax
 from flax import linen as nn
-from gemma.gm.math import _pos_utils
 from gemma.gm.nn import _config
 from gemma.gm.nn import _layers
 from gemma.gm.nn import _modules
@@ -186,13 +185,14 @@ class Transformer(nn.Module):
       *,
       images: UInt8['*B N H W C'] | UInt8['*B H W C'] | None = None,
       # TODO(epot): Cleanup and simplify the API.
-      positions: Int['*B L'] | None = None,
-      positions_offset: Int['*B'] | None = None,
+      # When provided, the positions and attention_mask should includes
+      # the extra inserted multi-modal tokens.
+      positions: Int['*B L_with_mm'] | None = None,
       cache: _config.Cache | None = None,
       # During training and pre-filling, the attention mask is `*B L L`
       # When sampling (after prefilling), tokens are decoded one by one,
       # so the attention mask is `*B 1 cache_length`
-      attention_mask: Bool['*B L cache_length'] | None = None,
+      attention_mask: Bool['*B L_with_mm cache_length'] | None = None,
       return_last_only: bool | None = None,
       return_hidden_states: bool | None = None,
   ) -> Output:  # Output['*B']
@@ -205,8 +205,6 @@ class Transformer(nn.Module):
       tokens: input sequence of tokens.
       images: Images to feed to the vision encoder.
       positions: input absolute positions.
-      positions_offset: Offset to add to the positions. Used for multi-turn when
-        the cache is provided and `positions` is None.
       cache: Attention KV cache or None.
       attention_mask: transformer input mask.
       return_last_only: If `True`, only compute and return the logits of the
@@ -242,7 +240,6 @@ class Transformer(nn.Module):
           tokens=tokens,
           images=images,
           positions=positions,
-          positions_offset=positions_offset,
           attention_mask=attention_mask,
       )
       del positions, attention_mask
@@ -320,9 +317,8 @@ class Transformer(nn.Module):
       *,
       tokens: Int['B L_no_mm'],
       images: UInt8['B H W C'] | UInt8['B N H W C'] | None = None,
-      attention_mask: Bool['B L_no_mm cache_length'] | None = None,
-      positions: Int['B L_no_mm'] | None = None,
-      positions_offset: Int['B'] | None = None,
+      attention_mask: Bool['B L_with_mm cache_length'] | None = None,
+      positions: Int['B L_with_mm'] | None = None,
   ) -> _Inputs:
     """Encode the text tokens, eventually including the vision embeddings."""
 
@@ -361,11 +357,7 @@ class Transformer(nn.Module):
     # tokens inserted for the images.
     # This is what the `gm.text.Sampler` implementation does.
     if positions is None:
-      positions = _pos_utils.build_positions_from_mask(inputs.inputs_mask)
-      # For multi-turn, during the pre-fill phase, the positions should be
-      # shifted to take into account the previous turns.
-      if positions_offset is not None:
-        positions += positions_offset[..., None]
+      positions = inputs.positions
 
     if attention_mask is None:
       attention_mask = inputs.attention_mask
