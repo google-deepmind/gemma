@@ -15,6 +15,7 @@
 """Last turn utils."""
 
 import flax
+from gemma.gm.data import _functional
 from gemma.gm.nn import _config
 from gemma.gm.text import _sampler_loop
 import jax.numpy as jnp
@@ -52,8 +53,9 @@ class PrevTurns:
       self,
       *,
       next_turn_attention_mask: Bool['B L L'],
-      # ) -> Bool['B L L_with_prev_turns']:
-  ) -> Bool['B L {self.used_cache_length}+L']:
+      prefill_cache_length: int,
+      # L_with_prev_turns is: {self.used_cache_length}+L+padding
+  ) -> Bool['B L L_with_prev_turns']:
     """Make the attention mask for the next turn."""
     if self.last_state is None:
       return next_turn_attention_mask
@@ -78,6 +80,12 @@ class PrevTurns:
     attention_mask = jnp.concat(
         [prev_attention_mask, next_turn_attention_mask], axis=-1
     )
+
+    attention_mask = _functional.pad(
+        attention_mask,
+        max_length=prefill_cache_length,
+    )
+
     return attention_mask
 
   @property
