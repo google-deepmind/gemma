@@ -178,8 +178,20 @@ class SamplerLoop:
         end_tokens=self.end_tokens,
     )
 
-    # TODO(epot): Also mask out the `full_attention_mask`.
-    state = dataclasses.replace(state, predicted_tokens=predicted_tokens)
+    # In multi-turn, the new full attention mask will be concatenated with the
+    # one from previous turns, so need to mask out tokens predicted after the
+    # end tokens.
+    full_attention_mask = _mask_full_attention_mask_prefix_for_next_turn(
+        full_attention_mask=state.full_attention_mask,
+        predicted_tokens=predicted_tokens,
+        init_cache_length=state.init_cache_length,
+    )
+
+    state = dataclasses.replace(
+        state,
+        predicted_tokens=predicted_tokens,
+        full_attention_mask=full_attention_mask,
+    )
     return state
 
   def _stream_sample_loop(
@@ -265,3 +277,19 @@ def _mask_tokens_after_end_tokens(
   end_tokens_mask = jnp.isin(tokens, jnp.asarray(end_tokens))
   end_tokens_mask = jnp.cumsum(end_tokens_mask, axis=-1) - end_tokens_mask == 0
   return tokens * end_tokens_mask
+
+
+def _mask_full_attention_mask_prefix_for_next_turn(
+    *,
+    full_attention_mask: Bool['B cache_length'],
+    predicted_tokens: Int['B L'],
+    init_cache_length: Int[''],
+) -> Bool['B cache_length']:
+  """Mask the full attention mask for the next turn."""
+  num_predicted_tokens = jnp.sum(predicted_tokens != 0, axis=-1)
+
+  cache_length = full_attention_mask.shape[-1]
+  length_pred = init_cache_length + 1 + num_predicted_tokens
+  mask = jnp.arange(cache_length)[None, ...] < length_pred[..., None]
+  full_attention_mask = full_attention_mask * mask
+  return full_attention_mask

@@ -12,8 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import dataclasses
+
 from gemma import gm
 from gemma.gm.text import _prefill
+from gemma.gm.text import _sampler_loop
+from gemma.gm.text import _turn_utils
 from gemma.gm.utils import _types
 import jax
 import jax.numpy as jnp
@@ -66,4 +70,91 @@ def test_prefill():
   np.testing.assert_array_equal(
       init_state.attention_mask_for_step,
       [[1, 1] + ([0] * 62)],  # Attention mask for the last token.
+  )
+
+
+def test_full_attention_mask():
+  input = _types.Input(  # pylint: disable=redefined-builtin
+      text=jnp.asarray([
+          [1, 2, 3, 4],
+          [1, 2, 3, 4],
+          [1, 2, 0, 0],
+          [1, 2, 0, 0],
+      ]),
+      images=None,
+      config=_types.InputConfig(
+          support_images=False,
+          num_tokens_per_image=100,
+          special_tokens=gm.text.Gemma3Tokenizer.special_tokens,
+      ),
+  )
+  assert input.length_with_mm == 4
+
+  first_turn_mask = _prefill._make_full_attention_mask(
+      input=input,
+      prev_turns=_turn_utils.PrevTurns(last_state=None),
+      cache_length=20,
+  )
+  np.testing.assert_array_equal(
+      first_turn_mask,
+      [
+          [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+          [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+          [1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+          [1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+      ],
+  )
+
+  last_state = _sampler_loop.SamplingState(
+      step=jnp.asarray(5),
+      done=jnp.ones((4,), dtype=jnp.bool_),
+      last_token=jnp.asarray([1, 2, 3, 4]),
+      last_token_pos=jnp.asarray([1, 2, 3, 4]),
+      predicted_tokens=jnp.asarray(
+          [
+              [1, 2, 3, 4, 5, 0, 0, 0, 0, 0],
+              [1, 2, 3, 0, 0, 0, 0, 0, 0, 0],
+              [1, 2, 3, 4, 5, 0, 0, 0, 0, 0],
+              [1, 2, 3, 0, 0, 0, 0, 0, 0, 0],
+          ],
+          dtype=jnp.int32,
+      ),
+      cache={},
+      rng=jax.random.PRNGKey(0),
+      full_attention_mask=first_turn_mask,
+      init_cache_length=jnp.asarray(input.length_with_mm - 1),
+  )
+  masked_full_attention_mask = (
+      _sampler_loop._mask_full_attention_mask_prefix_for_next_turn(
+          full_attention_mask=last_state.full_attention_mask,
+          predicted_tokens=last_state.predicted_tokens,
+          init_cache_length=last_state.init_cache_length,
+      )
+  )
+  np.testing.assert_array_equal(
+      masked_full_attention_mask,
+      [
+          [1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+          [1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+          [1, 1, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+          [1, 1, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      ],
+  )
+  last_state = dataclasses.replace(
+      last_state, full_attention_mask=masked_full_attention_mask
+  )
+
+  second_turn_mask = _prefill._make_full_attention_mask(
+      input=input,
+      prev_turns=_turn_utils.PrevTurns(last_state=last_state),
+      cache_length=20,
+  )
+  np.testing.assert_array_equal(
+      second_turn_mask,
+      [
+          [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+          [1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+          [1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1],
+          [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1],
+      ],
   )
