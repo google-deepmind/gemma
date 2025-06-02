@@ -78,3 +78,53 @@ class TopkSampling(SamplingMethod):
     )
     batch_indices = jnp.arange(batch_size)
     return topk_indices[batch_indices, sampled_topk_indices]
+
+
+@dataclasses.dataclass(frozen=True, kw_only=True)
+class NucleusSampling(SamplingMethod):
+  """Nucleus (top-p) sampling."""
+
+  temperature: float = 1.0
+  p: float = 0.9
+
+  @_jax_utils.flatten_unflatten_batch_dim()
+  @typechecked
+  def get_next_tokens(self, logits: Float['*B V'], rng: PRNGKey) -> Int['*B']:
+    batch_size, vocab_size = logits.shape
+    
+    # Apply temperature scaling
+    scaled_logits = logits / self.temperature
+    
+    # Convert logits to probabilities
+    probs = jax.nn.softmax(scaled_logits, axis=-1)
+    
+    # Create indices array with same batch dimensions as probs
+    indices = jnp.broadcast_to(jnp.arange(vocab_size), (batch_size, vocab_size))
+    
+    # Sort probabilities in descending order
+    sorted_probs, sorted_indices = jax.lax.sort_key_val(
+        -probs, indices, dimension=-1
+    )
+    sorted_probs = -sorted_probs
+    
+    # Compute cumulative probabilities
+    cumulative_probs = jnp.cumsum(sorted_probs, axis=-1)
+    
+    # Create mask for tokens within nucleus (cumulative prob <= p)
+    nucleus_mask = cumulative_probs <= self.p
+    
+    # Ensure at least one token is always included (the most probable one)
+    nucleus_mask = nucleus_mask.at[:, 0].set(True)
+    
+    # Zero out probabilities outside the nucleus
+    filtered_probs = jnp.where(nucleus_mask, sorted_probs, 0.0)
+    
+    # Renormalize the filtered probabilities
+    filtered_probs = filtered_probs / jnp.sum(filtered_probs, axis=-1, keepdims=True)
+    
+    # Sample from the filtered distribution
+    sampled_sorted_indices = jax.random.categorical(rng, jnp.log(filtered_probs), axis=-1)
+    
+    # Map back to original vocabulary indices
+    batch_indices = jnp.arange(batch_size)
+    return sorted_indices[batch_indices, sampled_sorted_indices]
