@@ -45,13 +45,14 @@ class PrevTurns:
     if self.last_state is None:
       return 0
     else:
-      return int(self.last_state.used_cache_length)
+      return int(self.last_state.used_cache_length) + 1
 
   @typechecked
   def make_prefill_attention_mask(
       self,
       *,
       next_turn_attention_mask: Bool['B L L'],
+      # ) -> Bool['B L L_with_prev_turns']:
   ) -> Bool['B L {self.used_cache_length}+L']:
     """Make the attention mask for the next turn."""
     if self.last_state is None:
@@ -82,10 +83,9 @@ class PrevTurns:
   @property
   def prev_attention_mask(self) -> Bool['B {self.used_cache_length}']:
     assert self.last_state is not None
-    # TODO(epot):
-    # Mask the full_attention_mask with the predicted tokens.
-    # (i.e. if end_tokens is predicted, all tokens after should be masked)
-    # Could be done as post process of the sampler.
+    # The full_attention_mask from the last turn is padded with zeros
+    # as post-processing step in the sampler loop.
+    # (i.e. if end_tokens is predicted, all tokens after are masked).
     return self.last_state.full_attention_mask[:, : self.used_cache_length]
 
   def __bool__(self) -> bool:
