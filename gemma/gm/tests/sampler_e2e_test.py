@@ -30,8 +30,26 @@ def test_sampler():
       params=params,
   )
   out = sampler.chat('Write a haiku about LLMs. No comments.')
-  assert out == epy.dedent("""\
+  assert out == epy.dedent("""
       Words flow, vast and deep,
       Mimicking human insight,
       New thoughts softly bloom.
+  """)
+
+  out = sampler.chat('Share one metaphor linking "shadow" and "laughter".')
+  assert out == epy.dedent("""
+    Here’s a metaphor linking “shadow” and “laughter”:
+
+    **“Laughter is the sunlight that chases away a shadow, but the shadow always lingers, a quiet reminder of the darkness it once held.”**
+
+    **Explanation:**
+
+    *   **Laughter** represents the bright, joyful moments that dispel sadness or worry.
+    *   **Shadow** symbolizes the lingering feelings of sadness, fear, or past experiences that can still be present, even when happiness is felt. 
+
+    The metaphor suggests that while laughter can temporarily banish negativity, the underlying potential for darkness (the shadow) remains, subtly present beneath the surface. 
+
+    ---
+
+    Would you like me to try another metaphor, or perhaps explore this idea in more detail?
   """)
