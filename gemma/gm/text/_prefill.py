@@ -239,12 +239,8 @@ def _make_prefill_input(
 
   # Cache length is equal to the pad token length + the previous turns.
   prefill_cache_length = prev_turns.used_cache_length + token_length_padded
-  # TODO(epot): Add padding to the cache !!!!!!!!
-  # It is non trivial to add padding here to make the cache slice
-  # static. This is because `used_cache_length` can be an arbitrary value.
-  # and unless wasting part of the cache just with padding.
-  # prefill_cache_length = _pad_to_bucket(prefill_cache_length, pad_lengths)
-  # Should actually be possible if `attention_mask` is also right-padded.
+  # Pad the cache length, to avoid unecessary re-compilations.
+  prefill_cache_length = _pad_to_bucket(prefill_cache_length, pad_lengths)
   cache = cache[:, :prefill_cache_length]
 
   return PrefillInput(
@@ -255,6 +251,7 @@ def _make_prefill_input(
       positions=input.positions + prev_turns.last_token_pos[..., None],
       attention_mask=prev_turns.make_prefill_attention_mask(
           next_turn_attention_mask=input.attention_mask,
+          prefill_cache_length=prefill_cache_length,
       ),
       cache=cache,
   )
