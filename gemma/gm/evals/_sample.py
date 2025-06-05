@@ -86,13 +86,7 @@ class SamplerEvaluator(kd.evals.EvaluatorBase):
     """Run this evaluator then write and optionally return the results."""
     self._assert_root_cfg_resolved()
 
-    sampler = _sampler.Sampler(
-        model=self.model,
-        params=state.params,
-        tokenizer=self._task.tokenizer,
-        cache_length=self.cache_length,
-        pad_length=self.pad_length,
-    )
+    sampler = self._get_sampler(state)
 
     # TODO(epot): Better sharding, a few options:
     #  1. Allow to customize the sharding to process examples
@@ -177,6 +171,16 @@ class SamplerEvaluator(kd.evals.EvaluatorBase):
         raise ValueError('Can only cache if num_batches is set.')
       ds_iter = ds_iter.cache()
     return ds_iter
+
+  def _get_sampler(self, state: kd.train.TrainState):
+    """Returns the sampler to use."""
+    return _sampler.Sampler(
+        model=self.model,
+        params=state.params,
+        tokenizer=self._task.tokenizer,
+        cache_length=self.cache_length,
+        pad_length=self.pad_length,
+    )
 
   # TODO(epot): More flexible way to connect the dataset (e.g. eval-only
   # datasets). Supports custom `Seq2Seq` transforms,...
