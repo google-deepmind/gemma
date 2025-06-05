@@ -12,23 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Kauldron API for Gemma."""
+"""Tools."""
 
-from etils import epy as _epy
+# pylint: disable=g-import-not-at-top,g-importing-member,g-bad-import-order
 
-# pylint: disable=g-import-not-at-top
+# Tool handler
+from gemma.gm.tools._manager import ToolManagerBase
+from gemma.gm.tools._manager import OneShotToolManager
 
-with _epy.lazy_api_imports(globals()):
-  # API match the `kd` namespace.
-  from gemma.gm import ckpts
-  from gemma.gm import data
-  from gemma.gm import evals
-  from gemma.gm import losses
-  from gemma.gm import math
-  from gemma.gm import nn
-  from gemma.gm import text
-  from gemma.gm import tools
-  from gemma.gm import sharding
-  from gemma.gm import testing
-  from gemma.gm import typing
-  from gemma import peft
+from gemma.gm.tools._tools import Tool
+
+# Available tools (mostly for demo purposes)
+from gemma.gm.tools._calculator import Calculator
+from gemma.gm.tools._file_explorer import FileExplorer
