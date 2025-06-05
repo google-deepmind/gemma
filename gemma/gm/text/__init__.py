@@ -29,6 +29,7 @@ with _epy.lazy_api_imports(globals()):
   # Samplers
   from gemma.gm.text._sampler import Sampler
   from gemma.gm.text._chat_sampler import ChatSampler
+  from gemma.gm.text._tool_sampler import ToolSampler
 
   # Sampling methods
   # TODO(mblondel): Add nucleus sampling
