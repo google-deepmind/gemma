@@ -316,15 +316,16 @@ class Sampler:
         sharding=sharding,
         # Here we use the static `max_out_length`, as it is used to initialize
         # the output buffer. However in the sampling loop, users can choose
-        # to only decode a subset by setting a smalled `max_new_tokens`.
+        # to only decode a subset by setting a smaller `max_new_tokens`.
         max_out_length=self.max_out_length,
     )
 
     # Max out length is static, while max_new_tokens is dynamic.
     # This allow to change the max out length without recompiling.
-    if max_new_tokens and max_new_tokens < self.max_out_length:
+    if max_new_tokens and max_new_tokens > self.max_out_length:
       raise ValueError(
-          'max_new_tokens must be at least as large as max_out_length.'
+          'max_new_tokens should be smaller or equal to max_out_length. Got:'
+          f' {max_new_tokens} / {self.max_out_length}'
       )
     max_new_tokens = max_new_tokens or self.max_out_length
     max_new_tokens = jnp.asarray(max_new_tokens)
