@@ -84,10 +84,23 @@ contain additional scripts to fine-tune and sample with Gemma.
 To download the model weights. See
 [our documentation](https://gemma-llm.readthedocs.io/en/latest/checkpoints.html).
 
+
 ### System Requirements
 
 Gemma can run on a CPU, GPU and TPU. For GPU, we recommend 8GB+ RAM on GPU for
 The 2B checkpoint and 24GB+ RAM on GPU are used for the 7B checkpoint.
+
+### GPU Memory Requirements
+| Model Size | Precision | Minimum VRAM | Recommended VRAM |
+|------------|-----------|--------------|------------------|
+| Gemma 2B   | bf16      | 8GB          | 10GB             |
+| Gemma 2B   | int4      | 4GB          | 6GB              |
+| Gemma 7B   | bf16      | 16GB         | 20GB             |
+| Gemma 7B   | int4      | 8GB          | 10GB             |
+| Gemma 12B  | bf16      | 24GB         | 32GB             |
+| Gemma 12B  | int4      | 12GB         | 16GB             |
+
+*Note: Requirements may vary based on framework and batch size.*
 
 ### Contributing
 
