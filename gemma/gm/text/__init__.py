@@ -37,6 +37,7 @@ with _epy.lazy_api_imports(globals()):
   from gemma.gm.text._sampling import Greedy
   from gemma.gm.text._sampling import RandomSampling
   from gemma.gm.text._sampling import TopkSampling
+  from gemma.gm.text._sampling import TopPSampling
 
   # Other utils
   # from gemma.gm.text import _template as template

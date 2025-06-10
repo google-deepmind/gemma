@@ -47,6 +47,28 @@ def test_topk_sampling():
   assert tokens.shape == (batch_size,)
 
 
+def test_topp_sampling():
+  sampling = gm.text.TopPSampling(p=0.9)
+  rng = jax.random.PRNGKey(0)
+  batch_size = 2
+  vocab_size = 5
+  logits = jax.random.normal(rng, shape=(batch_size, vocab_size))
+  tokens = sampling.get_next_tokens(logits, rng)
+  assert tokens.shape == (batch_size,)
+
+
+def test_topp_sampling_with_skewed_logits():
+  sampling = gm.text.TopPSampling(p=0.6)
+  rng = jax.random.PRNGKey(0)
+
+  neg_inf = jax.numpy.finfo(jax.numpy.float32).min
+  logits = jax.numpy.array([
+      [1.0, neg_inf, neg_inf, neg_inf, neg_inf],
+  ])
+  tokens = sampling.get_next_tokens(logits, rng)
+  assert np.allclose(tokens, [0])
+
+
 def test_top1_sampling_matches_greedy_sampling():
   greedy = gm.text.Greedy()
   top1_sampling = gm.text.TopkSampling(k=1)
