@@ -80,3 +80,42 @@ class TopkSampling(SamplingMethod):
     batch_indices = jnp.arange(batch_size)
     topk_indices = topk_indices[batch_indices, sampled_topk_indices]
     return enp.unflatten(topk_indices, batch_shape, '...')
+
+
+@dataclasses.dataclass(frozen=True, kw_only=True)
+class TopPSampling(SamplingMethod):
+  """Top-p (Nucleus) Sampling."""
+
+  p: float = 0.9
+  temperature: float = 1.0
+
+  @typechecked
+  def get_next_tokens(self, logits: Float['... V'], rng: PRNGKey) -> Int['...']:
+    # temperature scaling
+    logits = logits / self.temperature
+
+    if self.p < 1.0:
+      sorted_logits = jnp.sort(logits, axis=-1)
+
+      cumulative_probs = jnp.cumsum(
+          jax.nn.softmax(sorted_logits, axis=-1), axis=-1
+      )
+
+      # Mask to remove tokens with cumulative probability is greater than p.
+      sorted_mask = cumulative_probs < self.p
+
+      # get the index of the first token with cumulative probability <p.
+      cutoff_index = jnp.sum(sorted_mask < self.p, axis=-1, keepdims=True)
+
+      # get the logit value where the cutoff is.
+      cutoff_logit = jnp.take_along_axis(sorted_logits, cutoff_index, axis=-1)
+
+      # select logit values that are smaller than the cutoff logit.
+      logits = jnp.where(
+          logits < cutoff_logit,
+          jnp.finfo(logits.dtype).min,
+          logits,
+      )
+
+    return jax.random.categorical(rng, logits, axis=-1)
+
