@@ -27,6 +27,7 @@ import apitree
 
 
 _COLABS_NAMES = [
+    'tool_use',
     'finetuning',
     'lora_sampling',
     'lora_finetuning',
