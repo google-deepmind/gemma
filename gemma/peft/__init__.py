@@ -39,3 +39,9 @@ from gemma.peft._quantization import SimulateQuantizedDense
 from gemma.peft._quantization import SimulateQuantizedEinsum
 from gemma.peft._quantization import IntDense
 from gemma.peft._quantization import IntEinsum
+
+# QLoRA utils
+from gemma.peft._qlora import QLoRADense
+from gemma.peft._qlora import QLoRADenseAdapter
+from gemma.peft._qlora import QLoRAEinsum
+from gemma.peft._qlora import QLoRAEinsumAdapter
