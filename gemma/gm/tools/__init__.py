@@ -21,6 +21,7 @@ from gemma.gm.tools._manager import ToolManagerBase
 from gemma.gm.tools._manager import OneShotToolManager
 
 from gemma.gm.tools._tools import Tool
+from gemma.gm.tools._tools import Example
 
 # Available tools (mostly for demo purposes)
 from gemma.gm.tools._calculator import Calculator
