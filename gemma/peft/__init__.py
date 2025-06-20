@@ -25,6 +25,8 @@ from gemma.peft._lora import LoRADense
 from gemma.peft._lora import LoRADenseAdapter
 from gemma.peft._lora import LoRAEinsum
 from gemma.peft._lora import LoRAEinsumAdapter
+from gemma.peft._lora import LoRADenseGeneral
+from gemma.peft._lora import LoRADenseGeneralAdapter
 from gemma.peft._tree_utils import fuse_params
 from gemma.peft._tree_utils import merge_params
 from gemma.peft._tree_utils import split_params
