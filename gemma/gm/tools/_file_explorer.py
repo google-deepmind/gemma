@@ -33,6 +33,7 @@ class FileExplorer(_tools.Tool):
       result='...',
       answer='Here is the content of the file: ...',
   )
+  KEYWORDS = ('file', 'directory', 'folder')
 
   def call(self, method: str, path: str) -> str:  # pytype: disable=signature-mismatch
     """Calculates the expression."""
@@ -42,6 +43,8 @@ class FileExplorer(_tools.Tool):
         return path.read_text()
       except FileNotFoundError:
         return 'File not found. Make sure to use the absolute path.'
+      except OSError as e:  # Trying to read a directory.
+        return repr(e)
     elif method == 'ls':
       lines = epy.Lines()
       try:
