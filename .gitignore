@@ -28,4 +28,3 @@ poetry.lock
 docs/_build
 docs/api
 
-venv/
