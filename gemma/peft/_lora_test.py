@@ -23,8 +23,10 @@ import jax.numpy as jnp
 def _dense_to_lora(module):
   if isinstance(module, nn.Dense):
     return peft.LoRADense(rank=1, wrapped=module)
-  if isinstance(module, nn.Einsum):
+  elif isinstance(module, nn.Einsum):
     return peft.LoRAEinsum(rank=1, wrapped=module)
+  elif isinstance(module, nn.DenseGeneral):
+    return peft.LoRADenseGeneral(rank=1, wrapped=module)
   else:
     return module
 
@@ -46,11 +48,19 @@ class MyModule(nn.Module):
         shape=(4, 2, 3),
         einsum_str='bi,imn->bmn',
     )(x)
+
+    # Test DenseGeneral
+    y4 = nn.DenseGeneral(
+        features=(2, 3),
+        axis=-1,
+    )(x)
+
     return {
         'y0': y0,
         'y1': y1,
         'y2': y2,
         'y3': y3,
+        'y4': y4,
     }
 
 
@@ -88,6 +98,14 @@ def test_lora():
                   'b': f32[1, 2, 3],
               },
           },
+          'DenseGeneral_0': {
+              'kernel': f32[4, 2, 3],
+              'bias': f32[2, 3],
+              'lora': {
+                  'a': f32[4, 1],
+                  'b': f32[1, 2, 3],
+              },
+          },
       },
   })
   assert etree.spec_like(out) == etree.spec_like({
@@ -95,4 +113,5 @@ def test_lora():
       'y1': f32[1, 2],
       'y2': f32[1, 3],
       'y3': f32[1, 2, 3],
+      'y4': f32[1, 2, 3],
   })
