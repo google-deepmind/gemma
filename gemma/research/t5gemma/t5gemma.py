@@ -38,7 +38,7 @@ class T5GemmaOutput:
 
   logits: Array['*B L V'] | Array['*B V']
   activations: Sequence[Array['*B L D'] | Array['*B D']]
-  encoder_activations: Sequence[Array['*B L2 D']] | None
+  encoder_activations: Sequence[Array['*B L2 D2']] | None
   cache: Cache | None
 
 
@@ -111,7 +111,7 @@ class T5Gemma(nn.Module):
       self,
       target_tokens: Array['B L'],
       inputs_mask: Array['B L2'],
-      encoder_outputs: Array['B L2 D'] | None = None,
+      encoder_outputs: Array['B L2 D2'] | None = None,
       cache: Cache | None = None,
   ) -> TransformerOutput:
     targets_mask = target_tokens != _PADDING_ID
