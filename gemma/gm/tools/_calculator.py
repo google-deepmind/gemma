@@ -48,6 +48,7 @@ class Calculator(_tools.Tool):
       result='110',
       answer='The result is 110.',
   )
+  KEYWORDS = ('math', 'calculator', 'operation')
 
   def call(self, expression: str) -> str:  # pytype: disable=signature-mismatch
     """Calculates the expression."""

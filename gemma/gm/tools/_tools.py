@@ -17,10 +17,13 @@
 from __future__ import annotations
 
 import abc
+from collections.abc import Callable
 import dataclasses
 import functools
 import inspect
 from typing import ClassVar
+
+from kauldron.typing import UInt8  # pylint: disable=g-importing-member
 
 
 class Tool(abc.ABC):
@@ -28,9 +31,10 @@ class Tool(abc.ABC):
 
   DESCRIPTION: ClassVar[str]
   EXAMPLE: ClassVar[Example]
+  KEYWORDS: ClassVar[tuple[str, ...]] = ()
 
   @abc.abstractmethod
-  def call(self, **kwargs) -> str:
+  def call(self, **kwargs) -> str | ToolOutput:
     """Calls the tool."""
     raise NotImplementedError()
 
@@ -44,6 +48,23 @@ class Tool(abc.ABC):
     """Returns the name of the tool."""
     sig = inspect.signature(self.call)
     return tuple(sig.parameters)
+
+
+@dataclasses.dataclass(frozen=True, kw_only=True)
+class ToolOutput:
+  """Tool output.
+
+  Attributes:
+    text: The text output of the tool.
+    images: The images output of the tool.
+    update_tools: Callback to be called by the tool manager. Allow the tool to
+      update, add, remove, ... tools.
+  """
+
+  text: str
+  images: UInt8['N? H W C'] | None = None
+
+  update_tools: Callable[[list[Tool]], list[Tool]] | None = None
 
 
 @dataclasses.dataclass(frozen=True, kw_only=True)

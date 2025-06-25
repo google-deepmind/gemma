@@ -17,7 +17,6 @@
 from __future__ import annotations
 
 import dataclasses
-import functools
 
 from etils import epy
 from gemma.gm.text import _chat_sampler
@@ -51,6 +50,18 @@ class ToolSampler(_chat_sampler.ChatSampler):
   manager_cls: type[_manager_lib.ToolManagerBase] = (
       _manager_lib.OneShotToolManager
   )
+
+  # Manager class is mutable (as states can be stateful), so reset for every new
+  # conversation.
+  _manager: _manager_lib.ToolManagerBase = dataclasses.field(
+      init=False, repr=False
+  )
+
+  def __post_init__(self):
+    super().__post_init__()
+    # Normalize `Tool` to `list[Tool]`.
+    if isinstance(self.tools, _tools.Tool):
+      object.__setattr__(self, 'tools', [self.tools])
 
   def chat(
       self,
@@ -91,7 +102,12 @@ class ToolSampler(_chat_sampler.ChatSampler):
     if print_stream is None:
       print_stream = self.print_stream
 
-    if not self.turns or not multi_turn:  # First turn, add the system prompt.
+    if not self.turns or not multi_turn:  # First turn
+      # Initialize the manager.
+      manager = self.manager_cls(tools=list(self.tools))
+      object.__setattr__(self, '_manager', manager)
+
+      # Add the system prompt.
       prompt = self._manager.system_prompt + prompt
 
     model_output = super().chat(
@@ -113,11 +129,12 @@ class ToolSampler(_chat_sampler.ChatSampler):
       if print_stream:
         print(flush=True)  # New line
         _plot_separator()
-        print(tool_answer, flush=True)
+        print(tool_answer.text, flush=True)
         _plot_separator()
       # TODO(epot): Should use `_template.ToolTurn` or similar.
       return self.chat(
-          tool_answer,
+          tool_answer.text,
+          images=tool_answer.images,
           multi_turn=True,
           sampling=sampling,
           rng=rng,
@@ -125,10 +142,6 @@ class ToolSampler(_chat_sampler.ChatSampler):
       )
     else:
       return model_output
-
-  @functools.cached_property
-  def _manager(self) -> _manager_lib.ToolManagerBase:
-    return self.manager_cls(tools=self.tools)
 
 
 def _plot_separator() -> None:
