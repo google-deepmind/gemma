@@ -17,7 +17,7 @@
 import dataclasses
 import functools
 from typing import Any
-
+from absl import logging
 from flax import linen as nn
 from gemma import peft
 from gemma.gm.nn import _layers
@@ -25,6 +25,9 @@ import jax
 import jax.numpy as jnp
 from kauldron import kontext
 import numpy as np
+
+
+_SUPPORTED_MODULES = (nn.Dense, nn.Einsum, nn.DenseGeneral, _layers.Einsum)
 
 
 class LoRA(nn.Module):
@@ -38,6 +41,7 @@ class LoRA(nn.Module):
     rank: The rank of the LoRA decomposition.
     model: The model to wrap.
     dtype: The dtype to use for the LoRA weights.
+    verbose: If `True`, logs diagnostic strings for the LoRA layers.
   """
 
   _: dataclasses.KW_ONLY
@@ -45,6 +49,7 @@ class LoRA(nn.Module):
   rank: int
   model: nn.Module
   dtype: jnp.dtype = jnp.bfloat16
+  verbose: bool = False
 
   def __post_init__(self):
     super().__post_init__()
@@ -61,6 +66,7 @@ class LoRA(nn.Module):
         _replace_by_lora,
         rank=self.rank,
         dtype=self.dtype,
+        verbose=self.verbose,
     )
     with peft.ModuleInterceptor(replace_module_fn):
       return self.model(*args, **kwargs)
@@ -81,19 +87,34 @@ class LoRA(nn.Module):
     return getattr(self.model, name)
 
 
+def _lora_debug_string(module: nn.Module) -> str | None:
+  if isinstance(module, _SUPPORTED_MODULES):
+    return f'[LoRA] {type(module).__name__} ({module.name}) <- {module.path}'
+  else:
+    return None
+
+
 def _replace_by_lora(
     module: nn.Module,
     *,
     rank: int,
     dtype: np.dtype,
+    verbose: bool,
 ) -> nn.Module:
   """Replaces compatible modules by their LoRA version."""
+  if verbose:
+    debug_str = _lora_debug_string(module)
+    if debug_str:
+      logging.info(debug_str)
+
   # TODO(epot): Replace by generic LoRA wrapper ?
   match module:
     case nn.Dense():
       return peft.LoRADense(rank=rank, dtype=dtype, wrapped=module)
     case nn.Einsum():
       return peft.LoRAEinsum(rank=rank, dtype=dtype, wrapped=module)
+    case nn.DenseGeneral():
+      return peft.LoRADenseGeneral(rank=rank, dtype=dtype, wrapped=module)
     case _layers.Einsum():
       # This hack is required because the FeedForward layer call two different
       # Einsum with using `nn.share_scope`, so the two wrappers need a different
