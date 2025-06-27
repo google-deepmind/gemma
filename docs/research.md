@@ -37,3 +37,12 @@ class MyTinyTransformer(gm.nn.Transformer):
       tokenizer_version=3,  # Auto-select the tokenizer in the sampler
   )
 ```
+
+## Gemma-related projects
+
+The Gemma repository also contain various non-official research projects around
+Gemma, located in the [research/](https://github.com/google-deepmind/gemma/tree/main/gemma/research/)
+directory:
+
+*   [`t5gemma`](https://github.com/google-deepmind/gemma/blob/main/gemma/research/t5gemma/README.md):
+    Encoder/decoder Gemma architecture, based on Gemma 2.
