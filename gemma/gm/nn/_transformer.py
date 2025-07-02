@@ -47,7 +47,7 @@ class ModelInfo:
   Used to auto-load the model tokenizer and params.
   """
 
-  tokenizer_version: int | None = None
+  tokenizer_version: int | str | None = None
   default_ckpt: str | None = None
 
 
