@@ -412,6 +412,9 @@ class Sampler:
     # Notice that if pad_length exceeds the maximum length of the prompts,
     # an error will be raised by the `.pad` function below.
     max_prompt_len = pad_length or max(len(t) for t in tokens)
+    # In multi-host, each host read different data, so sync to the max length
+    # across all hosts.
+    max_prompt_len = _max_across_hosts(max_prompt_len)
 
     # Batch tokens together
     tokens = _functional.pad(tokens, max_length=max_prompt_len)
@@ -548,3 +551,17 @@ def _is_str_array(x) -> bool:
   if not isinstance(x, np.ndarray):
     return False
   return np.dtype(x.dtype).type in {np.object_, np.str_}
+
+
+def _max_across_hosts(x: int) -> int:
+  """Returns the maximum value across all hosts."""
+  if jax.process_count() == 1:
+    return x
+  x = jnp.asarray([x])
+  x = _max_across_hosts_pmap(x)
+  return x.item()
+
+
+@functools.partial(jax.pmap, axis_name='i')
+def _max_across_hosts_pmap(x: jax.Array) -> jax.Array:
+  return jax.lax.pmax(x, 'i')
