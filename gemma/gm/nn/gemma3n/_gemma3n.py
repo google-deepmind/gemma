@@ -23,13 +23,11 @@ from gemma.gm.nn.gemma3n import _modules
 from gemma.gm.nn.gemma3n import _transformer
 from gemma.multimodal import vision as gemma_vision
 
-_NUM_LAYERS_GEMMA3N_MODEL = 35
+_HIDDEN_DIM_E4B = 2048 * 8
+_NUM_LAYERS_GEMMA3N_MODEL_E4B = 35
 
-GEMMA3N_KV_SHARING_CONFIG = _config.KVCacheSharingConfig(
-    frac_shared_layers=15.0 / 35.0,
-    share_global=True,
-    share_local=True,
-)
+_HIDDEN_DIM_E2B = 2048 * 4
+_NUM_LAYERS_GEMMA3N_MODEL_E2B = 30
 
 GEMMA3N_ATTENTION_PATTERN = (
     _modules.AttentionType.LOCAL_SLIDING,
@@ -38,10 +36,6 @@ GEMMA3N_ATTENTION_PATTERN = (
     _modules.AttentionType.LOCAL_SLIDING,
     _modules.AttentionType.GLOBAL,
 )
-
-GEMMA3N_ACTIVATION_SPARSITY_PATTERN = tuple([0.95] * 10 + [0.0] * (
-    _NUM_LAYERS_GEMMA3N_MODEL - 10
-))
 
 
 class _Gemma3nBase(_transformer.Gemma3nTransformer):
@@ -64,14 +58,16 @@ class _Gemma3nBase(_transformer.Gemma3nTransformer):
     super().__post_init__()
 
 
-class Gemma3n(_Gemma3nBase):  # pylint: disable=invalid-name
-  """Gemma3n transformer architecture."""
-
-  config: _config.TransformerConfig = _config.TransformerConfig(
+def _get_gemma3n_config(
+    hidden_dim: int,
+    num_layers: int,
+    num_unshared_kv_layers: int = 20,
+) -> _config.TransformerConfig:
+  return _config.TransformerConfig(
       final_logit_softcap=None,
       num_embed=262_144,
       embed_dim=2048,
-      hidden_dim=16384,
+      hidden_dim=hidden_dim,
       num_heads=8,
       head_dim=256,
       num_kv_heads=2,
@@ -82,7 +78,7 @@ class Gemma3n(_Gemma3nBase):  # pylint: disable=invalid-name
       use_value_norm=True,
       attention_types=_config.make_attention_layers_types(
           GEMMA3N_ATTENTION_PATTERN,
-          num_layers=_NUM_LAYERS_GEMMA3N_MODEL,
+          num_layers=num_layers,
       ),
       query_pre_attn_norm=_config.QueryPreAttentionNormalisation.NONE,
       attn_logits_soft_cap=None,
@@ -92,16 +88,46 @@ class Gemma3n(_Gemma3nBase):  # pylint: disable=invalid-name
       global_base_frequency=1_000_000,
       global_scale_factor=1.0,
       vision_encoder=gemma_vision.SigLiPFromPatches(),
-      activation_sparsity_pattern=GEMMA3N_ACTIVATION_SPARSITY_PATTERN,
+      activation_sparsity_pattern=(tuple([0.95] * 10 + [0.0] * (
+          num_layers - 10
+      ))),
       use_altup=True,
       altup_coef_clip=120.0,
       per_layer_input_dim=256,
       use_laurel=True,
       laurel_rank=64,
-      kv_cache_sharing_config=GEMMA3N_KV_SHARING_CONFIG,
+      kv_cache_sharing_config=_config.KVCacheSharingConfig(
+          frac_shared_layers=(
+              (num_layers - num_unshared_kv_layers) * 1.0 / num_layers
+          ),
+          share_global=True,
+          share_local=True,
+      ),
       scale_plus_one=False,
       guard_against_excess_precision=True,
       sliding_mask_type=_modules.SlidingMaskType.GEMMA_3N,
+  )
+
+
+class Gemma3n_E4B(_Gemma3nBase):  # pylint: disable=invalid-name
+  """Gemma3n E4B transformer architecture."""
+
+  config: _config.TransformerConfig = _get_gemma3n_config(
+      hidden_dim=_HIDDEN_DIM_E4B,
+      num_layers=_NUM_LAYERS_GEMMA3N_MODEL_E4B,
+  )
+
+  INFO = _transformer.ModelInfo(
+      tokenizer_version='3n',
+  )
+
+
+class Gemma3n_E2B(_Gemma3nBase):  # pylint: disable=invalid-name
+  """Gemma3n E2B transformer architecture."""
+
+  config: _config.TransformerConfig = _get_gemma3n_config(
+      hidden_dim=_HIDDEN_DIM_E2B,
+      num_layers=_NUM_LAYERS_GEMMA3N_MODEL_E2B,
   )
 
   INFO = _transformer.ModelInfo(

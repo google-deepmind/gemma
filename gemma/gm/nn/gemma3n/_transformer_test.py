@@ -39,7 +39,8 @@ def _get_output(
 @pytest.mark.parametrize(
     'model_cls',
     [
-        gemma3n_models.Gemma3n,
+        gemma3n_models.Gemma3n_E4B,
+        gemma3n_models.Gemma3n_E2B,
     ],
 )
 def test_transformer(model_cls: type[gt.Gemma3nTransformer]):
@@ -51,7 +52,7 @@ def test_transformer(model_cls: type[gt.Gemma3nTransformer]):
 
 def test_images():
 
-  model = gemma3n_models.Gemma3n()  # pylint: disable=missing-kwoa  # pytype: disable=missing-parameter
+  model = gemma3n_models.Gemma3n_E4B()  # pylint: disable=missing-kwoa  # pytype: disable=missing-parameter
 
   tokens = jnp.ones((BATCH_SIZE, SEQ_LEN), dtype=jnp.int32)
   images = jnp.ones((BATCH_SIZE, NUM_IMAGES, 64, 64, 3), dtype=jnp.uint8)
@@ -62,7 +63,7 @@ def test_images():
 
 def test_text_only():
 
-  model = gemma3n_models.Gemma3n(text_only=True)
+  model = gemma3n_models.Gemma3n_E4B(text_only=True)
 
   tokens = jnp.ones((BATCH_SIZE, SEQ_LEN), dtype=jnp.int32)
   images = jnp.ones((BATCH_SIZE, NUM_IMAGES, 64, 64, 3), dtype=jnp.uint8)
@@ -76,7 +77,7 @@ def test_text_only():
 
 
 def test_last_only():
-  model = gemma3n_models.Gemma3n(return_last_only=True)
+  model = gemma3n_models.Gemma3n_E4B(return_last_only=True)
   tokens = jnp.ones((BATCH_SIZE, SEQ_LEN), dtype=jnp.int32)
   out, params = _get_output(model, tokens=tokens)
   assert 'vision_encoder' in params  # Vision by default
