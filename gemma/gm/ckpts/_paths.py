@@ -52,3 +52,11 @@ class CheckpointPath(enum.StrEnum):
   GEMMA3_4B_IT = 'gs://gemma-data/checkpoints/gemma3-4b-it'
   GEMMA3_12B_IT = 'gs://gemma-data/checkpoints/gemma3-12b-it'
   GEMMA3_27B_IT = 'gs://gemma-data/checkpoints/gemma3-27b-it'
+
+  # ******** Gemma 3.0 N ********
+  # Pretrained
+  GEMMA3N_E2B_PT = 'gs://gemma-data/checkpoints/gemma3n-e2b-pt'
+  GEMMA3N_E4B_PT = 'gs://gemma-data/checkpoints/gemma3n-e4b-pt'
+  # Instruction Tuned
+  GEMMA3N_E2B_IT = 'gs://gemma-data/checkpoints/gemma3n-e2b-it'
+  GEMMA3N_E4B_IT = 'gs://gemma-data/checkpoints/gemma3n-e4b-it'
