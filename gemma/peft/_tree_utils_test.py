@@ -42,7 +42,6 @@ def test_split_params():
           'kernel': 0,
           'bias': 1,
       },
-      'branch_with_only_lora': {},
       'other': 0,
       'b': {'f': {'a': {}}},
   }
