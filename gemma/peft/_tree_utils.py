@@ -27,83 +27,34 @@ class SplittedParams(NamedTuple):
 
 
 def split_params(params: _ParamsDict) -> SplittedParams:
-  """Split a nested tree into 2 trees, one with and without 'lora' branches.
+  """Splits a nested dictionary into two, one with and one without 'lora' keys.
 
-  Example:
-
-  ```python
-  params = {
-      'dense': {
-          'kernel': w,
-          'bias': b,
-          'lora': {
-              'a': a,
-              'b': b,
-          },
-      },
-      'other': other,
-  }
-
-
-  original, lora = peft.split_params(params)
-
-  assert original == {
-      'dense': {
-          'kernel': w,
-          'bias': b,
-      },
-      'other': other,
-  }
-  assert lora == {
-      'dense': {
-          'lora': {
-              'a': a,
-              'b': b,
-          },
-      },
-  }
-  ```
+  This function recursively traverses the input dictionary and separates
+  key-value pairs. If a key is 'lora', it and its corresponding value are
+  placed into the 'lora' dictionary. All other keys are placed into the
+  'original' dictionary. The structure of the dictionaries is preserved.
 
   Args:
     params: A nested dictionary representing the input tree containing 'lora'
       branches.
 
   Returns:
-    A named tuple: `(original, lora)`
+    A named tuple `(original, lora)` containing the two split dictionaries.
   """
   original_tree = {}
   lora_tree = {}
 
-  def _split_recursive(input_subtree, original_subtree, lora_subtree):
-    for key, value in input_subtree.items():
-      if isinstance(value, dict):
-        if key == 'lora':
-          lora_subtree[key] = value
-        else:
-          original_subtree[key] = {}
-          lora_subtree[key] = {}
-          _split_recursive(value, original_subtree[key], lora_subtree[key])
-      elif key != 'lora':
-        original_subtree[key] = value
-
-  _split_recursive(params, original_tree, lora_tree)
-
-  # Remove empty dicts in lora_tree
-  def _remove_empty_dicts(tree):
-    if not isinstance(tree, dict):
-      return tree
-
-    new_tree = {}
-    for key, value in tree.items():
-      if isinstance(value, dict):
-        sub_tree = _remove_empty_dicts(value)
-        if sub_tree:  # Only add if subtree is not empty
-          new_tree[key] = sub_tree
-      else:
-        new_tree[key] = value
-    return new_tree
-
-  lora_tree = _remove_empty_dicts(lora_tree)
+  for key, value in params.items():
+    if key == "lora":
+      lora_tree[key] = value
+    elif isinstance(value, dict):
+      original_sub, lora_sub = split_params(value)
+      if original_sub:
+        original_tree[key] = original_sub
+      if lora_sub:
+        lora_tree[key] = lora_sub
+    else:
+      original_tree[key] = value
 
   return SplittedParams(original_tree, lora_tree)
 
