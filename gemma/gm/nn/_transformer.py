@@ -261,9 +261,10 @@ class Transformer(nn.Module):
       x = self.final_norm(x)
 
     if return_last_only:
-      last_input_token_idx = jnp.sum(inputs.inputs_mask, axis=-1) - 1
-      # TODO(epot): Use `jnp.take_along_axis`
-      x = x[jnp.arange(len(x)), last_input_token_idx, ...]
+      last_input_token_idx = jnp.sum(inputs.inputs_mask, axis=-1, keepdims=True) - 1
+      x = jnp.take_along_axis(x, last_input_token_idx[..., None], axis=1)
+      x = jnp.squeeze(x, axis=1)
+
     elif images is not None:
       # Remove the MM extra tokens inserted.
       # During fine-tuning, the prompt is always masked, and the model cannot
@@ -322,110 +323,4 @@ class Transformer(nn.Module):
   ) -> _Inputs:
     """Encode the text tokens, eventually including the vision embeddings."""
 
-    # If the model has images, we expand each `<start_of_image>` token to add
-    # the image placeholder tokens.
-    if images is not None:
-      self._assert_support_mm()
-      if len(images.shape) == 4:  # Expand optional `num_images` dimension
-        images = einops.rearrange(images, 'b h w c -> b 1 h w c')
-
-    inputs = _types.Input(
-        text=tokens,
-        images=images,
-        config=self.config.input_config,
-    )
-    del tokens, images
-
-    # Encode the text tokens
-    # Could this be optimized to filter out the `SOFT_TOKEN_PLACEHOLDER` ?
-    # Currently, The placeholders are required so the mask, positions are
-    # correctly computed.
-    x = self.embedder.encode(inputs.tokens_with_mm)
-
-    # Encode the vision tokens and merge them with the text embeddings.
-    if inputs.images is not None:
-      x = self._merge_mm_embeddings(
-          tokens=inputs.tokens_with_mm, embeddings=x, images=inputs.images
-      )
-    elif self.vision_encoder is not None and self.is_initializing():
-      # During initialization, call the vision encoder to ensure that the
-      # params are correctly initialized.
-      _ = self._encode_vision(_make_dummy_images(self.vision_encoder))
-
-    # Note: When `positions` and `attention_mask` are explicitly provided,
-    # it's the user responsibility to correctly take into account the extra
-    # tokens inserted for the images.
-    # This is what the `gm.text.Sampler` implementation does.
-    if positions is None:
-      positions = inputs.positions
-
-    if attention_mask is None:
-      attention_mask = inputs.attention_mask
-
-    return _Inputs(
-        embeddings=x,
-        positions=positions,
-        attention_mask=attention_mask,
-        inputs_mask=inputs.inputs_mask,
-    )
-
-  @typechecked
-  def _merge_mm_embeddings(
-      self,
-      *,
-      tokens: Int['B L'],
-      embeddings: Float['B L D'],
-      images: UInt8['B N H W C'],
-  ) -> Float['B L D']:
-    """Update the embeddings to include the vision embeddings."""
-    # Encode the images
-    soft_embeddings = self._encode_vision(images)
-
-    # Merge the soft tokens back with the text embeddings.
-    merged_embeddings = _token_utils.merge_embeddings(
-        text_embeddings=embeddings,
-        vision_embeddings=soft_embeddings,
-        mask=tokens == gemma_vision.TOKEN_PLACEHOLDER,
-    )
-
-    return merged_embeddings
-
-  def _encode_vision(self, images: UInt8['B N H W C']) -> Float['B N P D']:
-    """Encode the images into the same space as the text embeddings."""
-    assert self.vision_encoder is not None
-    patches = self.vision_encoder.patchify_images(images)
-    soft_embeddings = self.vision_encoder(patches=patches, is_training=False)
-    soft_embeddings = self.embedder.encode_vision(soft_embeddings)
-    return soft_embeddings
-
-  def _get_return_last_only(self, return_last_only: bool | None = None) -> bool:
-    """Merge `return_last_only` from the config and input."""
-    # TODO(epot): Could add `default=False` to `nn.merge_param`
-    if return_last_only is None and self.return_last_only is None:
-      return_last_only = False
-    else:
-      return_last_only = nn.merge_param(
-          'return_last_only', return_last_only, self.return_last_only
-      )
-    return return_last_only
-
-  def _assert_support_mm(self) -> None:
-    if self.config.vision_encoder is None:
-      msg = ''
-      if getattr(self, 'text_only', False):
-        msg = ' The model was created with `text_only=True`.'
-      raise ValueError(
-          f'The model {type(self).__name__!r} does not have vision encoder,'
-          ' yet images are provided.'
-          + msg
-      )
-
-
-def _make_dummy_images(
-    vision_encoder: gemma_vision.SigLiPFromPatches,
-) -> Float['B L P D']:
-  """Make dummy images for initializing the vision encoder."""
-  return jnp.zeros(
-      (1, 1, vision_encoder.image_height, vision_encoder.image_width, 3),
-      dtype=jnp.uint8,
-  )
+    # If the model has images, we expand each `
