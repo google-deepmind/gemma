@@ -12,110 +12,76 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Sampling methods."""
+"""Sampling functions."""
 
-import abc
+from __future__ import annotations
 import dataclasses
-
-from etils import enp
 import jax
 import jax.numpy as jnp
-from kauldron.typing import Float, Int, PRNGKey, typechecked  # pylint: disable=g-multiple-import,g-importing-member
 
+@dataclasses.dataclass
+class SamplerState:
+  """State of the sampler, holding sampling parameters."""
+  temperature: float = 1.0
+  top_k: int = 1
+  top_p: float = 1.0
 
-class SamplingMethod(abc.ABC):
-  """Base class for sampling methods."""
-
-  @abc.abstractmethod
-  def get_next_tokens(self, logits: Float['*B V'], rng: PRNGKey) -> Int['*B']:
-    """Returns the next tokens to generate.
+def sample_from_logits(
+    logits: jnp.ndarray,
+    state: SamplerState,
+    rng: jax.Array,
+) -> jnp.ndarray:
+    """Samples from the logits using temperature, top-k, and top-p.
 
     Args:
-      logits: Logits, as returned by the model (i.e. before softmax).
-      rng: A random key.
+        logits: The raw output logits from the model.
+        state: The sampler state containing temperature, top_k, and top_p.
+        rng: JAX random number generator key.
 
     Returns:
-      The next tokens to generate.
+        The sampled token IDs.
     """
-    raise NotImplementedError()
+    # Use a guard for pure greedy sampling
+    if state.temperature == 0.0:
+        return jnp.argmax(logits, axis=-1).astype(jnp.int32)
 
+    # Apply temperature
+    # Use a maximum to avoid division by zero
+    logits = logits / jnp.maximum(state.temperature, 1e-6)
 
-@dataclasses.dataclass(frozen=True, kw_only=True)
-class Greedy(SamplingMethod):
-  """Greedy sampling."""
+    # Apply top-k filtering
+    if state.top_k > 1:
+        # Get the top-k logits and their indices
+        top_k_logits, top_k_indices = jax.lax.top_k(logits, k=state.top_k)
+        # Create a mask of -inf, then scatter the top-k logits back
+        # into their original positions.
+        mask = jnp.full_like(logits, -jnp.inf)
+        mask = mask.at[..., top_k_indices].set(top_k_logits)
+        logits = jnp.where(mask > -jnp.inf, logits, -jnp.inf)
 
-  @typechecked
-  def get_next_tokens(self, logits: Float['*B V'], rng: PRNGKey) -> Int['*B']:
-    del rng
-    return jnp.argmax(logits, axis=-1)
+    # Apply top-p (nucleus) filtering
+    if state.top_p < 1.0:
+        # Sort logits to easily find the cumulative probability distribution
+        sorted_logits = jnp.sort(logits, axis=-1)[..., ::-1]
+        sorted_probs = jax.nn.softmax(sorted_logits, axis=-1)
+        cumulative_probs = jnp.cumsum(sorted_probs, axis=-1)
 
+        # Create a mask for tokens to remove
+        sorted_indices_to_remove = cumulative_probs > state.top_p
+        # Shift the mask to the right to ensure we keep the first token
+        # that exceeds the cumulative probability.
+        sorted_indices_to_remove = jnp.roll(sorted_indices_to_remove, 1, axis=-1)
+        sorted_indices_to_remove = sorted_indices_to_remove.at[..., 0].set(False)
 
-@dataclasses.dataclass(frozen=True, kw_only=True)
-class RandomSampling(SamplingMethod):
-  """Simple random sampling."""
+        # Get the original indices of the sorted logits
+        indices = jnp.argsort(logits, axis=-1)[..., ::-1]
+        # Create a boolean mask of the same shape as logits
+        mask = jnp.zeros_like(logits, dtype=jnp.bool_)
+        # Scatter the removal mask back to the original logit positions
+        jax.lax.scatter(mask, indices, sorted_indices_to_remove, jax.lax.ScatterDimensionNumbers(update_window_dims=(), inserted_window_dims=(1,), scatter_dims_to_operand_dims=(1,)))
 
-  temperature: float = 1.0
+        # Apply the mask, setting filtered logits to -inf
+        logits = jnp.where(mask, -jnp.inf, logits)
 
-  @typechecked
-  def get_next_tokens(self, logits: Float['*B V'], rng: PRNGKey) -> Int['*B']:
-    return jax.random.categorical(rng, logits / self.temperature, axis=-1)
-
-
-@dataclasses.dataclass(frozen=True, kw_only=True)
-class TopkSampling(SamplingMethod):
-  """Top-k sampling."""
-
-  temperature: float = 1.0
-  k: int = 1
-
-  @typechecked
-  def get_next_tokens(self, logits: Float['*B V'], rng: PRNGKey) -> Int['*B']:
-    logits, batch_shape = enp.flatten(logits, '... V')
-
-    batch_size = logits.shape[0]
-    topk_values, topk_indices = jax.lax.top_k(logits, self.k)
-    sampled_topk_indices = jax.random.categorical(
-        rng, topk_values / self.temperature, axis=-1
-    )
-    batch_indices = jnp.arange(batch_size)
-    topk_indices = topk_indices[batch_indices, sampled_topk_indices]
-    return enp.unflatten(topk_indices, batch_shape, '...')
-
-
-@dataclasses.dataclass(frozen=True, kw_only=True)
-class TopPSampling(SamplingMethod):
-  """Top-p (Nucleus) Sampling."""
-
-  p: float = 0.9
-  temperature: float = 1.0
-
-  @typechecked
-  def get_next_tokens(self, logits: Float['... V'], rng: PRNGKey) -> Int['...']:
-    # temperature scaling
-    logits = logits / self.temperature
-
-    if self.p < 1.0:
-      sorted_logits = jnp.sort(logits, axis=-1)
-
-      cumulative_probs = jnp.cumsum(
-          jax.nn.softmax(sorted_logits, axis=-1), axis=-1
-      )
-
-      # Mask to remove tokens with cumulative probability is greater than p.
-      sorted_mask = cumulative_probs < self.p
-
-      # get the index of the first token with cumulative probability <p.
-      cutoff_index = jnp.sum(sorted_mask < self.p, axis=-1, keepdims=True)
-
-      # get the logit value where the cutoff is.
-      cutoff_logit = jnp.take_along_axis(sorted_logits, cutoff_index, axis=-1)
-
-      # select logit values that are smaller than the cutoff logit.
-      logits = jnp.where(
-          logits < cutoff_logit,
-          jnp.finfo(logits.dtype).min,
-          logits,
-      )
-
-    return jax.random.categorical(rng, logits, axis=-1)
-
+    # Sample from the final modified logits
+    return jax.random.categorical(rng, logits, axis=-1).astype(jnp.int32)
