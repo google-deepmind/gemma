@@ -105,6 +105,9 @@ class Seq2SeqTask(grain.MapTransform):
   sampling: bool = False
 
   def map(self, element):
+    # Deep-copy to avoid mutating the input.
+    element = jax.tree.map(lambda x: x, element)
+
     # Extract the values from the `dict` example.
     # `kontext.get_by_path(element, self.in_prompt)` is equivalent to
     # `element[self.in_prompt]`, but supports nested dicts and dataclasses.
