@@ -16,7 +16,7 @@
 
 # A new PyPI release will be pushed every time `__version__` is increased.
 # When changing this, also update the CHANGELOG.md.
-__version__ = '3.0.2'
+__version__ = '3.1.0'
 
 
 def __getattr__(name: str):  # pylint: disable=invalid-name
