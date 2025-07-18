@@ -1,1 +1,2 @@
 sphinx-apitree[ext]
+pytest  # Required for gm/testing/_fixtures.py
