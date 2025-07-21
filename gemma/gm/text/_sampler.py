@@ -102,6 +102,8 @@ class Sampler:
     sampling: Sampling method to use. Default to greedy sampling.
     forbidden_tokens: List of tokens that are forbidden to be generated. If
       providing `str`, it should map to a single token id in the vocab.
+    stop_tokens: List of tokens that will stop generation if generated. If
+      providing `str`, it should map to a single token id in the vocab.
     cache_length: Cache length to use. This is the maximum number of tokens the
       conversation can have (prompts, answers, images for all turns). Setting
       this to a fixed value avoids re-compilation between turns.
@@ -120,6 +122,7 @@ class Sampler:
       default_factory=_sampling.Greedy
   )
   forbidden_tokens: Sequence[str | int] | None = None
+  stop_tokens: Sequence[str | int] | None = None
   # TODO(epot): Support and test rolling cache.
   cache_length: int = 4096
   max_out_length: int = 2048
@@ -338,6 +341,7 @@ class Sampler:
         end_tokens=(
             self.tokenizer.special_tokens.EOS,
             self.tokenizer.special_tokens.END_OF_TURN,
+            *self._normalized_stop_tokens,
         ),
         forbidden_tokens=self._normalized_forbidden_tokens,
         sampling=sampling,
@@ -465,14 +469,21 @@ class Sampler:
 
   @functools.cached_property
   def _normalized_forbidden_tokens(self) -> tuple[int, ...] | None:
-    if self.forbidden_tokens is None:
-      forbidden_tokens = ()
-    else:
-      forbidden_tokens = tuple(
-          _normalize_token(self.tokenizer, t) for t in self.forbidden_tokens
-      )
+    forbidden_tokens = self._normalize_tokens(self.forbidden_tokens)
     forbidden_tokens += self.tokenizer.FORBIDDEN_TOKENS
     return forbidden_tokens
+
+  @functools.cached_property
+  def _normalized_stop_tokens(self) -> tuple[int, ...]:
+    return self._normalize_tokens(self.stop_tokens)
+
+  def _normalize_tokens(
+      self, tokens: Sequence[str | int] | None
+  ) -> tuple[int, ...]:
+    if tokens is None:
+      return ()
+    else:
+      return tuple(_normalize_token(self.tokenizer, t) for t in tokens)
 
 
 def _get_has_batch_dim(prompt: str | Sequence[str]) -> bool:
@@ -532,8 +543,8 @@ def _normalize_token(tokenizer, token: str | int) -> int:
   token_id = tokenizer.encode(token)
   if len(token_id) != 1:
     raise ValueError(
-        'Invalid forbidden token: {token!r}. Forbidden tokens must map to'
-        ' single token ids in the vocab.'
+        'Invalid token: {token!r}. `stop_token`s and `forbidden_token`s must'
+        ' map to single token ids in the vocab.'
     )
   (token_id,) = token_id
   return token_id

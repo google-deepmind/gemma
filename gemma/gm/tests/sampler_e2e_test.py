@@ -53,3 +53,22 @@ def test_sampler():
 
     Would you like me to try another metaphor, or perhaps explore this idea in more detail?
   """)
+
+
+def test_sampler_stop_token():
+
+  # Make sure the model stops after producing the token "laughter".
+  stop_token = 'laughter'
+
+  # Model and parameters
+  model = gm.nn.Gemma3_4B()
+  params = gm.ckpts.load_params(gm.ckpts.CheckpointPath.GEMMA3_4B_IT)
+
+  # Example of multi-turn conversation
+  sampler = gm.text.ChatSampler(
+      model=model,
+      params=params,
+      stop_tokens=[stop_token],
+  )
+  out = sampler.chat('Share one metaphor linking "shadow" and "laughter".')
+  assert out == 'Here’s a metaphor linking “shadow” and “laughter'

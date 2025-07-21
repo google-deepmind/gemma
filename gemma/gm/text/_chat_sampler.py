@@ -62,6 +62,8 @@ class ChatSampler:
     sampling: Sampling method to use. Default to greedy sampling.
     forbidden_tokens: List of tokens that are forbidden to be generated. If
       providing `str`, it should map to a single token id in the vocab.
+    stop_tokens: List of tokens that will stop generation if generated. If
+      providing `str`, it should map to a single token id in the vocab.
     cache_length: Cache length to use. This is the maximum number of tokens the
       conversation can have (prompts, answers, images for all turns). Setting
       this to a fixed value avoids re-compilation between turns.
@@ -84,6 +86,7 @@ class ChatSampler:
       default_factory=_sampling.Greedy
   )
   forbidden_tokens: Sequence[str | int] | None = None
+  stop_tokens: Sequence[str | int] | None = None
   # TODO(epot): Support and test rolling cache.
   # TODO(epot): Add a property to show how much of the cache is used.
   cache_length: int | None = 4096
@@ -119,6 +122,7 @@ class ChatSampler:
         tokenizer=self.tokenizer,
         sampling=self.sampling,
         forbidden_tokens=self.forbidden_tokens,
+        stop_tokens=self.stop_tokens,
         cache_length=self.cache_length,
     )
 
