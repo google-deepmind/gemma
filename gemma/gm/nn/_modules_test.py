@@ -359,6 +359,60 @@ def test_query_pre_attn_scalar_modifies_output():
   )
 
 
+def test_attention_weights_capture():
+  batch_size = 1
+  num_heads = 4
+  head_dim = 8
+  features = 32
+  seq_len = 6
+  query_pre_attn_scalar = head_dim**-0.5
+
+  attn = gm.nn.Attention(
+      num_heads=num_heads,
+      num_kv_heads=num_heads,
+      features=features,
+      head_dim=head_dim,
+      attn_type=_ATTN_TYPE,
+      query_pre_attn_scalar=query_pre_attn_scalar,
+  )
+
+  rng = jax.random.PRNGKey(0)
+  x = jnp.ones((batch_size, seq_len, features))
+  segment_pos = (
+      jnp.repeat(jnp.arange(seq_len), batch_size).reshape(seq_len, batch_size).T
+  )
+
+  attn_mask = jnp.ones((batch_size, seq_len, seq_len))
+  variables = attn.init(rng, x, segment_pos, cache=None, attn_mask=attn_mask)
+
+  _, intermediates = attn.apply(
+      variables,
+      x,
+      segment_pos,
+      cache=None,
+      attn_mask=attn_mask,
+      capture_intermediates=True,
+      mutable=['intermediates'],
+  )
+
+  captured = intermediates['intermediates']
+  assert 'attention_weights' in captured
+  assert '__call__' in captured['attention_weights']
+
+  sowed_value = captured['attention_weights']['__call__'][0]
+  expected_shape = (batch_size, seq_len, num_heads, seq_len)
+  assert sowed_value.shape == expected_shape
+
+  assert jnp.all(sowed_value >= 0)
+
+  sum_probs = sowed_value.sum(axis=-1)
+  np.testing.assert_allclose(
+      sum_probs,
+      jnp.ones((batch_size, seq_len, num_heads)),
+      atol=1e-6,
+  )
+
+
 @pytest.mark.parametrize(
     'transpose_gating_einsum',
     [

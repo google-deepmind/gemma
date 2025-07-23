@@ -20,6 +20,7 @@ from gemma.gm.math import _positional_embeddings
 from gemma.gm.nn import _layers
 import jax
 import jax.numpy as jnp
+from kauldron import kd
 
 K_MASK = -2.3819763e38  # Set to a large negative number.
 DEFAULT_ROPE_BASE_FREQUENCY = 10_000
@@ -173,6 +174,8 @@ class Attention(nn.Module):
       self._query_norm = _layers.RMSNorm()
       self._key_norm = _layers.RMSNorm()
 
+    self.attention_weights = kd.nn.Identity()
+
   def __call__(
       self,
       x: jax.Array,
@@ -276,6 +279,7 @@ class Attention(nn.Module):
     # Multi-head attention matrices.
     # [batch_size, seq_len, num_heads, cache_size]
     probs = jax.nn.softmax(padded_logits, axis=-1).astype(key_proj.dtype)
+    probs = self.attention_weights(probs)
 
     if self.use_gqa:
       # Reshape matrices to enable einsums over groups.
