@@ -142,12 +142,18 @@ class Tokenizer:
     custom_tokens: The Gemma tokenizer has a few unused tokens which can be
       overwritten by the user here. Expect a dictionary mapping the unused id
       (0-98) to the token string. (`e.g. `{0: '<start_of_audio>'}`)
+    overwrite_tokens: Supplied ID/token pairs will overwrite the default token
+      at the given id. Useful for changing EOS/BOS token text, for example.
+      **WARNING**: can significantly affect model performance if used
+      incorrectly. Should only be used if the model is already trained with the
+      new tokens, or you are going to.
     VERSION: The Gemma version of the tokenizer (2, 3).
     FORBIDDEN_TOKENS: Default forbidden tokens.
   """
 
   path: epath.PathLike
   custom_tokens: dict[int, str] = dataclasses.field(default_factory=dict)
+  overwrite_tokens: dict[int, str] = dataclasses.field(default_factory=dict)
 
   VERSION: ClassVar[int | str] = 0
   FORBIDDEN_TOKENS: ClassVar[tuple[int, ...]] = ()  # pylint: disable=g-missing-from-attributes
@@ -257,8 +263,27 @@ class Tokenizer:
     if self.custom_tokens:
       model_proto = self._add_custom_tokens(model_proto)
 
+    if self.overwrite_tokens:
+      model_proto = self._force_overwrite_token(model_proto)
+
     sp.LoadFromSerializedProto(model_proto)
     return sp
+
+  def _force_overwrite_token(self, serialized_proto: bytes) -> bytes:
+    """Forces update any token of the proto."""
+    proto = sentencepiece_model_pb2.ModelProto()
+    proto.ParseFromString(serialized_proto)
+    vocab_size = len(proto.pieces)
+    for i, token in self.overwrite_tokens.items():
+      if not 0 <= i < vocab_size:
+        raise ValueError(
+            f'overwrite_tokens: token id {i} is out of bounds. '
+            f'Vocabulary size is {vocab_size}.'
+        )
+      piece = proto.pieces[i]
+      piece.piece = token
+
+    return proto.SerializeToString()
 
   def _add_custom_tokens(self, serialized_proto: bytes) -> bytes:
     """Update the custom tokens of the proto."""
