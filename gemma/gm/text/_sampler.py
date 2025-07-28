@@ -568,9 +568,9 @@ def _max_across_hosts(x: int) -> int:
   """Returns the maximum value across all hosts."""
   if jax.process_count() == 1:
     return x
-  x = jnp.asarray([x])
+  x = jnp.asarray([x] * jax.local_device_count())
   x = _max_across_hosts_pmap(x)
-  return x.item()
+  return x[0]
 
 
 @functools.partial(jax.pmap, axis_name='i')
