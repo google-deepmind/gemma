@@ -119,3 +119,60 @@ class TopPSampling(SamplingMethod):
 
     return jax.random.categorical(rng, logits, axis=-1)
 
+
+
+
+@dataclasses.dataclass(frozen=True, kw_only=True)
+class MinPSampling(SamplingMethod):
+  """Min-P sampling.
+
+  This sampling method is introduced in "Turning Up the Heat: Min-p Sampling for
+  Creative and Coherent LLM Outputs" (https://arxiv.org/abs/2405.02693).
+
+  It filters tokens based on a dynamic threshold, keeping any token `t` where
+  `p(t) >= p_max * p`, with `p_max` being the probability of the most likely
+  token. This method is particularly effective at higher temperatures.
+  """
+
+  p: float = 0.05
+  temperature: float = 1.0
+
+  @typechecked
+  def get_next_tokens(self, logits: Float['... V'], rng: PRNGKey) -> Int['...']:
+    """Returns the next tokens to generate.
+
+    Args:
+      logits: Logits, as returned by the model (i.e. before softmax).
+      rng: A random key.
+
+    Returns:
+      The next tokens to generate.
+    """
+    # Apply temperature scaling first, as it affects probability distribution.
+    logits = logits / self.temperature
+
+    # The core Min-P logic is only applied if p > 0. If p = 0, this is
+    # equivalent to standard random sampling.
+    if self.p > 0.0:
+      # Calculate probabilities from the scaled logits.
+      probs = jax.nn.softmax(logits, axis=-1)
+
+      # Find the probability of the most likely token (p_max) for each item
+      # in the batch. keepdims=True is crucial for correct JAX broadcasting.
+      p_max = jnp.max(probs, axis=-1, keepdims=True)
+
+      # Calculate the dynamic probability threshold.
+      min_p_threshold = p_max * self.p
+
+      # Create a new logits tensor where logits corresponding to probabilities
+      # below the threshold are set to the minimum possible value, effectively
+      # removing them from the sampling pool.
+      logits = jnp.where(
+          probs < min_p_threshold,
+          jnp.finfo(logits.dtype).min,
+          logits,
+      )
+
+    # Sample from the (potentially modified) logits distribution.
+    return jax.random.categorical(rng, logits, axis=-1)
+
