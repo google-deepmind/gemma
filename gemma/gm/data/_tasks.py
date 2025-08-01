@@ -19,6 +19,7 @@ from __future__ import annotations
 import dataclasses
 
 import einops
+from etils.etree import jax as etree  # pylint: disable=g-importing-member
 from gemma.gm.data import _functional
 from gemma.gm.text import _template
 from gemma.gm.text import _tokenizer
@@ -106,7 +107,7 @@ class Seq2SeqTask(grain.MapTransform):
 
   def map(self, element):
     # Deep-copy to avoid mutating the input.
-    element = jax.tree.map(lambda x: x, element)
+    element = etree.copy(element)
 
     # Extract the values from the `dict` example.
     # `kontext.get_by_path(element, self.in_prompt)` is equivalent to
