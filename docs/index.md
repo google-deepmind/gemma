@@ -12,6 +12,7 @@
     colab_tokenizer
     colab_lora_sampling
     colab_lora_finetuning
+    colab_qlora_finetuning
     peft
     checkpoints
     research
