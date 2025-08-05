@@ -244,21 +244,7 @@ class Transformer(nn.Module):
       )
       del positions, attention_mask
 
-      x = inputs.embeddings
-
-      old_cache = cache or {}
-      new_cache = {}
-      for i, block in enumerate(self.blocks):
-        layer_name = f'layer_{i}'
-        layer_cache, x = block(
-            x,
-            inputs.positions,
-            old_cache.get(layer_name),
-            inputs.attention_mask,
-        )
-        new_cache[layer_name] = layer_cache  # pytype: disable=container-type-mismatch
-
-      x = self.final_norm(x)
+      x, new_cache = self._apply_attention(inputs, cache)
 
     if return_last_only:
       last_input_token_idx = jnp.sum(inputs.inputs_mask, axis=-1) - 1
@@ -285,6 +271,34 @@ class Transformer(nn.Module):
         cache=None if cache is None else new_cache,
         hidden_states=x if return_hidden_states else None,
     )
+
+  def _apply_attention(
+      self, inputs: _Inputs, cache: _config.Cache | None
+  ) -> tuple[Float['*B L D'], _config.Cache]:
+    """Runs the transformer blocks.
+
+    Args:
+      inputs: Input containing embeddings, attention mask, and positions.
+      cache: Attention KV cache or None.
+
+    Returns:
+      Transformer(inputs.embeddings).
+    """
+    x = inputs.embeddings
+    old_cache = cache or {}
+    new_cache = {}
+    for i, block in enumerate(self.blocks):
+      layer_name = f'layer_{i}'
+      layer_cache, x = block(
+          x,
+          inputs.positions,
+          old_cache.get(layer_name),
+          inputs.attention_mask,
+      )
+      new_cache[layer_name] = layer_cache  # pytype: disable=container-type-mismatch
+
+    x = self.final_norm(x)
+    return x, new_cache
 
   @functools.partial(
       nn.jit,
