@@ -133,7 +133,6 @@ class Gemma2_27B(_transformer.Transformer):  # pylint: disable=invalid-name
       default_ckpt=_paths.CheckpointPath.GEMMA2_27B_IT,
   )
 
-
 class Gemma3_1B(_transformer.Transformer):  # pylint: disable=invalid-name
   """Gemma3 transformer architecture."""
 
