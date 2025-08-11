@@ -16,6 +16,8 @@
 
 from __future__ import annotations
 
+import re
+
 import flax
 from gemma.gm.typing._common import Params  # pylint: disable=g-importing-member
 
@@ -90,3 +92,57 @@ def flatten_and_remap_params(params: Params) -> Params:
 
   # Unflatten the leaf-level params again.
   return flax.traverse_util.unflatten_dict(params, sep='&')
+
+
+def unstack_params(params: Params) -> Params:
+  """Unstack the params stacked by attention pattern to a flattened out format."""
+  new_params = {}
+
+  attention_pattern_len = _get_attention_pattern_len(params)
+
+  for k, v in params.items():
+    if 'stacked_layers/attention_type_' in k:
+      prefix, pattern_index, suffix = _parse_stacked_layers_key(k)
+      if prefix is None or pattern_index is None or suffix is None:
+        raise ValueError(f'Invalid stacked layers key: {k}')
+      for parameter_name, parameter_value in v.items():
+        # parameter_name is typically of the form 'w' or 'bias' or 'scale'
+        for i, parameter_slice in enumerate(parameter_value):
+          layer_number = i * attention_pattern_len + pattern_index
+          layer_key = f'{prefix}layer_{layer_number}{suffix}'
+          new_params.setdefault(layer_key, {})[parameter_name] = parameter_slice
+    else:
+      new_params[k] = v
+  return new_params
+
+
+def _parse_stacked_layers_key(input_string):
+  """Parses a checkpoint key to extract the attention pattern index.
+
+  Args:
+    input_string: The checkpoint key.
+
+  Returns:
+    A tuple containing the prefix, index, and suffix, or (None, None, None) if
+    no match is found.
+  """
+  match = re.search(
+      r'(.*?)stacked_layers/attention_type_(\d+)(.*)', input_string
+  )
+  if match:
+    prefix = match.group(1)
+    index = int(match.group(2))
+    suffix = match.group(3)
+    return prefix, index, suffix
+  return None, None, None
+
+
+def _get_attention_pattern_len(params: Params) -> int:
+  """Returns the size of the attention pattern."""
+  attention_pattern_len = 0
+  for k, _ in params.items():
+    if 'stacked_layers/attention_type_' in k:
+      _, index, _ = _parse_stacked_layers_key(k)
+      if index is not None:
+        attention_pattern_len = max(index + 1, attention_pattern_len)
+  return attention_pattern_len
