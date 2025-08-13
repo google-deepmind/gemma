@@ -181,6 +181,7 @@ def load_params(
     text_only: bool = False,
     sharding: kd.sharding.ShardingTree | None = None,
     quantize: bool = False,
+    use_ocdbt: bool = True,
 ) -> Params:
   """Restore the params from a checkpoint.
 
@@ -196,6 +197,7 @@ def load_params(
       is mutually exclusive with `params`.
     quantize: If `True`, the params will be mapped to enable quantization aware
       training.
+    use_ocdbt: Whether to enable Tensorstore OCDBT driver.
 
   Returns:
     The restored params.
@@ -203,7 +205,7 @@ def load_params(
   if sharding is not None and params is not None:
     raise ValueError('`sharding` and `params` are mutually exclusive.')
 
-  ckpt = ocp.StandardCheckpointer()
+  ckpt = ocp.StandardCheckpointer(use_ocdbt=use_ocdbt)
 
   metadata, path = _get_metadata_and_path(ckpt, path)
 
