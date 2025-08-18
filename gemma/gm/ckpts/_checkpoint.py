@@ -442,7 +442,7 @@ def _get_metadata_and_path(
       metadata = ckpt.metadata(path)
     else:
       raise
-  metadata = dict(metadata)  # Normalize metadata
+  metadata = dict(metadata.item_metadata)  # Normalize metadata
   return metadata, path
 
 
