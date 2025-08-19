@@ -442,7 +442,13 @@ def _get_metadata_and_path(
       metadata = ckpt.metadata(path)
     else:
       raise
-  metadata = dict(metadata)  # Normalize metadata
+  try:
+    metadata = dict(metadata)
+  except TypeError as e:
+    if "'StepMetadata' object is not iterable" in str(e):
+      metadata = dict(metadata.item_metadata.tree)  # pytype: disable=attribute-error
+    else:
+      raise TypeError(e)
   return metadata, path
 
 
