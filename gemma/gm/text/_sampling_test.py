@@ -59,14 +59,13 @@ def test_topp_sampling():
 
 def test_topp_sampling_with_skewed_logits():
   sampling = gm.text.TopPSampling(p=0.6)
-  rng = jax.random.PRNGKey(0)
-
-  neg_inf = jax.numpy.finfo(jax.numpy.float32).min
+  rng = jax.random.PRNGKey(2)
+  # Probabilities after softmax: [0.64, 0.23, 0.09, 0.03, 0.01].
   logits = jax.numpy.array([
-      [1.0, neg_inf, neg_inf, neg_inf, neg_inf],
+      [5.0, 4.0, 3.0, 2.0, 1.0],
   ])
   tokens = sampling.get_next_tokens(logits, rng)
-  assert np.allclose(tokens, [0])
+  np.testing.assert_array_equal(tokens, [0])
 
 
 def test_top1_sampling_matches_greedy_sampling():
