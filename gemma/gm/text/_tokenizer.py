@@ -312,7 +312,7 @@ class Tokenizer:
     Returns:
       The plot as a plotly figure.
     """
-    if logits.ndim == 2 and logits.shape[1] == 1:  # batch_size==1, flatten
+    if logits.ndim == 2 and logits.shape[0] == 1:  # batch_size==1, flatten
       logits = einops.rearrange(logits, '1 d -> d')
     if logits.ndim != 1:
       raise ValueError(
