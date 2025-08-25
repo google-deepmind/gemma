@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 import dataclasses
 import enum
 import functools
@@ -442,6 +443,10 @@ def _get_metadata_and_path(
       metadata = ckpt.metadata(path)
     else:
       raise
+
+  if not isinstance(metadata, Iterable):
+    metadata = metadata.item_metadata
+
   metadata = dict(metadata)  # Normalize metadata
   return metadata, path
 
