@@ -95,17 +95,14 @@ class TopPSampling(SamplingMethod):
     logits = logits / self.temperature
 
     if self.p < 1.0:
-      sorted_logits = jnp.sort(logits, axis=-1)
+      sorted_logits = jnp.sort(logits, axis=-1, descending=True)
 
       cumulative_probs = jnp.cumsum(
           jax.nn.softmax(sorted_logits, axis=-1), axis=-1
       )
 
-      # Mask to remove tokens with cumulative probability is greater than p.
-      sorted_mask = cumulative_probs < self.p
-
-      # get the index of the first token with cumulative probability <p.
-      cutoff_index = jnp.sum(sorted_mask < self.p, axis=-1, keepdims=True)
+      # get the index of the first token with cumulative probability >= p.
+      cutoff_index = jnp.sum(cumulative_probs < self.p, axis=-1, keepdims=True)
 
       # get the logit value where the cutoff is.
       cutoff_logit = jnp.take_along_axis(sorted_logits, cutoff_index, axis=-1)
