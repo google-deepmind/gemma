@@ -16,7 +16,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable
 import dataclasses
 import enum
 import functools
@@ -433,21 +432,18 @@ def _get_metadata_and_path(
 ):
   """Returns the metadata of the checkpoint."""
   path = epath.Path(path)
-  try:
-    metadata = ckpt.metadata(path)
-  except FileNotFoundError:
-    # Kauldron checkpoints structure is different, so the params are contained
-    # in a sub-directory
-    if path.joinpath('_CHECKPOINT_METADATA').exists():
-      path = path / 'default'
-      metadata = ckpt.metadata(path)
-    else:
-      raise
 
-  if not isinstance(metadata, Iterable):
-    metadata = metadata.item_metadata
+  # Kauldron checkpoints structure is different, so the params are contained
+  # in a sub-directory
+  if path.joinpath('_CHECKPOINT_METADATA').exists():
+    path = path / 'default'
 
-  metadata = dict(metadata)  # Normalize metadata
+  metadata = ckpt.metadata(path)
+
+  if metadata.item_metadata is None:  # No item metadata
+    raise ValueError(f'No item metadata found in {path}')
+
+  metadata = metadata.item_metadata.tree  # Normalize metadata
   return metadata, path
 
 
