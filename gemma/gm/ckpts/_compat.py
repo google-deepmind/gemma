@@ -16,8 +16,14 @@
 
 from __future__ import annotations
 
+import collections
+import re
+from typing import Any, Optional
+
 import flax
 from gemma.gm.typing._common import Params  # pylint: disable=g-importing-member
+import jax
+import jax.numpy as jnp
 
 
 def param_remapper(orig_params: Params) -> Params:
@@ -90,3 +96,155 @@ def flatten_and_remap_params(params: Params) -> Params:
 
   # Unflatten the leaf-level params again.
   return flax.traverse_util.unflatten_dict(params, sep='&')
+
+
+def get_attention_pattern_len(params: Params) -> int:
+  """Returns the size of the attention pattern."""
+  attention_pattern_len = 0
+  for k, _ in params.items():
+    if 'stacked_layers/attention_type_' in k:
+      _, index, _ = _parse_stacked_layers_key(k)
+      if index is not None:
+        attention_pattern_len = max(index + 1, attention_pattern_len)
+  return attention_pattern_len
+
+
+def unstack_params(params: Params) -> Params:
+  """Unstack the params stacked by attention pattern to a flattened out format."""
+  new_params = collections.defaultdict(dict)
+
+  attention_pattern_len = get_attention_pattern_len(params)
+
+  flat_key_format = '{prefix}layer_{layer_number}{suffix}'
+
+  for k, v in params.items():
+    if 'stacked_layers/attention_type_' in k:
+      prefix, pattern_index, suffix = _parse_stacked_layers_key(k)
+      if prefix is None or pattern_index is None or suffix is None:
+        raise ValueError(f'Invalid stacked layers key: {k}')
+      for parameter_name, parameter_value in v.items():
+        # parameter_name is typically of the form 'w' or 'bias' or 'scale'
+        if isinstance(parameter_value, jax.ShapeDtypeStruct):
+          # Metadata only (jax.ShapeDtypeStruct)
+          num_slices, *slice_shape = parameter_value.shape
+          for slice_index in range(num_slices):
+            layer_number = slice_index * attention_pattern_len + pattern_index
+            layer_key = flat_key_format.format(
+                prefix=prefix,
+                layer_number=layer_number,
+                suffix=suffix,
+            )
+            new_params[layer_key][parameter_name] = (
+                jax.ShapeDtypeStruct(
+                    shape=slice_shape,
+                    dtype=parameter_value.dtype,
+                )
+            )
+        else:
+          # Actual weight tensors are sliced
+          for i, parameter_slice in enumerate(parameter_value):
+            layer_number = i * attention_pattern_len + pattern_index
+            layer_key = flat_key_format.format(
+                prefix=prefix,
+                layer_number=layer_number,
+                suffix=suffix,
+            )
+            new_params.setdefault(layer_key, {})[
+                parameter_name
+            ] = parameter_slice
+    else:
+      new_params[k] = v
+  return dict(new_params)
+
+
+def stack_params(params: Params, attn_pattern_len: int) -> Params:
+  """Stack the params from a flattened format to a stacked format."""
+  new_params: dict[str, Any] = {}
+
+  # An intermediate collector to group parameter slices before stacking them.
+  # e.g., {('.../stacked_layers/attention_type_0/...', 'w'):
+  #        {0: slice0, 1: slice1}}
+  stacked_layers_collector: dict[tuple[str, str], dict[int, Any]] = {}
+
+  for key, value in params.items():
+    parsed_key = _parse_flattened_layers_key(key)
+
+    if parsed_key:
+      prefix, layer_number, suffix = parsed_key
+
+      pattern_index = layer_number % attn_pattern_len
+      slice_index = layer_number // attn_pattern_len
+
+      target_key = (
+          f'{prefix}stacked_layers/attention_type_{pattern_index}{suffix}'
+      )
+
+      # value is a dict of parameter names to tensors (e.g., {'w': tensor})
+      for param_name, param_value in value.items():
+        collector_key = (target_key, param_name)
+        stacked_layers_collector.setdefault(collector_key, {})[
+            slice_index
+        ] = param_value
+    else:
+      new_params[key] = value
+
+  for (target_key, param_name), slices_dict in stacked_layers_collector.items():
+    if not slices_dict:
+      continue
+
+    sorted_slices = [v for _, v in sorted(slices_dict.items())]
+
+    if isinstance(sorted_slices[0], jax.ShapeDtypeStruct):
+      num_slices = len(sorted_slices)
+      old_shape_dtype = sorted_slices[0]
+      new_shape = (num_slices, *old_shape_dtype.shape)
+      stacked_value = old_shape_dtype.update(shape=new_shape)
+    else:
+      stacked_value = jnp.stack(sorted_slices)
+
+    new_params.setdefault(target_key, {})[param_name] = stacked_value
+
+  return new_params
+
+
+def _parse_flattened_layers_key(key: str) -> Optional[tuple[str, int, str]]:
+  """Parses a flattened layer key using regex.
+
+  For example, 'transformer/layer_15/attn/attn_vec_einsum' -> ('transformer/',
+  15, '/attn/attn_vec_einsum'). Returns None if the key does not match the
+  pattern.
+
+  Args:
+    key: The flattened layer key to parse.
+
+  Returns:
+    A tuple containing the prefix, layer number, and suffix, or None if the key
+    does not match the pattern.
+  """
+  # Regex to capture the prefix, layer number, and suffix.
+  match = re.match(r'(.*?)layer_(\d+)(.*)', key)
+  if match:
+    prefix, layer_number_str, suffix = match.groups()
+    return prefix, int(layer_number_str), suffix
+  return None
+
+
+def _parse_stacked_layers_key(input_string):
+  """Parses a checkpoint key to extract the attention pattern index.
+
+  Args:
+    input_string: The checkpoint key.
+
+  Returns:
+    A tuple containing the prefix, index, and suffix, or (None, None, None) if
+    no match is found.
+  """
+  match = re.search(
+      r'(.*?)stacked_layers/attention_type_(\d+)(.*)', input_string
+  )
+  if match:
+    prefix = match.group(1)
+    index = int(match.group(2))
+    suffix = match.group(3)
+    return prefix, index, suffix
+  return None, None, None

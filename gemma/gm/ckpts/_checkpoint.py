@@ -79,12 +79,16 @@ class _CheckpointType(enum.StrEnum):
       (e.g. `'{'transformer/layer_0/attn/_key_norm'' ...}`). The structure is
       very messy, but that's unfortunately how the official Gemma checkpoints
       where released.
+    STACKED: Internal checkpoint structure where params with the same attention
+      pattern are stored as stacked dict (e.g.
+      `{'transformer/embedder/layer_0/attn/_key_norm' ...}`).
     KAULDRON: Kauldron `kd.train.Trainer` checkpoint. Those checkpoints contains
       the optimizer state, step,... in addition to the params.
   """
 
   NESTED = enum.auto()
   FLAT = enum.auto()
+  STACKED = enum.auto()
   KAULDRON = enum.auto()
 
 
@@ -103,7 +107,9 @@ class _CheckpointTree:
   @functools.cached_property
   def type(self) -> _CheckpointType:
     """Structures of the checkpoint."""
-    if _is_flat_layout(self.tree):
+    if _is_stacked_layout(self.tree):
+      return _CheckpointType.STACKED
+    elif _is_flat_layout(self.tree):
       return _CheckpointType.FLAT
     elif _is_kauldron_layout(self.tree):
       return _CheckpointType.KAULDRON
@@ -113,6 +119,8 @@ class _CheckpointTree:
   @functools.cached_property
   def nested_tree(self) -> Params:
     """Returns the tree matching the NESTED checkpoint structure."""
+    if self.type == _CheckpointType.STACKED:
+      return _stacked_to_nested(self.tree)
     if self.type == _CheckpointType.FLAT:
       return _flat_to_nested(self.tree)
     elif self.type == _CheckpointType.KAULDRON:
@@ -129,7 +137,9 @@ class _CheckpointTree:
       tree = _remove_mm_params(tree)
     return _CheckpointTree(tree=tree)
 
-  def make_tree_for_params(self, params: _CheckpointTree) -> Params:
+  def make_tree_for_params(
+      self, params: _CheckpointTree
+  ) -> Params:
     """Returns the tree matching the checkpoint structure."""
     metadata = _wrap_skip(self)
 
@@ -149,6 +159,10 @@ class _CheckpointTree:
     elif self.type == _CheckpointType.KAULDRON:
       target_params = etree.copy(metadata.tree)
       target_params['params'] = ckpt_params
+    elif self.type == _CheckpointType.STACKED:
+      target_params = _nested_to_stacked(
+          ckpt_params, _compat.get_attention_pattern_len(self.tree)
+      )
     else:
       raise ValueError(f'Unsupported checkpoint structure: {self.type}')
 
@@ -157,6 +171,10 @@ class _CheckpointTree:
   @functools.cached_property
   def has_mm_params(self) -> bool:
     return 'vision_encoder' in self.nested_tree
+
+  @functools.cached_property
+  def has_audio_input_embedding(self) -> bool:
+    return 'audio_input_embedding' in self.nested_tree.get('embedder', {})
 
 
 def save_params(
@@ -266,6 +284,13 @@ def load_params(
   # HACK: Manually cast the MM embedder params to f32, otherwise, image
   # produce wrong output on old GPUs (T4, V100)
   tree = output.tree
+  # TODO: b/441529595 - Update this if we need bfloat16 for audio input
+  # embedding.
+  if output.has_audio_input_embedding:
+    tree['embedder']['audio_input_embedding'] = jax.tree.map(
+        lambda x: x.astype(np.float32),
+        output.tree['embedder']['audio_input_embedding'],
+    )
   if output.has_mm_params:
     tree['embedder']['mm_input_projection'] = jax.tree.map(
         lambda x: x.astype(np.float32),
@@ -279,6 +304,13 @@ def load_params(
 
 
 # ======================== Structure reformat utils ========================
+
+
+def _stacked_to_nested(params: Params) -> Params:
+  """Reformat the params from STACKED to NESTED."""
+  params = etree.copy(params)
+  params = _compat.unstack_params(params)
+  return _flat_to_nested(params)
 
 
 def _flat_to_nested(params: Params) -> Params:
@@ -300,6 +332,13 @@ def _flat_to_nested(params: Params) -> Params:
     # TODO(epot): More conversions needed.
     transformer_params['vision_encoder'] = mm_params  # pytype: disable=unsupported-operands
   return transformer_params
+
+
+def _nested_to_stacked(params: Params, attn_pattern_len: int) -> Params:
+  """Reformat the params from NESTED to STACKED."""
+  params = _nested_to_flat(params)
+  params = _compat.stack_params(params, attn_pattern_len)
+  return params
 
 
 def _nested_to_flat(params: Params) -> Params:
@@ -361,8 +400,20 @@ def _add_skip_mm_params(params: Params, metadata: _CheckpointTree) -> Params:
 
 def _is_flat_layout(params: Params) -> bool:
   """Returns True is the structure is the legacy one."""
-  return all(
+  return (not _is_stacked_layout(params)) and all(
       k.startswith(('transformer/', 'SigLiPFromPatches_0/'))
+      for k in params.keys()
+  )
+
+
+def _is_stacked_layout(params: Params) -> bool:
+  """Returns True is the structure is the stacked one."""
+  return all(
+      k.startswith((
+          'transformer/embedder',
+          'transformer/final_norm',
+          'transformer/stacked_layers',
+      ))
       for k in params.keys()
   )
 
