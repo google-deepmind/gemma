@@ -437,6 +437,14 @@ class Sampler:
     # TODO(epot): Check that the text ends with an exit token (i.e. the
     # cache buffer hasn't been filled up).
 
+    # In multi-host, each host only has a slice of the data. We need to
+    # replicate the data, so each host can decode texts from all other hosts.
+    if jax.process_count() > 1:
+      predicted_tokens = kd.sharding.with_sharding_constraint(
+          predicted_tokens,
+          kd.sharding.REPLICATED,
+      )
+
     # Decode the logits.
     predicted_texts = [self.tokenizer.decode(t) for t in predicted_tokens]
 
