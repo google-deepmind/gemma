@@ -15,3 +15,4 @@
 """Losses."""
 
 from gemma.gm.losses._dpo import DpoLoss
+from gemma.gm.losses._npo import NpoLoss
