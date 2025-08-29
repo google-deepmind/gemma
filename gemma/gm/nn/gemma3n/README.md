@@ -6,10 +6,11 @@ Currently, we only support text generation in the JAX version.
 
 To use the model:
 ```
+from gemma.gm.nn import gemma3n
 from gemma import gm
 
 # Model and parameters
-model = gm.nn.gemma3n.Gemma3n_E4B()
+model = gemma3n.Gemma3n_E4B()
 params = gm.ckpts.load_params(gm.ckpts.CheckpointPath.GEMMA3N_E4B_IT)
 
 # Example of multi-turn conversation
