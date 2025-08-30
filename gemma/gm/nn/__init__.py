@@ -28,6 +28,7 @@ with _epy.lazy_api_imports(globals()):
   from gemma.gm.nn._gemma import Gemma2_9B
   from gemma.gm.nn._gemma import Gemma2_27B
   # Gemma 3
+  from gemma.gm.nn._gemma import Gemma3_270M
   from gemma.gm.nn._gemma import Gemma3_1B
   from gemma.gm.nn._gemma import Gemma3_4B
   from gemma.gm.nn._gemma import Gemma3_12B

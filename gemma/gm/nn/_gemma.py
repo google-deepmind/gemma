@@ -29,6 +29,7 @@ _NUM_LAYERS_GEMMA_7B = 28
 _NUM_LAYERS_GEMMA2_2B = 26
 _NUM_LAYERS_GEMMA2_9B = 42
 _NUM_LAYERS_GEMMA2_27B = 46
+_NUM_LAYERS_GEMMA3_270M = 18
 _NUM_LAYERS_GEMMA3_1B = 26
 _NUM_LAYERS_GEMMA3_4B = 34
 _NUM_LAYERS_GEMMA3_12B = 48
@@ -131,6 +132,37 @@ class Gemma2_27B(_transformer.Transformer):  # pylint: disable=invalid-name
   INFO = _transformer.ModelInfo(
       tokenizer_version=2,
       default_ckpt=_paths.CheckpointPath.GEMMA2_27B_IT,
+  )
+
+
+class Gemma3_270M(_transformer.Transformer):  # pylint: disable=invalid-name
+  """Gemma3 transformer architecture."""
+
+  config: _config.TransformerConfig = _config.TransformerConfig(
+      final_logit_softcap=None,
+      num_embed=262144,
+      embed_dim=640,
+      hidden_dim=2048,
+      num_heads=4,
+      head_dim=256,
+      num_kv_heads=1,
+      use_post_attn_norm=True,
+      use_post_ffw_norm=True,
+      use_qk_norm=True,
+      attention_types=_config.make_attention_layers_types(
+          GEMMA3_ATTENTION_PATTERN, num_layers=_NUM_LAYERS_GEMMA3_270M
+      ),
+      query_pre_attn_norm=_config.QueryPreAttentionNormalisation.BY_ONE_OVER_SQRT_HEAD_DIM,
+      attn_logits_soft_cap=None,
+      sliding_window_size=512,
+      transpose_gating_einsum=True,
+      local_base_frequency=10_000,
+      global_base_frequency=1_000_000,
+      vision_encoder=None,
+  )
+
+  INFO = _transformer.ModelInfo(
+      tokenizer_version=3,
   )
 
 
