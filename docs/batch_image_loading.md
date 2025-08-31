@@ -157,7 +157,7 @@ To migrate existing code:
    # Before
    from gemma.multimodal.image import load_image_files
    patches = load_image_files(paths)
-   
+
    # After
    from gemma.multimodal.batch_image_loader import load_image_files_optimized
    patches = load_image_files_optimized(paths, max_workers=4)
@@ -167,7 +167,7 @@ To migrate existing code:
    ```python
    # Add streaming
    patches = load_image_files_optimized(
-       paths, 
+       paths,
        use_streaming=True,
        batch_size=32
    )
@@ -182,20 +182,6 @@ See `examples/batch_image_loading.py` for complete examples including:
 - Performance comparisons
 - Custom preprocessing options
 
-## Testing
-
-Run tests with:
-
-```bash
-python -m pytest gemma/multimodal/batch_image_loader_test.py
-```
-
-Or run the demonstration:
-
-```bash
-python demo_batch_loading.py
-```
-
 ## Implementation Details
 
 The optimization works by:
@@ -205,22 +191,6 @@ The optimization works by:
 3. **Batch Processing**: Vectorized operations on entire batches
 4. **Streaming with Prefetch**: Loads next batch while current batch is processing
 5. **Memory Management**: Processes images in chunks to avoid memory overflow
-
-## Compatibility
-
-- Python 3.7+
-- Compatible with JAX/Flax models
-- Works on CPU and GPU
-- Cross-platform (Windows, Linux, macOS)
-
-## Contributing
-
-When contributing improvements:
-
-1. Maintain backward compatibility
-2. Add tests for new features
-3. Update documentation
-4. Run benchmarks to verify performance
 
 ## License
 
