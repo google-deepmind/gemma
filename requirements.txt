@@ -1,0 +1,15 @@
+gemma>=0.1.0
+kauldron>=0.1.0
+jax>=0.4.20
+jaxlib>=0.4.20
+numpy>=1.24.0
+pillow>=10.0.0
+pymupdf>=1.23.0  # For PDF processing (PyMuPDF)
+camelot-py>=0.11.0  # For table extraction
+pytesseract>=0.3.10  # For OCR
+pix2tex>=0.1.0  # For LaTeX formula extraction
+opencv-python>=4.8.0  # Required by camelot
+ghostscript>=0.7  # Required by camelot
+optax>=0.1.7  # For optimization
+pandas>=2.0.0  # For table handling
+tabulate>=0.9.0  # For Markdown table conversion
