@@ -24,12 +24,14 @@ import pytest
 
 
 @pytest.mark.parametrize(
-    "input_embedding_shape, positions, max_wavelength, expected",
+    "input_embedding_shape, positions, max_wavelength, rope_proportion,"
+    " expected",
     [
         (
-            (2, 1, 2, 4),
+            (2, 1, 2, 4),  # B, L, N, H
             [[1], [0]],
             100,
+            1.0,
             [
                 [[
                     [-0.30116868, 0.89517075, 1.3817732, 1.0948375],
@@ -38,15 +40,29 @@ import pytest
                 [[[1.0, 1.0, 1.0, 1.0], [1.0, 1.0, 1.0, 1.0]]],
             ],
         ),
+        (
+            (2, 1, 2, 4),
+            [[1], [0]],
+            100,
+            0.5,
+            [
+                [[
+                    [-0.30116868, 1.0, 1.3817732, 1.0],
+                    [-0.30116868, 1.0, 1.3817732, 1.0],
+                ]],
+                [[[1.0, 1.0, 1.0, 1.0], [1.0, 1.0, 1.0, 1.0]]],
+            ],
+        ),
     ],
 )
 # Function is now top-level, removed 'self' parameter
 def test_rope_positional_embeddings(
-    input_embedding_shape, positions, max_wavelength, expected
+    input_embedding_shape, positions, max_wavelength, rope_proportion, expected
 ):
   outputs = gm.math.apply_rope(
       jnp.ones(input_embedding_shape),
       jnp.array(positions),
       base_frequency=max_wavelength,
+      rope_proportion=rope_proportion,
   )
   np.testing.assert_array_almost_equal(outputs, jnp.array(expected))
