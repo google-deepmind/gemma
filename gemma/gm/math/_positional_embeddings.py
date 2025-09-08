@@ -26,6 +26,7 @@ def apply_rope(
     *,
     base_frequency: int,
     scale_factor: float = 1.0,
+    rope_proportion: float = 1.0,
 ) -> jax.Array:
   """Applies RoPE.
 
@@ -38,13 +39,23 @@ def apply_rope(
     base_frequency: Base frequency used to compute rotations.
     scale_factor: The scale factor used for positional interpolation, allowing
       an expansion of sequence length beyond the pre-trained context length.
+    rope_proportion: The proportion of the head dimension to apply RoPE to.
 
   Returns:
     Array of shape [B, L, N, H].
   """
   head_dim = inputs.shape[-1]
-  fraction = 2 * jnp.arange(0, head_dim // 2) / head_dim
-  timescale = base_frequency**fraction
+  rope_angles = int(rope_proportion * head_dim // 2)
+  nope_angles = head_dim // 2 - rope_angles
+  freq_exponents = (
+      (2.0 / head_dim) * jnp.arange(0, rope_angles, dtype=jnp.float32)
+  )
+  timescale = jnp.pad(
+      base_frequency**freq_exponents,
+      (0, nope_angles),
+      mode='constant',
+      constant_values=(0, jnp.inf),
+  )
 
   sinusoid_inp = (
       positions[..., jnp.newaxis] / timescale[jnp.newaxis, jnp.newaxis, :]
