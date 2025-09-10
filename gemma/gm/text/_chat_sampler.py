@@ -19,13 +19,13 @@ import dataclasses
 import functools
 
 # from gemma.gm.data import _functional
+from gemma.gm.nn import _transformer
 from gemma.gm.text import _sampler
 from gemma.gm.text import _sampler_loop
 from gemma.gm.text import _sampling
 from gemma.gm.text import _template
 from gemma.gm.text import _tokenizer
 from gemma.gm.typing import _common
-from gemma.gm.typing import _transformer_protocol
 # from gemma.gm.vision import _token_utils
 from kauldron.typing import PRNGKeyLike, UInt8  # pylint: disable=g-multiple-import,g-importing-member
 
@@ -75,10 +75,9 @@ class ChatSampler:
       the sampler.
     turns: The current conversation.
   """
-
   # TODO(epot): Custom repr to avoid displaying the full weights.
 
-  model: _transformer_protocol.TransformerProtocol
+  model: _transformer.Transformer
   params: _common.Params = dataclasses.field(repr=False)
   multi_turn: bool = False
   print_stream: bool = False
