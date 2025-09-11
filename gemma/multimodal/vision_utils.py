@@ -113,7 +113,7 @@ class Encoder1DBlock(nn.Module):
 
   @nn.compact
   def __call__(
-      self, x: jax.Array, deterministic: bool = True
+      self, unused_state: any, x: jax.Array, deterministic: bool = True
   ) -> tuple[jax.Array, dict[str, jax.Array]]:
     x = nn.with_logical_constraint(x, ("act_batch", "act_len", "act_emb"))
     y = nn.LayerNorm()(x)
@@ -139,7 +139,7 @@ class Encoder1DBlock(nn.Module):
     y = nn.Dropout(rate=self.dropout)(y, deterministic)
     x = x + y
     x = nn.with_logical_constraint(x, ("act_batch", "act_len", "act_emb"))
-    return x
+    return None, x
 
 
 class Encoder(nn.Module):
@@ -162,7 +162,7 @@ class Encoder(nn.Module):
           static_argnums=(2,),  # 0=self, 2=deterministic
           policy=getattr(jax.checkpoint_policies, self.remat_policy, None),
       )
-      x = nn.scan(
+      _, x = nn.scan(
           block,
           variable_axes={"params": 0},
           split_rngs={"params": True, "dropout": True},
@@ -176,8 +176,10 @@ class Encoder(nn.Module):
           num_heads=self.num_heads,
           dropout=self.dropout,
       )(
-          x, deterministic
+          None, x, deterministic
       )
+      # Last Layer.
+      x = x[-1]
     else:
       # Input Encoder
       for lyr in range(self.depth):
@@ -189,7 +191,7 @@ class Encoder(nn.Module):
             num_heads=self.num_heads,
             dropout=self.dropout,
         )
-        x = block_cur(x, deterministic)
+        _, x = block_cur(None, x, deterministic)
     x: jax.Array = nn.LayerNorm(name="encoder_norm")(x)
     return x
 
