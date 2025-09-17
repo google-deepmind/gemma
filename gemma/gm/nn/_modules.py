@@ -226,7 +226,7 @@ class Attention(nn.Module):
     if cache is not None:
       end_index = cache['end_index'][0]
       cache_size = cache['v'].shape[1]
-      slice_indices = (0, end_index % cache_size, 0, 0)
+      slice_indices = jnp.array([0, end_index % cache_size, 0, 0])
 
       # [batch_size, cache_size, num_heads, head_dim]
       value_proj = jax.lax.dynamic_update_slice(
