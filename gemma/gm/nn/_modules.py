@@ -21,6 +21,7 @@ from gemma.gm.nn import _layers
 import jax
 import jax.numpy as jnp
 from kauldron import kd
+from kauldron.typing import Bool, Int  # pylint: disable=g-multiple-import,g-importing-member
 
 K_MASK = -2.3819763e38  # Set to a large negative number.
 DEFAULT_ROPE_BASE_FREQUENCY = 10_000
@@ -29,39 +30,25 @@ DEFAULT_ROPE_SCALE_FACTOR = 1.0
 # A dictionary with the following array shapes as keys:
 # v: [batch_size, cache_size, num_heads, head_dim]
 # k: [batch_size, cache_size, num_heads, head_dim]
+# positions: [batch_size, cache_size]
 # end_index: [batch_size]
 LayerCache = dict[str, jax.Array]
 
 
 def _create_sliding_mask(
-    segment_pos: jnp.ndarray,
-    end_index: int,
-    cache_len: int,
+    positions: Int['B L'],
+    *,
+    cache_positions: Int['B cache_len'] | None = None,
     sliding_window_size: int,
-):
-  """Creates mask for sliding window attention."""
-  total_tokens = end_index + segment_pos.shape[1]  # cached + processing tokens
+) -> Bool['B L cache_len']:
+  """Create the sliding mask for local sliding attention."""
+  if cache_positions is None:
+    cache_positions = positions
 
-  def _reconstruct_rotated_cache_positions():
-    cache_positions = jnp.arange(cache_len) + total_tokens - cache_len
-    cache_positions = (
-        jnp.zeros_like(cache_positions)
-        # kv were placed at index (position_id % cache_len) in the cache.
-        .at[cache_positions % cache_len].set(cache_positions)
-    )
-    return cache_positions
-
-  # Reconstruct position_ids for cached kv.
-  cache_positions = jax.lax.cond(
-      total_tokens <= cache_len,
-      lambda: jnp.arange(cache_len),
-      _reconstruct_rotated_cache_positions,
-  )
-
-  cache_positions = cache_positions[None, None, :]  # [1, 1, cache_len]
-  segment_pos = segment_pos[:, :, None]  # [B, seq_len, 1]
-  sliding_mask = cache_positions > segment_pos - sliding_window_size
-  sliding_mask *= cache_positions < segment_pos + sliding_window_size
+  cache_positions = cache_positions[..., None, :]  # B 1 cache_len
+  positions = positions[..., :, None]  # B L 1
+  sliding_mask = cache_positions > positions - sliding_window_size
+  sliding_mask *= cache_positions < positions + sliding_window_size
   return sliding_mask
 
 
@@ -226,7 +213,8 @@ class Attention(nn.Module):
     if cache is not None:
       end_index = cache['end_index'][0]
       cache_size = cache['v'].shape[1]
-      slice_indices = (0, end_index % cache_size, 0, 0)
+      update_index = end_index % cache_size
+      slice_indices = (0, update_index, 0, 0)
 
       # [batch_size, cache_size, num_heads, head_dim]
       value_proj = jax.lax.dynamic_update_slice(
@@ -238,6 +226,13 @@ class Attention(nn.Module):
       # [batch_size, cache_size, num_heads, head_dim]
       key_proj = jax.lax.dynamic_update_slice(
           cache['k'], key_proj, slice_indices
+      )
+
+      # [batch_size, cache_size]
+      cache_positions = jax.lax.dynamic_update_slice(
+          cache['positions'],
+          segment_pos,
+          (0, update_index),
       )
 
     if self.use_gqa:
@@ -265,9 +260,7 @@ class Attention(nn.Module):
         )
       sliding_mask = _create_sliding_mask(
           segment_pos,
-          end_index=cache['end_index'][0] if cache is not None else 0,
-          # Derive cache length from attn_mask shape in case cache is None
-          cache_len=attn_mask.shape[-1],
+          cache_positions=cache_positions if cache else None,  # pylint: disable=undefined-variable
           sliding_window_size=self.sliding_window_size,
       )
       # [batch_size, seq_len, cache_size]
@@ -304,8 +297,11 @@ class Attention(nn.Module):
           'v': value_proj,
           # [batch_size, cache_size, num_heads, head_dim]
           'k': key_proj,
+          # TODO(epot): end_index & positions could be shared across layers.
           # [batch_size]
           'end_index': cache['end_index'] + seq_len,
+          # [batch_size, cache_size]
+          'positions': cache_positions,  # pylint: disable=undefined-variable
       }
     else:
       new_cache = None
@@ -330,6 +326,8 @@ class Attention(nn.Module):
             (batch_size, cache_size, num_heads, head_dim), dtype=dtype
         ),
         'end_index': jnp.zeros((batch_size,), dtype=jnp.int32),
+        # Save the positions for the sliding window attention.
+        'positions': jnp.zeros((batch_size, cache_size), dtype=jnp.int32),
     }
 
 

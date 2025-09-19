@@ -74,107 +74,58 @@ def test_embedder_decode():
 # TODO(mblondel): Add tests for `encode_vision` here.
 
 
-def test_create_sliding_mask_decode_none_rotated_cache_pos():
-  cache_len = 4
-  end_index = 1
-  segment_pos = jnp.array([[1]])
+def test_sliding_mask():
 
+  # Simple case
   sliding_mask = _modules._create_sliding_mask(
-      segment_pos, end_index, cache_len, sliding_window_size=1
+      positions=jnp.array([[0, 1, 2, 3, 4, 5]]),
+      sliding_window_size=2,
   )
   np.testing.assert_array_equal(
       sliding_mask,
-      [[[False, True, False, False]]],
-  )
-
-  sliding_mask = _modules._create_sliding_mask(
-      segment_pos, end_index, cache_len, sliding_window_size=2
-  )
-  np.testing.assert_array_equal(
-      sliding_mask,
-      [[[True, True, True, False]]],
-  )
-
-  sliding_mask = _modules._create_sliding_mask(
-      segment_pos, end_index, cache_len, sliding_window_size=3
-  )
-  np.testing.assert_array_equal(
-      sliding_mask,
-      [[[True, True, True, True]]],
-  )
-
-
-def test_create_sliding_mask_decode_rotated_cache_pos():
-  cache_len = 4
-  end_index = 5
-  segment_pos = jnp.array([[5]])
-
-  sliding_mask = _modules._create_sliding_mask(
-      segment_pos, end_index, cache_len, sliding_window_size=1
-  )
-  np.testing.assert_array_equal(
-      sliding_mask,
-      # cache_positions = [
-      #   4,      5,     2,     3,
-      # ]
-      [[[False, True, False, False]]],
-  )
-
-  sliding_mask = _modules._create_sliding_mask(
-      segment_pos, end_index, cache_len, sliding_window_size=2
-  )
-  np.testing.assert_array_equal(
-      sliding_mask,
-      [[[True, True, False, False]]],
-  )
-
-  sliding_mask = _modules._create_sliding_mask(
-      segment_pos, end_index, cache_len, sliding_window_size=3
-  )
-  np.testing.assert_array_equal(
-      sliding_mask,
-      [[[True, True, False, True]]],
-  )
-
-
-def test_create_sliding_mask_prefill_rotated_cache_pos():
-  cache_len = 4
-  end_index = 5
-  segment_pos = jnp.array([[5, 6]])
-
-  sliding_mask = _modules._create_sliding_mask(
-      segment_pos, end_index, cache_len, sliding_window_size=1
-  )
-  np.testing.assert_array_equal(
-      sliding_mask,
-      # cache_positions = [
-      #   4,      5,     6,     3,
-      # ]
       [[
-          [False, True, False, False],
-          [False, False, True, False],
+          [1, 1, 0, 0, 0, 0],
+          [1, 1, 1, 0, 0, 0],
+          [0, 1, 1, 1, 0, 0],
+          [0, 0, 1, 1, 1, 0],
+          [0, 0, 0, 1, 1, 1],
+          [0, 0, 0, 0, 1, 1],
       ]],
   )
 
+  # With packed sequences
   sliding_mask = _modules._create_sliding_mask(
-      segment_pos, end_index, cache_len, sliding_window_size=2
+      positions=jnp.array([[0, 1, 2, 3, 0, 1, 2]]),
+      sliding_window_size=2,
   )
   np.testing.assert_array_equal(
       sliding_mask,
       [[
-          [True, True, True, False],
-          [False, True, True, False],
+          [1, 1, 0, 0, 1, 1, 0],
+          [1, 1, 1, 0, 1, 1, 1],
+          [0, 1, 1, 1, 0, 1, 1],
+          [0, 0, 1, 1, 0, 0, 1],
+          [1, 1, 0, 0, 1, 1, 0],
+          [1, 1, 1, 0, 1, 1, 1],
+          [0, 1, 1, 1, 0, 1, 1],
       ]],
   )
 
+  # With padded cache
   sliding_mask = _modules._create_sliding_mask(
-      segment_pos, end_index, cache_len, sliding_window_size=3
+      positions=jnp.array([[4, 5, 6]]),
+      cache_positions=jnp.array([[0, 0, 0, 1, 2, 3]]),
+      sliding_window_size=3,
   )
   np.testing.assert_array_equal(
       sliding_mask,
       [[
-          [True, True, True, True],
-          [True, True, True, False],
+          [0, 0, 0, 0, 1, 1],
+          [0, 0, 0, 0, 0, 1],
+          # Note in this case, the token position 6 cannot attend to any
+          # position in the cache. This would create issue. But in practice,
+          # we decode one token at a time.
+          [0, 0, 0, 0, 0, 0],
       ]],
   )
 
@@ -486,7 +437,7 @@ def test_block():
   seq_len = 1
 
   inputs = jnp.ones((batch_size, seq_len, embed_dim))
-  positions = jnp.zeros((batch_size, seq_len))
+  positions = jnp.zeros((batch_size, seq_len), dtype=jnp.int32)
 
   # Initialize cache.
   cache = gm.nn.Attention.init_cache(
@@ -516,7 +467,7 @@ def test_block():
       transpose_gating_einsum=False,
   )
 
-  attn_mask = jnp.ones((batch_size, seq_len, cache_size))
+  attn_mask = jnp.ones((batch_size, seq_len, cache_size), dtype=jnp.bool_)
   params = block.init(
       jax.random.PRNGKey(0), inputs, positions, cache, attn_mask
   )
