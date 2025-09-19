@@ -12,10 +12,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Math utils (attention masks, positional embeddings, ...)."""
+"""Utils."""
 
-# pylint: disable=g-importing-member,g-import-not-at-top
+import itertools
 
-# Positional embeddings.
-from gemma.gm.math._misc import count_consecutive
-from gemma.gm.math._positional_embeddings import apply_rope
+from kauldron.typing import Array
+import numpy as np
+
+
+def count_consecutive(values: Array['L']) -> tuple[tuple[int | bool, int], ...]:
+  """Counts consecutive identical elements in a list.
+
+  Useful to debug masks with padding.
+
+  Args:
+    values: A list of elements.
+
+  Returns:
+    A tuple of tuples, where each inner tuple contains the element
+    and its consecutive count.
+  """
+  return tuple(
+      (np.asarray(key).item(), len(list(group)))
+      for key, group in itertools.groupby(values)
+  )
