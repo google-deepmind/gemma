@@ -71,12 +71,17 @@ def test_cache_helper():
       cache.cache['layer_0']['v'],
       np.zeros((1, 64, 2, 128)),  # b, cache_length, heads, emb_dim
   )
+  np.testing.assert_array_equal(
+      cache.cache['layer_0']['positions'],
+      np.zeros((1, 64), dtype=jnp.int32),  # b, cache_length
+  )
 
   cache_ones = {
       'layer_0': {
           'end_index': jnp.asarray([4]),
           'k': jnp.ones((1, 16, 2, 128)),
           'v': jnp.ones((1, 16, 2, 128)),
+          'positions': jnp.ones((1, 16)),
       },
   }
   cache_ones = _cache_helper.Cache(cache_ones)
@@ -100,6 +105,10 @@ def test_cache_helper():
       sub_cache_ones.cache['layer_0']['v'],
       np.ones((1, 16, 2, 128)),
   )
+  np.testing.assert_array_equal(
+      sub_cache_ones.cache['layer_0']['positions'],
+      np.ones((1, 16), dtype=jnp.int32),
+  )
 
   np.testing.assert_array_equal(
       sub_cache_rest.cache['layer_0']['end_index'],
@@ -112,6 +121,10 @@ def test_cache_helper():
   np.testing.assert_array_equal(
       sub_cache_rest.cache['layer_0']['v'],
       np.zeros((1, 48, 2, 128)),
+  )
+  np.testing.assert_array_equal(
+      sub_cache_rest.cache['layer_0']['positions'],
+      np.zeros((1, 48)),
   )
 
   # Test `set_end_index`
