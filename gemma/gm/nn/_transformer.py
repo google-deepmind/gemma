@@ -104,7 +104,7 @@ class Transformer(nn.Module):
   images: kontext.Key | None = None
 
   config: _config.TransformerConfig
-  # Model info to specifiy the tokenizer version and default checkpoint.
+  # Model info to specify the tokenizer version and default checkpoint.
   INFO: ClassVar[ModelInfo] = ModelInfo()
 
   def __post_init__(self):
