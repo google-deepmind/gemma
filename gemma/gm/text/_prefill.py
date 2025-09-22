@@ -130,6 +130,66 @@ def prefill(
   # Set the end index (which indicates the last kv cache index used).
   # -1 because `_sample_loop` will re-start from the last prompt token.
   # Note this is smaller than `init_cache_length` as we remove the padding.
+  #
+  # Example: For input tokens batch like:
+  #
+  # [
+  #     [p0, p1, p2, 0, 0]
+  #     [p0, p1, 0, 0, 0]
+  #     [p0, p1, p2, p3, p4]
+  # ]
+  #
+  # During prefill, the cache is filled up:
+  #
+  # [
+  #     [kv0, kv1, kv2, 0, 0, 0, ...]
+  #     [kv0, kv1, 0, 0, 0, 0, ...]
+  #     [kv0, kv1, kv2, kv3, kv4, 0, ...]
+  # ]
+  #
+  # `length_with_mm == 5` but `used_cache_length == 4`, so the first sampling
+  # step will overwrite the last cache[4] values with the last prompt token:
+  #
+  # [
+  #     [kv0, kv1, kv2, 0, kv2, 0, ...]
+  #     [kv0, kv1, 0, 0, kv1, 0, ...]
+  #     [kv0, kv1, kv2, kv3, kv4, 0, ...]
+  # ]
+  #
+  # As you can see, the last token for padded sequence appears twice in the KV
+  # cache. However in practice, the attention mask ensures only one of those
+  # values is attended to.
+  # The attention for the first sampling step is:
+  #
+  # [
+  #     [1, 1, 1, 0, 0, 0, ...]
+  #     [1, 1, 0, 0, 0, 0, ...]
+  #     [1, 1, 1, 1, 1, 0, ...]
+  # ]
+  #
+  # So in practice, this means that the query of first sampling step will
+  # attend to the last prompt token computed during prefill, rather than
+  # itself (for padded sequences). But the two values should be identical
+  # (minus Jax precision errors ^^).
+  # For the second sampling step, the cache and attention mask will be:
+  #
+  # [
+  #     [kv0, kv1, kv2, 0, kv2, kv3, ...]
+  #     [kv0, kv1, 0, 0, kv1, kv2, ...]
+  #     [kv0, kv1, kv2, kv3, kv4, kv5, ...]
+  # ]
+  # [
+  #     [1, 1, 1, 0, 0, 1, ...]
+  #     [1, 1, 0, 0, 0, 1, ...]
+  #     [1, 1, 1, 1, 1, 1, ...]
+  # ]
+  #
+  # So the KV value computed during the first sampling step is never attended
+  # to for padded sequences.
+  #
+  # A cleaner implementation could be to have a per-batch cache index, to
+  # remove padding. But I leave this to my future self (or to future Gemini).
+
   new_used_cache_length = (
       prev_turns.used_cache_length + input.length_with_mm - 1
   )
