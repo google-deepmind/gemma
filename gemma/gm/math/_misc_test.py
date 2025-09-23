@@ -12,10 +12,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Math utils (attention masks, positional embeddings, ...)."""
+from gemma.gm.math import _misc
+import numpy as np
+import pytest
 
-# pylint: disable=g-importing-member,g-import-not-at-top
 
-# Positional embeddings.
-from gemma.gm.math._misc import count_consecutive
-from gemma.gm.math._positional_embeddings import apply_rope
+@pytest.mark.parametrize(
+    "input_list, expected",
+    [
+        ([], ()),
+        ([1], ((1, 1),)),
+        ([1, 2, 3], ((1, 1), (2, 1), (3, 1))),
+        (
+            [1, 1, 2, 2, 2, 3, 1, 1, 1, 2, 2],
+            ((1, 2), (2, 3), (3, 1), (1, 3), (2, 2)),
+        ),
+        (
+            np.array([1, 1, 2, 2, 2, 3]),
+            ((1, 2), (2, 3), (3, 1)),
+        ),
+    ],
+)
+def test_count_consecutive(input_list, expected):
+  assert _misc.count_consecutive(input_list) == expected
