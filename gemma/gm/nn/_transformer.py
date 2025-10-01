@@ -102,6 +102,8 @@ class Transformer(nn.Module):
   # function (e.g. `tokens='batch.tokens'`).
   tokens: kontext.Key = kontext.REQUIRED
   images: kontext.Key | None = None
+  positions: kontext.Key | None = None
+  attention_mask: kontext.Key | None = None
 
   config: _config.TransformerConfig
   # Model info to specifiy the tokenizer version and default checkpoint.
