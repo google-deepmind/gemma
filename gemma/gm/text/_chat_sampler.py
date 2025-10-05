@@ -124,6 +124,7 @@ class ChatSampler:
         forbidden_tokens=self.forbidden_tokens,
         stop_tokens=self.stop_tokens,
         cache_length=self.cache_length,
+        max_out_length=self.max_out_length,
     )
 
   def chat(
