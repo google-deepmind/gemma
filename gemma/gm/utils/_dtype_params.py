@@ -33,17 +33,7 @@ class _DTypeState:
   exclude: list[str] | None
 
 
-@edc.dataclass
-@dataclasses.dataclass
-class _Stack:
-  """Context for the dtype stack."""
-
-  stack: edc.ContextVar[list[_DTypeState]] = dataclasses.field(
-      default_factory=list
-  )
-
-
-_dtypes_stack = _Stack()
+_dtypes_stack = edc.ContextStack[_DTypeState]()
 
 
 @contextlib.contextmanager
@@ -66,10 +56,10 @@ def initialize_param_with_dtype(
   """
   try:
     state = _DTypeState(dtype=dtype, exclude=exclude)
-    _dtypes_stack.stack.append(state)
+    _dtypes_stack.append(state)
     yield
   finally:
-    _dtypes_stack.stack.pop()
+    _dtypes_stack.pop()
 
 
 @functools.cache
@@ -99,12 +89,12 @@ def _mock_flax_module_param() -> None:
 def _should_replace_dtype(
     *,
     module: nn.Module,
-    stack: _Stack,
+    stack: edc.ContextStack[_DTypeState],
 ) -> bool:
   """Whether or not the dtype should be replaced."""
-  if not module.is_initializing() or not stack.stack:
+  if not module.is_initializing() or not stack:
     return False
-  last_state = stack.stack[-1]
+  last_state = stack[-1]
   # If `None` is provided, use the default dtype
   if last_state.dtype is None:
     return False
