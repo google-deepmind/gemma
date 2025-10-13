@@ -483,22 +483,20 @@ def _get_metadata_and_path(
 ):
   """Returns the metadata of the checkpoint."""
   path = epath.Path(path)
-
-  metadata = ckpt.metadata(path)
-
-  # Kauldron checkpoints structure is different, so the params are contained
-  # in a sub-directory
-  if (
-      metadata.item_metadata is None
-      and path.joinpath('_CHECKPOINT_METADATA').exists()
-  ):
-    path = path / 'default'
+  try:
     metadata = ckpt.metadata(path)
-
-  if metadata.item_metadata is None:  # No item metadata
-    raise ValueError(f'No item metadata found in {path}')
-
-  metadata = metadata.item_metadata.tree  # Normalize metadata
+  except FileNotFoundError:
+    # Kauldron checkpoints structure is different, so the params are contained
+    # in a sub-directory
+    if path.joinpath('_CHECKPOINT_METADATA').exists():
+      path = path / 'default'
+      metadata = ckpt.metadata(path)
+    else:
+      raise
+  try:
+    metadata = dict(metadata)  # Normalize metadata
+  except TypeError:
+    metadata = dict(metadata.item_metadata)
   return metadata, path
 
 
