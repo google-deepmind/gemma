@@ -41,7 +41,6 @@ class QuantizationMethod(epy.StrEnum):
   INT4 = enum.auto()
   INT8 = enum.auto()
   Q4_0 = enum.auto()
-  Q4_0_TRANSPOSE = enum.auto()
   SFP8 = enum.auto()
 
 
