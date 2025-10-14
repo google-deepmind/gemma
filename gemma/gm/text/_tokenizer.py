@@ -26,6 +26,7 @@ import einops
 from etils import enp
 from etils import epath
 from etils import epy
+from gemma.gm.utils import _file_cache
 import jax
 import jax.numpy as jnp
 from kauldron.utils import immutabledict
@@ -251,8 +252,13 @@ class Tokenizer:
   # TODO(epot): Global cache so all instances do not reload the tokenizer.
   @functools.cached_property
   def _sp(self) -> spm.SentencePieceProcessor:
+    """Returns the sentencepiece processor."""
     sp = spm.SentencePieceProcessor()
-    model_proto = epath.Path(self.path).read_bytes()
+    model_file_path = _file_cache.maybe_get_from_cache(
+        remote_file_path=self.path,
+        cache_subdir='tokenizer',
+    )
+    model_proto = epath.Path(model_file_path).read_bytes()
 
     if self.custom_tokens:
       model_proto = self._add_custom_tokens(model_proto)
