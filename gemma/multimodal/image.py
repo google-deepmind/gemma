@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 from collections.abc import Sequence
+import io
 import einops
 from etils import epath
 import jax
@@ -23,7 +24,6 @@ from jax import numpy as jnp
 from kauldron import typing
 import numpy as np
 from PIL import Image
-import tensorflow as tf
 
 _IMAGE_MEAN = (127.5,) * 3
 _IMAGE_STD = (127.5,) * 3
@@ -60,6 +60,7 @@ def pre_process_image(
   """Pre-process image.
 
   Performs a bi-linear resize (with anti-aliasing) and normalizes the image.
+  This implementation uses PIL instead of TensorFlow for JPEG compression.
 
   Args:
     image: The image to pre-process.
@@ -69,17 +70,33 @@ def pre_process_image(
   Returns:
     The pre-processed image.
   """
-  # all inputs are expected to have been jpeg compressed.
-  # TODO(eyvinec): we should remove tf dependency.
-  image = jnp.asarray(
-      tf.image.decode_jpeg(tf.io.encode_jpeg(image), channels=3)
-  )
+  # All inputs are expected to have been JPEG compressed for consistency.
+  # Using PIL to handle JPEG compression instead of TensorFlow.
+  
+  # Convert to uint8 for PIL if needed
+  if image.dtype != np.uint8:
+    # Assume input is in [0, 255] range if not uint8
+    image = np.clip(image, 0, 255).astype(np.uint8)
+  
+  # Apply JPEG compression using PIL for consistency with original behavior
+  pil_image = Image.fromarray(image)
+  buffer = io.BytesIO()
+  pil_image.save(buffer, format='JPEG', quality=95)
+  buffer.seek(0)
+  pil_image = Image.open(buffer)
+  
+  # Convert back to numpy array
+  image = np.array(pil_image, dtype=np.float32)
+  
+  # Use JAX for resizing with anti-aliasing
   image = jax.image.resize(
-      image,
+      jnp.asarray(image),
       shape=(image_height, image_width, 3),
       method="bilinear",
       antialias=True,
   )
+  
+  # Normalize and clip
   image = normalize_images(image)
   image = jnp.clip(image, -1, 1)
   return image
