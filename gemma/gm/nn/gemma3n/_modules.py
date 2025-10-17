@@ -314,12 +314,23 @@ class Attention(nn.Module):
       else:
         key_proj, value_proj = self.kv_einsum('BSD,CKDH->CBSKH', x)
 
+    if kv_shared_cache is None:
+      if self.use_qk_norm:
+        key_proj = self.key_norm(key_proj)
+
+      if self.use_value_norm:
+        value_proj = self.value_norm(value_proj)
+
+      key_proj = _positional_embeddings.apply_rope(
+          key_proj,
+          segment_pos,
+          base_frequency=self.rope_base_frequency,
+          scale_factor=self.rope_scale_factor,
+      )
+
     if self.use_qk_norm:
       query_proj = self.query_norm(query_proj)
       key_proj = self.key_norm(key_proj)
-
-    if self.use_value_norm:
-      value_proj = self.value_norm(value_proj)
 
     query_proj = _positional_embeddings.apply_rope(
         query_proj,
@@ -328,13 +339,6 @@ class Attention(nn.Module):
         scale_factor=self.rope_scale_factor,
     )
     query_scaled = query_proj * self.query_pre_attn_scalar
-
-    key_proj = _positional_embeddings.apply_rope(
-        key_proj,
-        segment_pos,
-        base_frequency=self.rope_base_frequency,
-        scale_factor=self.rope_scale_factor,
-    )
 
     # Cache is left aligned.
     # Save the KV values to the cache.
