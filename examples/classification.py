@@ -113,7 +113,7 @@ def _make_dataset(training: bool) -> kd.data.Pipeline:
           gm.data.MapInts(
               key=_LABEL_FIELD,
               # Rather than predicting the token 0 and 1, we are using the
-              # token 1294 and 3553 which respectivelly correspond to "No" and
+              # token 1294 and 3553 which respectively correspond to "No" and
               # "Yes". We do this because those token already contain semantic
               # information, so even zero-shot prediction without any
               # finetuning has better than random performances.
