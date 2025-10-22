@@ -167,7 +167,6 @@ class Gemma3nTransformer(_transformer.Transformer):
             per_layer_input_dim=self.config.per_layer_input_dim,
             scale_plus_one=self.config.scale_plus_one,
             guard_against_excess_precision=self.config.guard_against_excess_precision,
-            sliding_mask_type=self.config.sliding_mask_type,
         )
         for i, attn_type in zip(
             range(self.config.num_layers), self.config.attention_types

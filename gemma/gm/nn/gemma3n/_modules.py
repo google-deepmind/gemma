@@ -16,11 +16,14 @@
 
 import enum
 from typing import List
+
 from flax import linen as nn
 from gemma.gm.math import _positional_embeddings
+from gemma.gm.nn import _modules
 from gemma.gm.nn.gemma3n import _layers
 import jax
 import jax.numpy as jnp
+
 
 K_MASK = -2.3819763e38  # Set to a large negative number.
 DEFAULT_ROPE_BASE_FREQUENCY = 10_000
@@ -61,66 +64,9 @@ def _gaussian_topk(
   return jax.nn.relu(inputs - cutoff_x)
 
 
-def _create_sliding_mask(
-    segment_pos: jnp.ndarray,
-    end_index: int,
-    cache_len: int,
-    sliding_window_size: int,
-):
-  """Creates mask for sliding window attention."""
-  total_tokens = end_index + segment_pos.shape[1]  # cached + processing tokens
-
-  def _reconstruct_rotated_cache_positions():
-    cache_positions = jnp.arange(cache_len) + total_tokens - cache_len
-    cache_positions = (
-        jnp.zeros_like(cache_positions)
-        # kv were placed at index (position_id % cache_len) in the cache.
-        .at[cache_positions % cache_len].set(cache_positions)
-    )
-    return cache_positions
-
-  # Reconstruct position_ids for cached kv.
-  cache_positions = jax.lax.cond(
-      total_tokens <= cache_len,
-      lambda: jnp.arange(cache_len),
-      _reconstruct_rotated_cache_positions,
-  )
-
-  cache_positions = cache_positions[None, None, :]  # [1, 1, cache_len]
-  segment_pos = segment_pos[:, :, None]  # [B, seq_len, 1]
-  sliding_mask = cache_positions > segment_pos - sliding_window_size
-  sliding_mask *= cache_positions < segment_pos + sliding_window_size
-  return sliding_mask
-
-
-def _create_sliding_mask_for_gemma_3n(
-    seq_len: int,
-    sliding_window_size: int,
-):
-  """Creates mask for sliding window attention."""
-  q_pos = jnp.arange(seq_len)[..., None]
-  kv_pos = jnp.arange(seq_len)[..., None, :]
-  q_pos = q_pos[..., None]
-  kv_pos = kv_pos[..., None, :]
-
-  # Allocate one extra element to the right context if window size is even.
-  dist = q_pos - kv_pos
-  left_window_size = (sliding_window_size - 1) // 2
-  right_window_size = sliding_window_size // 2
-  return jnp.squeeze(jnp.logical_or(
-      (dist >= 0) & (dist <= left_window_size),
-      (dist < 0) & (-dist <= right_window_size),
-  ))
-
-
 class AttentionType(enum.Enum):
   GLOBAL = 1
   LOCAL_SLIDING = 2
-
-
-class SlidingMaskType(enum.Enum):
-  DEFAULT = 1
-  GEMMA_3N = 2
 
 
 class Embedder(nn.Module):
@@ -250,7 +196,6 @@ class Attention(nn.Module):
   use_value_norm: bool = False
   scale_plus_one: bool = True
   guard_against_excess_precision: bool = False
-  sliding_mask_type: SlidingMaskType = SlidingMaskType.DEFAULT
 
   @property
   def use_qkv_einsum(self):
@@ -413,22 +358,11 @@ class Attention(nn.Module):
         raise ValueError(
             'Sliding_window_size must be set if Local Sliding attention type'
         )
-      if self.sliding_mask_type == SlidingMaskType.DEFAULT:
-        sliding_mask = _create_sliding_mask(
-            segment_pos,
-            end_index=cache['end_index'][0] if cache is not None else 0,
-            # Derive cache length from attn_mask shape in case cache is None
-            cache_len=attn_mask.shape[-1],
-            sliding_window_size=self.sliding_window_size,
-        )
-      elif self.sliding_mask_type == SlidingMaskType.GEMMA_3N:
-        sliding_mask = _create_sliding_mask_for_gemma_3n(
-            seq_len=logits.shape[1],
-            sliding_window_size=self.sliding_window_size,
-        )
-      else:
-        raise ValueError(f'Unknown sliding_mask_type: {self.sliding_mask_type}')
-
+      sliding_mask = _modules.create_sliding_mask(
+          segment_pos,
+          cache_positions=cache_positions if cache else None,  # pylint: disable=undefined-variable
+          sliding_window_size=self.sliding_window_size,
+      )
       # [batch_size, seq_len, cache_size]
       attn_mask *= sliding_mask
 
@@ -458,10 +392,6 @@ class Attention(nn.Module):
     else:
       # [batch_size, seq_len, num_heads, head_dim]
       encoded = jnp.einsum('BTNS,BSNH->BTNH', probs, value_proj)
-
-    # TODO(gmenghani): Remove this.
-    no_attended_tokens = jnp.all(attn_mask == 0, axis=-1)[..., None, None]
-    encoded = jnp.where(no_attended_tokens, jnp.zeros_like(encoded), encoded)
 
     # [batch_size, seq_len, features]
     attn_output = self.attn_vec_einsum('BTNH,NHD->BTD', encoded)
@@ -746,7 +676,6 @@ class Block(nn.Module):
   kv_cache_sharing_pattern: int | None = None
   scale_plus_one: bool = True
   guard_against_excess_precision: bool = False
-  sliding_mask_type: SlidingMaskType = SlidingMaskType.DEFAULT
 
   def setup(self):
     self.pre_attention_norm = _layers.RMSNorm(
@@ -770,7 +699,6 @@ class Block(nn.Module):
         use_value_norm=self.use_value_norm,
         scale_plus_one=self.scale_plus_one,
         guard_against_excess_precision=self.guard_against_excess_precision,
-        sliding_mask_type=self.sliding_mask_type,
     )
 
     self.post_attention_norm = None

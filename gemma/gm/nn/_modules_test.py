@@ -77,7 +77,7 @@ def test_embedder_decode():
 def test_sliding_mask():
 
   # Simple case
-  sliding_mask = _modules._create_sliding_mask(
+  sliding_mask = _modules.create_sliding_mask(
       positions=jnp.array([[0, 1, 2, 3, 4, 5]]),
       sliding_window_size=2,
   )
@@ -94,7 +94,7 @@ def test_sliding_mask():
   )
 
   # With packed sequences
-  sliding_mask = _modules._create_sliding_mask(
+  sliding_mask = _modules.create_sliding_mask(
       positions=jnp.array([[0, 1, 2, 3, 0, 1, 2]]),
       sliding_window_size=2,
   )
@@ -112,7 +112,7 @@ def test_sliding_mask():
   )
 
   # With padded cache
-  sliding_mask = _modules._create_sliding_mask(
+  sliding_mask = _modules.create_sliding_mask(
       positions=jnp.array([[4, 5, 6]]),
       cache_positions=jnp.array([[0, 0, 0, 1, 2, 3]]),
       sliding_window_size=3,

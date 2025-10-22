@@ -138,7 +138,6 @@ class TransformerConfig:
   kv_cache_sharing_config: KVCacheSharingConfig | None = None
   scale_plus_one: bool = True
   guard_against_excess_precision: bool = False
-  sliding_mask_type: _modules.SlidingMaskType = _modules.SlidingMaskType.DEFAULT
 
   @functools.cached_property
   def num_layers(self) -> int:
