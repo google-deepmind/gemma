@@ -63,7 +63,7 @@ def test_images():
 
 def test_text_only():
 
-  model = gemma3n_models.Gemma3n_E4B(text_only=True)
+  model = gemma3n_models.Gemma3n_E4B(text_only=True)  # pytype: disable=missing-parameter,wrong-keyword-args
 
   tokens = jnp.ones((BATCH_SIZE, SEQ_LEN), dtype=jnp.int32)
   images = jnp.ones((BATCH_SIZE, NUM_IMAGES, 64, 64, 3), dtype=jnp.uint8)
@@ -77,7 +77,7 @@ def test_text_only():
 
 
 def test_last_only():
-  model = gemma3n_models.Gemma3n_E4B(return_last_only=True)
+  model = gemma3n_models.Gemma3n_E4B(return_last_only=True)  # pytype: disable=missing-parameter
   tokens = jnp.ones((BATCH_SIZE, SEQ_LEN), dtype=jnp.int32)
   out, params = _get_output(model, tokens=tokens)
   assert 'vision_encoder' in params  # Vision by default
