@@ -306,6 +306,9 @@ class Attention(nn.Module):
     if self.use_qkv_einsum:
       # [batch_size, seq_len, num_heads, head_dim]
       query_proj, key_proj, value_proj = self.qkv_einsum('BTD,SNDH->SBTNH', x)
+      if kv_shared_cache is not None:
+        key_proj = kv_shared_cache['k']
+        value_proj = kv_shared_cache['v']
     else:
       query_proj = self.q_einsum('BTD,NDH->BTNH', x)
       if kv_shared_cache is not None:
@@ -314,23 +317,14 @@ class Attention(nn.Module):
       else:
         key_proj, value_proj = self.kv_einsum('BSD,CKDH->CBSKH', x)
 
-    if kv_shared_cache is None:
-      if self.use_qk_norm:
-        key_proj = self.key_norm(key_proj)
-
-      if self.use_value_norm:
-        value_proj = self.value_norm(value_proj)
-
-      key_proj = _positional_embeddings.apply_rope(
-          key_proj,
-          segment_pos,
-          base_frequency=self.rope_base_frequency,
-          scale_factor=self.rope_scale_factor,
-      )
-
     if self.use_qk_norm:
       query_proj = self.query_norm(query_proj)
-      key_proj = self.key_norm(key_proj)
+      if kv_shared_cache is None:
+        key_proj = self.key_norm(key_proj)
+
+    if self.use_value_norm:
+      if kv_shared_cache is None:
+        value_proj = self.value_norm(value_proj)
 
     query_proj = _positional_embeddings.apply_rope(
         query_proj,
@@ -339,6 +333,14 @@ class Attention(nn.Module):
         scale_factor=self.rope_scale_factor,
     )
     query_scaled = query_proj * self.query_pre_attn_scalar
+
+    if kv_shared_cache is None:
+      key_proj = _positional_embeddings.apply_rope(
+          key_proj,
+          segment_pos,
+          base_frequency=self.rope_base_frequency,
+          scale_factor=self.rope_scale_factor,
+      )
 
     # Cache is left aligned.
     # Save the KV values to the cache.
@@ -356,7 +358,9 @@ class Attention(nn.Module):
 
       # [batch_size, cache_size, num_heads, head_dim]
       key_proj = jax.lax.dynamic_update_slice(
-          cache['k'], key_proj, slice_indices
+          cache['k'],
+          key_proj,
+          slice_indices,
       )
 
     if self.use_gqa:
