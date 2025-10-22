@@ -517,7 +517,7 @@ def test_block():
   seq_len = 1
 
   inputs = jnp.ones((batch_size, seq_len, embed_dim))
-  positions = jnp.zeros((batch_size, seq_len))
+  positions = jnp.zeros((batch_size, seq_len), dtype=jnp.int32)
 
   # Initialize cache.
   cache = _modules.Attention.init_cache(
@@ -702,7 +702,7 @@ def test_block_with_altup():
   num_altup_inputs = 4
 
   inputs = jnp.ones((batch_size, seq_len, embed_dim))
-  positions = jnp.zeros((batch_size, seq_len))
+  positions = jnp.zeros((batch_size, seq_len), dtype=jnp.int32)
 
   # Initialize cache.
   cache = _modules.Attention.init_cache(
@@ -788,7 +788,7 @@ def test_block_with_laurel():
   rank = 4
 
   inputs = jnp.ones((batch_size, seq_len, embed_dim))
-  positions = jnp.zeros((batch_size, seq_len))
+  positions = jnp.zeros((batch_size, seq_len), dtype=jnp.int32)
 
   # Initialize cache.
   cache = _modules.Attention.init_cache(
@@ -868,7 +868,7 @@ def test_block_with_per_layer_mapping():
   per_layer_dim = 3
 
   inputs = jnp.ones((batch_size, seq_len, embed_dim))
-  positions = jnp.zeros((batch_size, seq_len))
+  positions = jnp.zeros((batch_size, seq_len), dtype=jnp.int32)
   pli = jnp.ones((batch_size, seq_len, per_layer_dim))
 
   # Initialize cache.
