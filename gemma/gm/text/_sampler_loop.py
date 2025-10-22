@@ -52,7 +52,6 @@ class SamplingState:
     rng: Seed to use for sampling.
     init_cache_length: Length of the cache length in the pre-fill phase. Include
       the prompt, the MM tokens, and the previous turns.
-    full_attention_mask: Pre-computed attention mask for the full sequence.
   """
 
   step: Int['']

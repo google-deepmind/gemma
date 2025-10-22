@@ -225,14 +225,16 @@ class Attention(nn.Module):
 
       # [batch_size, cache_size, num_heads, head_dim]
       key_proj = jax.lax.dynamic_update_slice(
-          cache['k'], key_proj, slice_indices
+          cache['k'],
+          key_proj,
+          slice_indices,
       )
 
       # [batch_size, cache_size]
       cache_positions = jax.lax.dynamic_update_slice(
           cache['positions'],
           segment_pos,
-          (0, update_index),
+          slice_indices[:2],
       )
 
     if self.use_gqa:
