@@ -16,6 +16,7 @@
 
 import logging
 
+from gemma.gm.nn import _modules as _gm_modules
 from gemma.gm.nn.gemma3n import _config
 from gemma.gm.nn.gemma3n import _modules
 import jax
@@ -77,28 +78,27 @@ def test_embedder_decode():
 
 
 def test_create_sliding_mask_decode_none_rotated_cache_pos():
-  cache_len = 4
-  end_index = 1
   segment_pos = jnp.array([[1]])
+  cache_positions = jnp.array([[0, 1, 2, 3]])
 
-  sliding_mask = _modules._create_sliding_mask(
-      segment_pos, end_index, cache_len, sliding_window_size=1
+  sliding_mask = _gm_modules.create_sliding_mask(
+      segment_pos, cache_positions=cache_positions, sliding_window_size=1
   )
   np.testing.assert_array_equal(
       sliding_mask,
       [[[False, True, False, False]]],
   )
 
-  sliding_mask = _modules._create_sliding_mask(
-      segment_pos, end_index, cache_len, sliding_window_size=2
+  sliding_mask = _gm_modules.create_sliding_mask(
+      segment_pos, cache_positions=cache_positions, sliding_window_size=2
   )
   np.testing.assert_array_equal(
       sliding_mask,
       [[[True, True, True, False]]],
   )
 
-  sliding_mask = _modules._create_sliding_mask(
-      segment_pos, end_index, cache_len, sliding_window_size=3
+  sliding_mask = _gm_modules.create_sliding_mask(
+      segment_pos, cache_positions=cache_positions, sliding_window_size=3
   )
   np.testing.assert_array_equal(
       sliding_mask,
@@ -156,31 +156,27 @@ def test_kv_cache_sharing_patterns():
 
 
 def test_create_sliding_mask_decode_rotated_cache_pos():
-  cache_len = 4
-  end_index = 5
   segment_pos = jnp.array([[5]])
+  cache_positions = jnp.array([[4, 5, 2, 3]])
 
-  sliding_mask = _modules._create_sliding_mask(
-      segment_pos, end_index, cache_len, sliding_window_size=1
+  sliding_mask = _gm_modules.create_sliding_mask(
+      segment_pos, cache_positions=cache_positions, sliding_window_size=1
   )
   np.testing.assert_array_equal(
       sliding_mask,
-      # cache_positions = [
-      #   4,      5,     2,     3,
-      # ]
       [[[False, True, False, False]]],
   )
 
-  sliding_mask = _modules._create_sliding_mask(
-      segment_pos, end_index, cache_len, sliding_window_size=2
+  sliding_mask = _gm_modules.create_sliding_mask(
+      segment_pos, cache_positions=cache_positions, sliding_window_size=2
   )
   np.testing.assert_array_equal(
       sliding_mask,
       [[[True, True, False, False]]],
   )
 
-  sliding_mask = _modules._create_sliding_mask(
-      segment_pos, end_index, cache_len, sliding_window_size=3
+  sliding_mask = _gm_modules.create_sliding_mask(
+      segment_pos, cache_positions=cache_positions, sliding_window_size=3
   )
   np.testing.assert_array_equal(
       sliding_mask,
@@ -189,26 +185,22 @@ def test_create_sliding_mask_decode_rotated_cache_pos():
 
 
 def test_create_sliding_mask_prefill_rotated_cache_pos():
-  cache_len = 4
-  end_index = 5
   segment_pos = jnp.array([[5, 6]])
+  cache_positions = jnp.array([[4, 5, 6, 3]])
 
-  sliding_mask = _modules._create_sliding_mask(
-      segment_pos, end_index, cache_len, sliding_window_size=1
+  sliding_mask = _gm_modules.create_sliding_mask(
+      segment_pos, cache_positions=cache_positions, sliding_window_size=1
   )
   np.testing.assert_array_equal(
       sliding_mask,
-      # cache_positions = [
-      #   4,      5,     6,     3,
-      # ]
       [[
           [False, True, False, False],
           [False, False, True, False],
       ]],
   )
 
-  sliding_mask = _modules._create_sliding_mask(
-      segment_pos, end_index, cache_len, sliding_window_size=2
+  sliding_mask = _gm_modules.create_sliding_mask(
+      segment_pos, cache_positions=cache_positions, sliding_window_size=2
   )
   np.testing.assert_array_equal(
       sliding_mask,
@@ -218,8 +210,8 @@ def test_create_sliding_mask_prefill_rotated_cache_pos():
       ]],
   )
 
-  sliding_mask = _modules._create_sliding_mask(
-      segment_pos, end_index, cache_len, sliding_window_size=3
+  sliding_mask = _gm_modules.create_sliding_mask(
+      segment_pos, cache_positions=cache_positions, sliding_window_size=3
   )
   np.testing.assert_array_equal(
       sliding_mask,
@@ -517,7 +509,7 @@ def test_block():
   seq_len = 1
 
   inputs = jnp.ones((batch_size, seq_len, embed_dim))
-  positions = jnp.zeros((batch_size, seq_len))
+  positions = jnp.zeros((batch_size, seq_len), dtype=jnp.int32)
 
   # Initialize cache.
   cache = _modules.Attention.init_cache(
@@ -702,7 +694,7 @@ def test_block_with_altup():
   num_altup_inputs = 4
 
   inputs = jnp.ones((batch_size, seq_len, embed_dim))
-  positions = jnp.zeros((batch_size, seq_len))
+  positions = jnp.zeros((batch_size, seq_len), dtype=jnp.int32)
 
   # Initialize cache.
   cache = _modules.Attention.init_cache(
@@ -788,7 +780,7 @@ def test_block_with_laurel():
   rank = 4
 
   inputs = jnp.ones((batch_size, seq_len, embed_dim))
-  positions = jnp.zeros((batch_size, seq_len))
+  positions = jnp.zeros((batch_size, seq_len), dtype=jnp.int32)
 
   # Initialize cache.
   cache = _modules.Attention.init_cache(
@@ -868,7 +860,7 @@ def test_block_with_per_layer_mapping():
   per_layer_dim = 3
 
   inputs = jnp.ones((batch_size, seq_len, embed_dim))
-  positions = jnp.zeros((batch_size, seq_len))
+  positions = jnp.zeros((batch_size, seq_len), dtype=jnp.int32)
   pli = jnp.ones((batch_size, seq_len, per_layer_dim))
 
   # Initialize cache.

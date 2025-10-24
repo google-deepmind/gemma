@@ -33,6 +33,9 @@ with _epy.lazy_api_imports(globals()):
   from gemma.gm.nn._gemma import Gemma3_4B
   from gemma.gm.nn._gemma import Gemma3_12B
   from gemma.gm.nn._gemma import Gemma3_27B
+  # Gemma 3n
+  from gemma.gm.nn.gemma3n._gemma3n import Gemma3n_E2B
+  from gemma.gm.nn.gemma3n._gemma3n import Gemma3n_E4B
 
   # ****************************************************************************
   # Wrapper (LoRA, quantization, DPO,...)

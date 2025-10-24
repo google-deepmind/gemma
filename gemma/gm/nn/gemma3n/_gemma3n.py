@@ -105,7 +105,6 @@ def _get_gemma3n_config(
       ),
       scale_plus_one=False,
       guard_against_excess_precision=True,
-      sliding_mask_type=_modules.SlidingMaskType.GEMMA_3N,
   )
 
 

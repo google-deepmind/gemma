@@ -35,7 +35,7 @@ DEFAULT_ROPE_SCALE_FACTOR = 1.0
 LayerCache = dict[str, jax.Array]
 
 
-def _create_sliding_mask(
+def create_sliding_mask(
     positions: Int['B L'],
     *,
     cache_positions: Int['B cache_len'] | None = None,
@@ -225,14 +225,16 @@ class Attention(nn.Module):
 
       # [batch_size, cache_size, num_heads, head_dim]
       key_proj = jax.lax.dynamic_update_slice(
-          cache['k'], key_proj, slice_indices
+          cache['k'],
+          key_proj,
+          slice_indices,
       )
 
       # [batch_size, cache_size]
       cache_positions = jax.lax.dynamic_update_slice(
           cache['positions'],
           segment_pos,
-          (0, update_index),
+          slice_indices[:2],
       )
 
     if self.use_gqa:
@@ -258,7 +260,7 @@ class Attention(nn.Module):
         raise ValueError(
             'Sliding_window_size must be set if Local Sliding attention type'
         )
-      sliding_mask = _create_sliding_mask(
+      sliding_mask = create_sliding_mask(
           segment_pos,
           cache_positions=cache_positions if cache else None,  # pylint: disable=undefined-variable
           sliding_window_size=self.sliding_window_size,
