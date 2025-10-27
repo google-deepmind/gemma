@@ -408,14 +408,7 @@ def _is_flat_layout(params: Params) -> bool:
 
 def _is_stacked_layout(params: Params) -> bool:
   """Returns True is the structure is the stacked one."""
-  return all(
-      k.startswith((
-          'transformer/embedder',
-          'transformer/final_norm',
-          'transformer/stacked_layers',
-      ))
-      for k in params.keys()
-  )
+  return any(k.startswith('transformer/stacked_layers') for k in params.keys())
 
 
 def _is_kauldron_layout(params: Params) -> bool:
