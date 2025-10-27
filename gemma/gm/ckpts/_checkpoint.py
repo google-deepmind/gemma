@@ -180,15 +180,21 @@ class _CheckpointTree:
 def save_params(
     params: Params,
     path: epath.PathLike,
+    *,
+    wait_until_finished: bool = False,
 ) -> None:
   """Save the params to a checkpoint.
 
   Args:
     params: The params to save.
     path: The directory to which save the checkpoint.
+    wait_until_finished: If True, waits for the checkpoint save to complete
+      before returning.
   """
   ckpt = ocp.StandardCheckpointer()
   ckpt.save(path, params)
+  if wait_until_finished:
+    ckpt.wait_until_finished()
 
 
 def load_params(
