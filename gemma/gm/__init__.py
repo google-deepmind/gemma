@@ -27,6 +27,7 @@ with _epy.lazy_api_imports(globals()):
   from gemma.gm import math
   from gemma.gm import nn
   from gemma.gm import text
+  from gemma.gm.nn.gemma4 import text as gemma4_text
   from gemma.gm import tools
   from gemma.gm import sharding
   from gemma.gm import testing

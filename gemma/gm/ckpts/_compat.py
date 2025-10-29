@@ -26,7 +26,7 @@ import jax
 import jax.numpy as jnp
 
 
-def param_remapper(orig_params: Params) -> Params:
+def param_remapper(orig_params: Params, handle_mlp: bool = True) -> Params:
   """Remaps params to new module layout.
 
   This is needed here because the model definition  does not have a separate
@@ -40,7 +40,7 @@ def param_remapper(orig_params: Params) -> Params:
   """
   new_params = {}
   for k, v in orig_params.items():
-    if 'mlp/' in k:
+    if handle_mlp and 'mlp/' in k:
       layer_name, param = k.rsplit('/', maxsplit=1)
       if layer_name not in new_params:
         new_params[layer_name] = {}
@@ -63,7 +63,7 @@ def nest_params(params: Params) -> Params:
   return nested_params
 
 
-def flatten_and_remap_params(params: Params) -> Params:
+def flatten_and_remap_params(params: Params, handle_mlp: bool = True) -> Params:
   """Flattens and remaps params from new to old module layout.
 
   Inverse of gemma.params.param_remapper(...) followed by
@@ -86,7 +86,9 @@ def flatten_and_remap_params(params: Params) -> Params:
   # 2nd, separate the last component of the path with a `&` instead of a `/`,
   # because we need to unflatten one level closest to the leafs:
   def remap_name(n: str):
-    if n.endswith('/mlp/linear') or n.endswith('/mlp/gating_einsum'):
+    if handle_mlp and (
+        n.endswith('/mlp/linear') or n.endswith('/mlp/gating_einsum')
+    ):
       n += '/w'
 
     left, right = n.rsplit('/', maxsplit=1)

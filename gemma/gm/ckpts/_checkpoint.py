@@ -97,12 +97,15 @@ class _CheckpointTree:
   """Util class to convert checkpoint structures."""
 
   tree: Params
+  handle_mlp: bool = True
 
   @classmethod
-  def shape_dtype_struct_like(cls, tree: Params) -> _CheckpointTree:
+  def shape_dtype_struct_like(
+      cls, tree: Params, handle_mlp: bool = True
+  ) -> _CheckpointTree:
     """Returns a tree matching the input tree, but with `jax.ShapeDtypeStruct`."""
     tree = jax.tree.map(_as_shape_dtype_struct, tree)
-    return _CheckpointTree(tree=tree)
+    return _CheckpointTree(tree=tree, handle_mlp=handle_mlp)
 
   @functools.cached_property
   def type(self) -> _CheckpointType:
@@ -120,9 +123,9 @@ class _CheckpointTree:
   def nested_tree(self) -> Params:
     """Returns the tree matching the NESTED checkpoint structure."""
     if self.type == _CheckpointType.STACKED:
-      return _stacked_to_nested(self.tree)
+      return self._stacked_to_nested(self.tree)
     if self.type == _CheckpointType.FLAT:
-      return _flat_to_nested(self.tree)
+      return self._flat_to_nested(self.tree)
     elif self.type == _CheckpointType.KAULDRON:
       return self.tree['params']
     elif self.type == _CheckpointType.NESTED:
@@ -155,12 +158,12 @@ class _CheckpointTree:
       target_params = ckpt_params  # No need to reformat
     elif self.type == _CheckpointType.FLAT:
       # Unflatten the params structure
-      target_params = _nested_to_flat(ckpt_params)
+      target_params = self._nested_to_flat(ckpt_params)
     elif self.type == _CheckpointType.KAULDRON:
       target_params = etree.copy(metadata.tree)
       target_params['params'] = ckpt_params
     elif self.type == _CheckpointType.STACKED:
-      target_params = _nested_to_stacked(
+      target_params = self._nested_to_stacked(
           ckpt_params, _compat.get_attention_pattern_len(self.tree)
       )
     else:
@@ -175,6 +178,66 @@ class _CheckpointTree:
   @functools.cached_property
   def has_audio_input_embedding(self) -> bool:
     return 'audio_input_embedding' in self.nested_tree.get('embedder', {})
+
+  def _stacked_to_nested(self, params: Params) -> Params:
+    """Reformat the params from STACKED to NESTED."""
+    params = etree.copy(params)
+    params = _compat.unstack_params(params)
+    return self._flat_to_nested(params)
+
+  def _flat_to_nested(self, params: Params) -> Params:
+    """Reformat the params from FLAT to NESTED."""
+    params = etree.copy(params)
+    # Split the params for the MM and the transformer.
+    transformer_params = {
+        k: v for k, v in params.items() if k.startswith('transformer/')
+    }
+    transformer_params = self._flat_to_nested_single(
+        transformer_params, name='transformer'
+    )
+
+    mm_params = {
+        k: v for k, v in params.items() if k.startswith('SigLiPFromPatches_0/')
+    }
+    if mm_params:
+      mm_params = self._flat_to_nested_single(
+          mm_params, name='SigLiPFromPatches_0'
+      )
+      # TODO(epot): More conversions needed.
+      transformer_params['vision_encoder'] = mm_params  # pytype: disable=unsupported-operands
+    return transformer_params
+
+  def _nested_to_stacked(self, params: Params, attn_pattern_len: int) -> Params:
+    """Reformat the params from NESTED to STACKED."""
+    params = self._nested_to_flat(params)
+    params = _compat.stack_params(params, attn_pattern_len)
+    return params
+
+  def _nested_to_flat(self, params: Params) -> Params:
+    """Reformat the params from NESTED to FLAT."""
+    params = etree.copy(params)  # Copy to allow mutating the tree.
+
+    mm_params = params.pop('vision_encoder', {})
+    if mm_params:
+      mm_params = self._nested_to_flat_single(
+          mm_params, name='SigLiPFromPatches_0'
+      )
+
+    transformer_params = self._nested_to_flat_single(params, name='transformer')
+
+    # TODO(epot): Reshape the MM params too.
+    return transformer_params | mm_params
+
+  def _nested_to_flat_single(self, params: Params, *, name: str) -> Params:
+    params = _compat.flatten_and_remap_params(params, self.handle_mlp)
+    params = {f'{name}/{k}': v for k, v in params.items()}
+    return params
+
+  def _flat_to_nested_single(self, params: Params, *, name: str) -> Params:
+    params = _compat.param_remapper(params, self.handle_mlp)
+    params = _compat.nest_params(params)
+    params = params[name]
+    return params
 
 
 def save_params(
@@ -205,6 +268,7 @@ def load_params(
     text_only: bool = False,
     sharding: kd.sharding.ShardingTree | None = None,
     quantize: bool = False,
+    handle_mlp: bool = True, # False for Gemma4
 ) -> Params:
   """Restore the params from a checkpoint.
 
@@ -220,6 +284,8 @@ def load_params(
       is mutually exclusive with `params`.
     quantize: If `True`, the params will be mapped to enable quantization aware
       training.
+    handle_mlp: If `True`, handle the MLP parameters during remapping. Should be
+      `False` for Gemma4 checkpoints.
 
   Returns:
     The restored params.
@@ -231,7 +297,7 @@ def load_params(
 
   metadata, path = _get_metadata_and_path(ckpt, path)
 
-  metadata = _CheckpointTree.shape_dtype_struct_like(tree=metadata)
+  metadata = _CheckpointTree.shape_dtype_struct_like(tree=metadata, handle_mlp=handle_mlp)
 
   # Eventually clear up the memory.
   if donate and params is not None:
@@ -248,7 +314,7 @@ def load_params(
       params = kd.sharding.with_sharding_constraint(params, sharding)
   else:
     # If params explicitly provided, use that
-    params = _CheckpointTree(tree=params)
+    params = _CheckpointTree(tree=params, handle_mlp=handle_mlp)
     if params.type != _CheckpointType.NESTED:
       raise ValueError(
           'The input params provided to `load_params()` should be the raw'
@@ -282,7 +348,7 @@ def load_params(
     output = _quantization.convert_to_qat_checkpoint(output)
 
   # Then after restoring, the params are remapped back to the final structure.
-  output = _CheckpointTree(tree=output)
+  output = _CheckpointTree(tree=output, handle_mlp=handle_mlp)
   output = output.as_nested(
       remove_mm=metadata.has_mm_params and not params.has_mm_params
   )
@@ -310,68 +376,6 @@ def load_params(
 
 
 # ======================== Structure reformat utils ========================
-
-
-def _stacked_to_nested(params: Params) -> Params:
-  """Reformat the params from STACKED to NESTED."""
-  params = etree.copy(params)
-  params = _compat.unstack_params(params)
-  return _flat_to_nested(params)
-
-
-def _flat_to_nested(params: Params) -> Params:
-  """Reformat the params from FLAT to NESTED."""
-  params = etree.copy(params)
-  # Split the params for the MM and the transformer.
-  transformer_params = {
-      k: v for k, v in params.items() if k.startswith('transformer/')
-  }
-  transformer_params = _flat_to_nested_single(
-      transformer_params, name='transformer'
-  )
-
-  mm_params = {
-      k: v for k, v in params.items() if k.startswith('SigLiPFromPatches_0/')
-  }
-  if mm_params:
-    mm_params = _flat_to_nested_single(mm_params, name='SigLiPFromPatches_0')
-    # TODO(epot): More conversions needed.
-    transformer_params['vision_encoder'] = mm_params  # pytype: disable=unsupported-operands
-  return transformer_params
-
-
-def _nested_to_stacked(params: Params, attn_pattern_len: int) -> Params:
-  """Reformat the params from NESTED to STACKED."""
-  params = _nested_to_flat(params)
-  params = _compat.stack_params(params, attn_pattern_len)
-  return params
-
-
-def _nested_to_flat(params: Params) -> Params:
-  """Reformat the params from NESTED to FLAT."""
-  params = etree.copy(params)  # Copy to allow mutating the tree.
-
-  mm_params = params.pop('vision_encoder', {})
-  if mm_params:
-    mm_params = _nested_to_flat_single(mm_params, name='SigLiPFromPatches_0')
-
-  transformer_params = _nested_to_flat_single(params, name='transformer')
-
-  # TODO(epot): Reshape the MM params too.
-  return transformer_params | mm_params
-
-
-def _nested_to_flat_single(params: Params, *, name: str) -> Params:
-  params = _compat.flatten_and_remap_params(params)
-  params = {f'{name}/{k}': v for k, v in params.items()}
-  return params
-
-
-def _flat_to_nested_single(params: Params, *, name: str) -> Params:
-  params = _compat.param_remapper(params)
-  params = _compat.nest_params(params)
-  params = params[name]
-  return params
 
 
 def _remove_mm_params(params):
