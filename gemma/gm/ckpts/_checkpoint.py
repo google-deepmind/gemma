@@ -180,15 +180,21 @@ class _CheckpointTree:
 def save_params(
     params: Params,
     path: epath.PathLike,
+    *,
+    wait_until_finished: bool = False,
 ) -> None:
   """Save the params to a checkpoint.
 
   Args:
     params: The params to save.
     path: The directory to which save the checkpoint.
+    wait_until_finished: If True, waits for the checkpoint save to complete
+      before returning.
   """
   ckpt = ocp.StandardCheckpointer()
   ckpt.save(path, params)
+  if wait_until_finished:
+    ckpt.wait_until_finished()
 
 
 def load_params(
@@ -408,14 +414,7 @@ def _is_flat_layout(params: Params) -> bool:
 
 def _is_stacked_layout(params: Params) -> bool:
   """Returns True is the structure is the stacked one."""
-  return all(
-      k.startswith((
-          'transformer/embedder',
-          'transformer/final_norm',
-          'transformer/stacked_layers',
-      ))
-      for k in params.keys()
-  )
+  return any(k.startswith('transformer/stacked_layers') for k in params.keys())
 
 
 def _is_kauldron_layout(params: Params) -> bool:
