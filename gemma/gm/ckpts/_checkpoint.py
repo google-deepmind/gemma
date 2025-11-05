@@ -314,51 +314,61 @@ def load_params(
 
 def _stacked_to_nested(params: Params) -> Params:
   """Reformat the params from STACKED to NESTED."""
-  params = etree.copy(params)
-  params = _compat.unstack_params(params)
-  return _flat_to_nested(params)
+  copied_params = etree.copy(params)
+  unstacked_params = _compat.unstack_params(copied_params)
+  return _flat_to_nested(unstacked_params)
 
 
 def _flat_to_nested(params: Params) -> Params:
   """Reformat the params from FLAT to NESTED."""
-  params = etree.copy(params)
+  copied_params = etree.copy(params)
   # Split the params for the MM and the transformer.
-  transformer_params = {
-      k: v for k, v in params.items() if k.startswith('transformer/')
+  transformer_params_flat = {
+      k: v for k, v in copied_params.items() if k.startswith('transformer/')
   }
-  transformer_params = _flat_to_nested_single(
-      transformer_params, name='transformer'
+  transformer_params_nested = _flat_to_nested_single(
+      transformer_params_flat, name='transformer'
   )
 
-  mm_params = {
-      k: v for k, v in params.items() if k.startswith('SigLiPFromPatches_0/')
+  mm_params_flat = {
+      k: v
+      for k, v in copied_params.items()
+      if k.startswith('SigLiPFromPatches_0/')
   }
-  if mm_params:
-    mm_params = _flat_to_nested_single(mm_params, name='SigLiPFromPatches_0')
+  if mm_params_flat:
+    mm_params_nested = _flat_to_nested_single(
+        mm_params_flat, name='SigLiPFromPatches_0'
+    )
     # TODO(epot): More conversions needed.
-    transformer_params['vision_encoder'] = mm_params  # pytype: disable=unsupported-operands
-  return transformer_params
+    transformer_params_nested['vision_encoder'] = mm_params_nested  # pytype: disable=unsupported-operands
+  return transformer_params_nested
 
 
 def _nested_to_stacked(params: Params, attn_pattern_len: int) -> Params:
   """Reformat the params from NESTED to STACKED."""
-  params = _nested_to_flat(params)
-  params = _compat.stack_params(params, attn_pattern_len)
-  return params
+  flat_params = _nested_to_flat(params)
+  stacked_params = _compat.stack_params(flat_params, attn_pattern_len)
+  return stacked_params
 
 
 def _nested_to_flat(params: Params) -> Params:
   """Reformat the params from NESTED to FLAT."""
-  params = etree.copy(params)  # Copy to allow mutating the tree.
+  copied_params = etree.copy(params)  # Copy to allow mutating the tree.
 
-  mm_params = params.pop('vision_encoder', {})
-  if mm_params:
-    mm_params = _nested_to_flat_single(mm_params, name='SigLiPFromPatches_0')
+  mm_params_nested = copied_params.pop('vision_encoder', {})
+  if mm_params_nested:
+    mm_params_flat = _nested_to_flat_single(
+        mm_params_nested, name='SigLiPFromPatches_0'
+    )
+  else:
+    mm_params_flat = mm_params_nested
 
-  transformer_params = _nested_to_flat_single(params, name='transformer')
+  transformer_params_flat = _nested_to_flat_single(
+      copied_params, name='transformer'
+  )
 
   # TODO(epot): Reshape the MM params too.
-  return transformer_params | mm_params
+  return transformer_params_flat | mm_params_flat
 
 
 def _nested_to_flat_single(params: Params, *, name: str) -> Params:
