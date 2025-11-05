@@ -23,7 +23,7 @@ from typing import Literal
 
 from etils import enp
 from gemma.gm.data import _functional
-from gemma.gm.nn import _transformer
+from gemma.gm.nn import _transformer_like
 from gemma.gm.text import _prefill
 from gemma.gm.text import _sampler_loop
 from gemma.gm.text import _sampling
@@ -115,7 +115,7 @@ class Sampler:
   """
   # pylint: enable=g-docstring-quotes
 
-  model: _transformer.Transformer
+  model: _transformer_like.TransformerLike
   params: _common.Params
   tokenizer: _tokenizer.Tokenizer = None  # pytype: disable=annotation-type-mismatch
   sampling: _sampling.SamplingMethod = dataclasses.field(

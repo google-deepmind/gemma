@@ -20,7 +20,7 @@ import dataclasses
 
 from gemma.gm.data import _functional
 from gemma.gm.nn import _config
-from gemma.gm.nn import _transformer
+from gemma.gm.nn import _transformer_like
 from gemma.gm.text import _sampler_loop
 from gemma.gm.text import _turn_utils
 from gemma.gm.typing import _common
@@ -49,7 +49,7 @@ class PrefillInput:
 
 def prefill(
     *,
-    model: _transformer.Transformer,
+    model: _transformer_like.TransformerLike,
     params: _common.Params,
     input: _types.Input,  # pylint: disable=redefined-builtin
     last_state: _sampler_loop.SamplingState | None,
@@ -257,7 +257,7 @@ def _get_or_init_cache(
     *,
     inputs: _types.Input,
     prev_turns: _turn_utils.PrevTurns,
-    model: _transformer.Transformer,
+    model: _transformer_like.TransformerLike,
     params: _common.Params,
     cache_length: int,
     sharding: kd.sharding.ShardingTree | None,

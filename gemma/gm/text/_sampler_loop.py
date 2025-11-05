@@ -23,7 +23,7 @@ import functools
 import einops
 import flax
 from gemma.gm.nn import _config
-from gemma.gm.nn import _transformer
+from gemma.gm.nn import _transformer_like
 from gemma.gm.text import _sampling
 from gemma.gm.text import _tokenizer
 from gemma.gm.typing import _common
@@ -106,7 +106,7 @@ class SamplerLoop:
   `jax.jit`.
   """
 
-  model: _transformer.Transformer
+  model: _transformer_like.TransformerLike
   end_tokens: tuple[int, ...]
   forbidden_tokens: tuple[int, ...] | None
   sampling: _sampling.SamplingMethod
