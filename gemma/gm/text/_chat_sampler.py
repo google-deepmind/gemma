@@ -127,6 +127,15 @@ class ChatSampler:
         max_out_length=self.max_out_length,
     )
 
+  def resize_cache(self, new_cache_size):
+    """Resize the cache while preserving existing data."""
+
+    if new_cache_size < len(self.cache):
+        raise ValueError("Cache length must be greater than zero.")
+
+    # Update cache length
+    self.cache_length = new_cache_size
+
   def chat(
       self,
       prompt: str,
