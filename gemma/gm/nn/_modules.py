@@ -67,11 +67,12 @@ class Embedder(nn.Module):
 
   def setup(self):
     # Embedding matrix of shape [vocab_size, embed_dim]
-    self.input_embedding_table = self.param(
-        'input_embedding',
-        nn.initializers.normal(),
-        (self.vocab_size, self.embed_dim),
-    )
+    if not self.vision_proj_dim:
+      self.input_embedding_table = self.param(
+          'input_embedding',
+          nn.initializers.normal(),
+          (self.vocab_size, self.embed_dim),
+      )
 
     # For the multi-modal models, the encoder has additional parameters:
     # * `mm_soft_embedding_norm` and `mm_input_projection`: Those weights
