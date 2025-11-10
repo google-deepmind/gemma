@@ -219,7 +219,7 @@ def _get_new_mm_tokens(
     offset_by: int,
     length_with_mm: int,
 ) -> Int['B max_num_images num_tokens_per_image+4']:
-  # Jax vmap does not support positional argiments, so need the
+  # Jax vmap does not support positional arguments, so need the
   # _get_new_mm_tokens_inner indirection.
   return jax.vmap(
       _get_new_mm_tokens_inner, in_axes=(0, None, None, None, None)

@@ -68,7 +68,7 @@ class ChatSampler:
       conversation can have (prompts, answers, images for all turns). Setting
       this to a fixed value avoids re-compilation between turns.
     max_out_length: Length of the output buffer for a single turn. Static value
-      used to avoid trigering a jit recompilation. Shouldn't be changed unless
+      used to avoid triggering a jit recompilation. Shouldn't be changed unless
       you have a task where the model generates really long outputs.
     last_state: Last state of the sampler, automatically handled by the sampler,
       but exposed for power users to access the logits, cache, ... or initialize
