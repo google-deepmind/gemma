@@ -292,11 +292,6 @@ class Sampler:
     rng = _normalize_rng(rng)
 
     has_batch_dim = _get_has_batch_dim(prompt)
-    if stream and has_batch_dim:
-      raise ValueError(
-          'Streaming is not supported for batched prompts. Let us know if you'
-          ' need this feature.'
-      )
 
     # Normalize the text, images. Tokenize, shard,...
     inputs = self._get_inputs(
@@ -365,6 +360,7 @@ class Sampler:
       return self._stream_decode_state(  # pytype: disable=bad-return-type
           state,
           return_state=return_state,
+          has_batch_dim=has_batch_dim,
       )
     else:
       return self._decode_state(  # pytype: disable=bad-return-type
@@ -466,12 +462,13 @@ class Sampler:
       state_iter: Iterator[_sampler_loop.SamplingState],
       *,
       return_state: bool,
+      has_batch_dim: bool,
   ):
     for i, state in enumerate(state_iter):
       yield self._decode_state(
           state,
-          predicted_tokens=state.predicted_tokens[..., i],
-          has_batch_dim=False,
+          predicted_tokens=state.predicted_tokens[..., :i+1],
+          has_batch_dim=has_batch_dim,
           return_state=return_state,
       )
 
