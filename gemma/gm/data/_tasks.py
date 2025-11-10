@@ -29,15 +29,6 @@ from kauldron import kd
 import numpy as np
 
 
-# Note: The template end by `\n` !
-_PROMPT_TEMPLATE = """\
-<start_of_turn>user
-{}<end_of_turn>
-<start_of_turn>model
-"""
-_ANSWER_TEMPLATE = "{}<end_of_turn>"
-
-
 @dataclasses.dataclass(kw_only=True, frozen=True)
 class Seq2SeqTask(grain.MapTransform):
   """Sequence-to-sequence task.
