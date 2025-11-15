@@ -104,3 +104,4 @@ def _get_logprobs_for_target(
   log_probs = jnp.squeeze(log_probs, axis=-1)
   log_probs = jnp.sum(log_probs * sequence_mask, axis=-1)
   return log_probs
+# i have done nothing but just seen the repo
