@@ -205,7 +205,7 @@ class SamplerLoop:
     for _ in range(max_new_tokens):
       # Exit if the cache is full.
       cache = _cache_helper.Cache(state.cache)
-      if state.done[0].tolist() or cache.is_full:
+      if jnp.all(state.done) or cache.is_full:
         break
 
       state = self._sample_step(
