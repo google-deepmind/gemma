@@ -45,6 +45,7 @@ with _epy.lazy_api_imports(globals()):
   from gemma.gm.nn._quantization import IntWrapper
   from gemma.gm.nn._policy import AnchoredPolicy
   from gemma.gm.nn._transformer import Transformer
+  from gemma.gm.nn._transformer_like import TransformerLike
 
   # ****************************************************************************
   # Transformer building blocks

@@ -19,7 +19,7 @@ import dataclasses
 import functools
 
 # from gemma.gm.data import _functional
-from gemma.gm.nn import _transformer
+from gemma.gm.nn import _transformer_like
 from gemma.gm.text import _sampler
 from gemma.gm.text import _sampler_loop
 from gemma.gm.text import _sampling
@@ -77,7 +77,7 @@ class ChatSampler:
   """
   # TODO(epot): Custom repr to avoid displaying the full weights.
 
-  model: _transformer.Transformer
+  model: _transformer_like.TransformerLike
   params: _common.Params = dataclasses.field(repr=False)
   multi_turn: bool = False
   print_stream: bool = False
