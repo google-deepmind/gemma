@@ -111,7 +111,7 @@ def prefill(
       {'params': params},
       tokens=prefill_input.tokens,
       images=prefill_input.images,
-      # Slice the cache to the prompt length, to avoid shape missmatch error.
+      # Slice the cache to the prompt length, to avoid shape mismatch error.
       cache=prefill_input.cache.cache,
       positions=prefill_input.positions,
       attention_mask=prefill_input.attention_mask,
