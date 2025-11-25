@@ -225,10 +225,16 @@ def _print_stream(
 ) -> _sampler.SamplerOutput:
   """Prints the streaming output."""
   text_tokens = []
+  last_state = None
   for state in out:
+    last_state = state  # Track the last state to avoid undefined variable
     text_tokens.append(state.text)
     if state.text == '<end_of_turn>':  # Last token is not printed.
       continue
     print(state.text, end='', flush=True)
-  out = dataclasses.replace(state, text=''.join(text_tokens))  # pylint: disable=undefined-variable,undefined-loop-variable
+  if last_state is None:
+    raise ValueError(
+        'Empty iterator passed to _print_stream. No states were yielded.'
+    )
+  out = dataclasses.replace(last_state, text=''.join(text_tokens))
   return out
