@@ -59,4 +59,47 @@ jobs:
       with:
         pypi-token: ${{ secrets.PYPI_API_TOKEN }}
         gh-token: ${{ secrets.GITHUB_TOKEN }}
-        parse-changelog: true
+        parse-changelog: false
+      id: publish
+
+    - name: Generate Changelog
+      if: steps.publish.outputs.is-released == 'true'
+      uses: mikepenz/release-changelog-builder-action@v4
+      id: build_changelog
+      with:
+        mode: "COMMIT"
+        configurationJson: |
+          {
+            "template": "# Changes\n\n#{{categories}}\n",
+            "categories": [
+              {
+                "title": "## Features",
+                "labels": ["^Add", "^Adding", "^Introduce", "^Expose", "^Support", "^New", "^Feat", "^Feature", "^Allow", "^Implement", "^Enable"]
+              },
+              {
+                "title": "## Bug Fixes",
+                "labels": ["^[Ff]ix", "^Fixing", "^Correct", "^Resolve", "^Patch", "^Bug"]
+              },
+              {
+                "title": "## Documentation",
+                "labels": ["^Doc", "^Docs", "^Document", "^Update README", "^More doc", "^Clarify", "^Updating"]
+              },
+              {
+                "title": "## Maintenance",
+                "labels": ["^Remove", "^Modify", "^Modifying", "^Refactor", "^Replace", "^Update", "^Upgrade", "^Bump", "^Misc", "^Temporary", "^Chore", "^Test", "^CI", "^Rename", "^Internal", "^Configure", "^Filter", "^Make", "^Log"]
+              }
+            ],
+            "ignore_emoji": true,
+            "pr_template": "- #{{TITLE}}",
+            "empty_template": "- No changes found for this category."
+          }
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Update Release
+      if: steps.publish.outputs.is-released == 'true'
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: v${{ steps.publish.outputs.version }}
+        body: ${{ steps.build_changelog.outputs.changelog }}
+        token: ${{ secrets.GITHUB_TOKEN }}
