@@ -64,7 +64,7 @@ jobs:
 
     - name: Generate Changelog
       if: steps.publish.outputs.is-released == 'true'
-      uses: mikepenz/release-changelog-builder-action@v4
+      uses: mikepenz/release-changelog-builder-action@32e3c96f29a6532607f638797455e9e98cfc703d # v4
       id: build_changelog
       with:
         mode: "COMMIT"
@@ -98,7 +98,7 @@ jobs:
 
     - name: Update Release
       if: steps.publish.outputs.is-released == 'true'
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@5be0e66a0e4c4c9c0a13b04c4963e8b8e9f4c5e5 # v2.4.2
       with:
         tag_name: v${{ steps.publish.outputs.version }}
         body: ${{ steps.build_changelog.outputs.changelog }}
