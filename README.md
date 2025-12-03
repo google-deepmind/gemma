@@ -27,6 +27,11 @@ report issues and feedback in
     pip install gemma
     ```
 
+**Platform-Specific Notes:**
+- **macOS (Apple Silicon):** See our [macOS Installation Guide](./docs/MACOS_INSTALL.md) to avoid mutex issues
+- **Windows:** The `grain` package is automatically excluded (not required)
+- **Linux GPU:** Ensure you install JAX with CUDA support for GPU acceleration
+
 ### Examples
 
 Here is a minimal example to have a multi-turn, multi-modal conversation with
