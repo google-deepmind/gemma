@@ -44,6 +44,10 @@ dependencies = [
     "orbax-checkpoint",
     "sentencepiece",
     "treescope",
+    # Protobuf version constraint to maintain compatibility
+    # with both HuggingFace/Transformers (4.x) and TensorFlow (5.x+)
+    # Users needing specific versions should create separate environments
+    "protobuf>=4.25.3,<6.0.0",
 ]
 
 # `version` is automatically set by flit to use `gemma.__version__`
