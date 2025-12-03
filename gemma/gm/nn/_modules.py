@@ -268,6 +268,15 @@ class Attention(nn.Module):
       # [batch_size, seq_len, cache_size]
       attn_mask *= sliding_mask
 
+    # Ensure attention mask cache dimension matches logits cache dimension.
+    # The attn_mask may have been created with a larger cache_length during
+    # prefill, but the actual cache (and thus logits) may have been sliced.
+    # Shape: logits is [batch_size, seq_len, num_heads, cache_size]
+    actual_cache_size = logits.shape[-1]
+    if attn_mask.shape[-1] != actual_cache_size:
+      # Slice the attention mask to match the actual cache size being used.
+      attn_mask = attn_mask[..., :actual_cache_size]
+
     # [batch_size, seq_len, num_heads, cache_size]
     padded_logits = jnp.where((jnp.expand_dims(attn_mask, -2)), logits, K_MASK)
 
