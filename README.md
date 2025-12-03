@@ -86,8 +86,30 @@ To download the model weights. See
 
 ### System Requirements
 
-Gemma can run on a CPU, GPU and TPU. For GPU, we recommend 8GB+ RAM on GPU for
-The 2B checkpoint and 24GB+ RAM on GPU are used for the 7B checkpoint.
+Gemma can run on a CPU, GPU and TPU. Below are the recommended hardware specifications:
+
+#### GPU Requirements
+
+**Gemma 2B Checkpoint:**
+- **Minimum VRAM:** 8GB+
+- **Recommended GPUs:**
+  - NVIDIA: RTX 3060 (12GB), RTX 4060 (8GB), RTX 3070 (8GB), RTX 4060 Ti (8GB/16GB)
+  - AMD: RX 6600 XT (8GB), RX 6700 XT (12GB), RX 7600 (8GB)
+  - Professional: NVIDIA T4 (16GB), A4000 (16GB)
+
+**Gemma 7B Checkpoint:**
+- **Minimum VRAM:** 24GB+
+- **Recommended GPUs:**
+  - NVIDIA: RTX 4090 (24GB), RTX 3090 (24GB), RTX 3090 Ti (24GB)
+  - AMD: Radeon RX 7900 XTX (24GB), Radeon RX 7900 XT (20GB)
+  - Professional: NVIDIA A5000 (24GB), A6000 (48GB), L40 (48GB), H100 (80GB)
+
+**Quantization Benefits:**
+- **Full Precision (Float16/BF16):** ~19GB VRAM for 7B models
+- **INT8 Quantization:** ~10GB VRAM for 7B models
+- **INT4 Quantization:** ~5GB VRAM for 7B models
+
+> **Note:** Using quantization techniques (INT8/INT4) can significantly reduce VRAM requirements, making 7B models accessible on GPUs with 12-16GB VRAM.
 
 ### Contributing
 
