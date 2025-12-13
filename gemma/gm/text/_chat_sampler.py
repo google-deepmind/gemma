@@ -74,6 +74,8 @@ class ChatSampler:
       but exposed for power users to access the logits, cache, ... or initialize
       the sampler.
     turns: The current conversation.
+    cache_usage: Property that returns the current cache usage as (used, total)
+      tokens. Returns `None` if no sampling has been performed yet.
   """
   # TODO(epot): Custom repr to avoid displaying the full weights.
 
@@ -88,7 +90,6 @@ class ChatSampler:
   forbidden_tokens: Sequence[str | int] | None = None
   stop_tokens: Sequence[str | int] | None = None
   # TODO(epot): Support and test rolling cache.
-  # TODO(epot): Add a property to show how much of the cache is used.
   cache_length: int | None = 4096
   max_out_length: int = 2048
 
@@ -126,6 +127,29 @@ class ChatSampler:
         cache_length=self.cache_length,
         max_out_length=self.max_out_length,
     )
+
+  @property
+  def cache_usage(self) -> tuple[int, int] | None:
+    """Returns the current cache usage as (used, total).
+
+    Returns:
+      A tuple of (used_cache_length, total_cache_length) if sampling has been
+      performed, otherwise `None`. The `used_cache_length` includes the prompt,
+      previous turns, and generated tokens so far.
+
+    Example:
+      ```python
+      sampler = ChatSampler(model=model, params=params)
+      sampler.chat('Hello')
+      used, total = sampler.cache_usage
+      print(f'Cache: {used}/{total} tokens ({100*used/total:.1f}%)')
+      ```
+    """
+    if self.last_state is None or self.cache_length is None:
+      return None
+    used = int(self.last_state.used_cache_length)
+    total = self.cache_length
+    return (used, total)
 
   def chat(
       self,

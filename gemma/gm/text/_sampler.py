@@ -128,6 +128,36 @@ class Sampler:
   max_out_length: int = 2048
   pad_length: None | int | tuple[int, ...] = (256, 512, 1024)
 
+  @staticmethod
+  def get_cache_usage(
+      state: _sampler_loop.SamplingState | None,
+      cache_length: int,
+  ) -> tuple[int, int] | None:
+    """Returns the cache usage from a sampling state.
+
+    Args:
+      state: The sampling state from a previous `sample()` call with
+        `return_state=True`. If `None`, returns `None`.
+      cache_length: The total cache length configured for the sampler.
+
+    Returns:
+      A tuple of (used_cache_length, total_cache_length) if state is provided,
+      otherwise `None`. The `used_cache_length` includes the prompt and
+      generated tokens.
+
+    Example:
+      ```python
+      sampler = Sampler(model=model, params=params)
+      output = sampler.sample('Hello', return_state=True)
+      used, total = Sampler.get_cache_usage(output.state, sampler.cache_length)
+      print(f'Cache: {used}/{total} tokens ({100*used/total:.1f}%)')
+      ```
+    """
+    if state is None:
+      return None
+    used = int(state.used_cache_length)
+    return (used, cache_length)
+
   def __post_init__(self):
     # If not provided, initialize the tokenizer.
     if self.tokenizer is None:
