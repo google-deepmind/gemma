@@ -67,7 +67,7 @@ Our documentation contains various Colabs and tutorials, including:
 
 Additionally, our
 [examples/](https://github.com/google-deepmind/gemma/tree/main/examples) folder
-contain additional scripts to fine-tune and sample with Gemma.
+contains additional scripts to fine-tune and sample with Gemma.
 
 ### Learn more about Gemma
 
