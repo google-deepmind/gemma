@@ -23,7 +23,7 @@ def get_recommended_model():
         return '1b'
     elif 8 <= ram_gb < 16:
         return '4b'
-    elif 16 <= ram_gb < 32:
+    elif 16 <= ram_gb <= 32:
         return '12b'
     else:
         return '27b'
