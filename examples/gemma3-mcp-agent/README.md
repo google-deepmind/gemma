@@ -22,8 +22,10 @@ pip install -r requirements.txt
 
 ## 🏗️ The "Gemma 3 Bridge"
 
-This bridge is uniquely designed to bypass the common "regex parser" failures found in standard implementations. It utilizes the **Official Native Tokens** for high-reliability tool execution:
+This bridge is uniquely designed to bypass the common "regex parser" failures found in standard implementations. It utilizes the **Official Native Tokens** for high-reliability tool execution.
 
+### Key Features
+* **Model Intelligence Layer**: Automatically detects system RAM to recommend the optimal Gemma 3 size (1B, 4B, 12B, or 27B).
 * **Official Specification**: Aligns with `FunctionGemma` standards using the `declaration:tool_name{schema}` format.
 * **Native Transitions**: Uses official control tokens:
     * `<start_function_call>` and `<end_function_call>`

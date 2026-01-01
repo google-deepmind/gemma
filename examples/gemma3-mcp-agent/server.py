@@ -1,11 +1,27 @@
 import os, json, re, httpx, asyncio
 from mcp.server.fastmcp import FastMCP
 
+# Import hardware intelligence layer
+from config import MODEL_MAP, get_model_identifier
+from system_utils import get_recommended_model, get_total_ram_gb
+
 mcp = FastMCP("Gemma-MCP-Gateway")
 
-# Configuration
+# Configuration and Hardware Intelligence
 OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434/api/generate")
-MODEL_NAME = os.environ.get("GEMMA_MODEL", "gemma3")
+
+# Detect hardware and select model
+total_ram = get_total_ram_gb()
+recommended_size = get_recommended_model()
+default_model = MODEL_MAP[recommended_size]
+
+# Check for override in config or env
+env_model = get_model_identifier()
+MODEL_NAME = env_model if env_model else default_model
+
+print(f"--- Gemma MCP Gateway Startup ---")
+print(f"Detected {total_ram}GB RAM. Defaulting to {MODEL_NAME} for optimal performance.")
+print(f"---------------------------------")
 
 # Official trigger phrase for Gemma 3 function calling
 GEMMA_SYSTEM_PROMPT = "You are a model that can do function calling with the following functions"

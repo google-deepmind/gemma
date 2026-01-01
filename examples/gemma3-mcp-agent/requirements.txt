@@ -2,3 +2,4 @@ mcp
 fastmcp
 httpx
 pydantic
+psutil
