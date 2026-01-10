@@ -46,14 +46,16 @@ def pad(
   Returns:
     The padded sequence of length `max_length`.
   """
-  if axis != -1:
-    raise NotImplementedError("Only `axis=-1` is supported.")
+  # Axis check removed to support arbitrary axes
+  # if axis != -1:
+  #   raise NotImplementedError("Only `axis=-1` is supported.")
   return jax.tree.map(
       lambda x: _pad(
           x,
           max_length=max_length,
           fill_value=fill_value,
           truncate=truncate,
+          axis=axis,
       ),
       element,
       is_leaf=_is_list_array,  # Also supports `[0, 1, ...]`
@@ -66,6 +68,7 @@ def _pad(
     max_length: int,
     fill_value: int,
     truncate: bool = False,
+    axis: int = -1,
 ) -> Array["max_length"]:
   """Inner padding implementation."""
   # Use `xnp` so it supports both `np` and `jnp`.
@@ -73,18 +76,27 @@ def _pad(
 
   element = xnp.asarray(element)
 
-  # TODO(epot): Could add an `axis=` kwarg to support multi-dimensional arrays.
-  seq_length = element.shape[-1]
+  seq_length = element.shape[axis]
   if not truncate and seq_length > max_length:
     raise ValueError(
         f"Cannot pad sequence of length {seq_length}. Is longer than the"
         f" max length {max_length}. Set `truncate=True`."
     )
-  sentence_tokens = element[..., :max_length]
+  
+  # Slice to max_length along the specified axis
+  indices = [slice(None)] * element.ndim
+  indices[axis] = slice(0, max_length)
+  sentence_tokens = element[tuple(indices)]
 
-  pad_width = [(0, 0)] * (sentence_tokens.ndim - 1) + [
-      (0, max_length - sentence_tokens.shape[-1])
-  ]
+  # Calculate padding
+  # We need (0,0) for all axes except the target axis
+  pad_width = [(0, 0)] * element.ndim
+  padding_needed = max_length - sentence_tokens.shape[axis]
+  
+  # Handle negative axis index
+  axis = axis % element.ndim
+  pad_width[axis] = (0, padding_needed)
+
   return xnp.pad(sentence_tokens, pad_width, constant_values=fill_value)
 
 
