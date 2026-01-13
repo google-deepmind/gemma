@@ -25,6 +25,11 @@ PROMPT = """\
 {}<end_of_turn>
 <start_of_turn>model
 """
+TOOL_PROMPT = """\
+<start_of_turn>tool
+{}<end_of_turn>
+<start_of_turn>model
+"""
 ANSWER = '{}<end_of_turn>'
 
 

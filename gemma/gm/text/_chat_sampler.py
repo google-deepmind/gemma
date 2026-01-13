@@ -14,6 +14,8 @@
 
 """Chat sampler."""
 
+from __future__ import annotations
+
 from collections.abc import Iterator, Sequence
 import dataclasses
 import functools
@@ -186,7 +188,10 @@ class ChatSampler:
     unformatted_prompt = prompt
 
     # Format the prompt.
-    prompt = _template.PROMPT.format(prompt)
+    if issubclass(_turn_type, _template.ToolTurn):
+      prompt = _template.TOOL_PROMPT.format(prompt)
+    else:
+      prompt = _template.PROMPT.format(prompt)
 
     if not multi_turn:
       # Non-multi-turn, erase the previous conversations.
@@ -212,7 +217,11 @@ class ChatSampler:
       out = _print_stream(out)
     assert isinstance(out, _sampler.SamplerOutput)  # For pytype.
     assert isinstance(out.text, str)  # For pytype.
-    model_output = out.text.removesuffix('<end_of_turn>')  # pytype: disable=attribute-error
+    # model_output = out.text.removesuffix('<end_of_turn>')  # pytype: disable=attribute-error
+    if out.text.endswith('<end_of_turn>'):
+      model_output = out.text[:-len('<end_of_turn>')]
+    else:
+      model_output = out.text
 
     # Save the turns (after un-formatting).
     # Only save the user turn after the sampling has successfully finished.
