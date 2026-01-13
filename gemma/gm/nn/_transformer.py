@@ -114,7 +114,7 @@ class Transformer(nn.Module):
 
   def setup(self):
     self.embedder = _modules.Embedder(
-        vocab_size=self.config.num_embed,
+        vocab_size=self.config.vocab_size,
         embed_dim=self.config.embed_dim,
         vision_proj_dim=self.config.vision_encoder.siglip_encoder.width
         if self.config.vision_encoder

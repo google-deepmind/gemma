@@ -33,11 +33,21 @@ class TransformerConfig(Protocol):
 
   Attributes:
     input_config: Configuration for the model's input.
-    num_embed: Vocabulary size.
+    vocab_size: Vocabulary size.
+    embed_dim: Embedding dimension.
+    num_heads: Number of attention heads.
+    num_kv_heads: Number of key/value heads.
+    head_dim: Attention head dimension.
+    num_layers: Number of transformer layers.
   """
 
   input_config: _types.InputConfig
-  num_embed: int
+  vocab_size: int
+  embed_dim: int
+  num_heads: int
+  num_kv_heads: int
+  head_dim: int
+  num_layers: int
 
   def init_cache(
       self,

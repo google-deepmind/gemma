@@ -128,45 +128,43 @@ class IntWrapper(nn.Module):
 def _replace_by_simulated_quantization(
     module: nn.Module, *, method: peft.QuantizationMethod
 ):
-  match module:
-    case nn.Dense():
-      return peft.SimulateQuantizedDense(wrapped=module, method=method)
-    case nn.Einsum():
-      return peft.SimulateQuantizedEinsum(wrapped=module, method=method)
-    case _layers.Einsum():
-      # This hack is required because the FeedForward layer call two different
-      # Einsum with using `nn.share_scope`, so the two wrappers need a different
-      # name.
-      # This seems to be a bug in flax interceptor.
-      return _SimulateQuantizedEinsum(
-          name=module.name + 'qat',
-          method=method,
-          shape=module.shape,
-          weight_name=module.weight_name,
-          wrapped=module,
-      )
-    case _:
-      return module
+  if isinstance(module, nn.Dense):
+    return peft.SimulateQuantizedDense(wrapped=module, method=method)
+  elif isinstance(module, nn.Einsum):
+    return peft.SimulateQuantizedEinsum(wrapped=module, method=method)
+  elif isinstance(module, _layers.Einsum):
+    # This hack is required because the FeedForward layer call two different
+    # Einsum with using `nn.share_scope`, so the two wrappers need a different
+    # name.
+    # This seems to be a bug in flax interceptor.
+    return _SimulateQuantizedEinsum(
+        name=module.name + 'qat',
+        method=method,
+        shape=module.shape,
+        weight_name=module.weight_name,
+        wrapped=module,
+    )
+  else:
+    return module
 
 
 def _replace_by_int(module: nn.Module, dtype: jnp.dtype):
-  match module:
-    case nn.Dense():
-      return peft.IntDense(wrapped=module, dtype=dtype)
-    case nn.Einsum():
-      return peft.IntEinsum(wrapped=module, dtype=dtype)
-    case _layers.Einsum():
-      # This hack is required because the FeedForward layer call two different
-      # Einsum with using `nn.share_scope`, so the two wrappers need a different
-      # name.
-      # This seems to be a bug in flax interceptor.
-      if module.weight_name != 'w':
-        name = f'_IntEinsum_{module.weight_name}'
-      else:
-        name = None
-      return _IntEinsum(name=name, shape=module.shape, dtype=dtype)
-    case _:
-      return module
+  if isinstance(module, nn.Dense):
+    return peft.IntDense(wrapped=module, dtype=dtype)
+  elif isinstance(module, nn.Einsum):
+    return peft.IntEinsum(wrapped=module, dtype=dtype)
+  elif isinstance(module, _layers.Einsum):
+    # This hack is required because the FeedForward layer call two different
+    # Einsum with using `nn.share_scope`, so the two wrappers need a different
+    # name.
+    # This seems to be a bug in flax interceptor.
+    if module.weight_name != 'w':
+      name = f'_IntEinsum_{module.weight_name}'
+    else:
+      name = None
+    return _IntEinsum(name=name, shape=module.shape, dtype=dtype)
+  else:
+    return module
 
 
 class _SimulateQuantizedEinsum(nn.Module):

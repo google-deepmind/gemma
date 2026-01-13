@@ -108,25 +108,24 @@ def _replace_by_lora(
       logging.info(debug_str)
 
   # TODO(epot): Replace by generic LoRA wrapper ?
-  match module:
-    case nn.Dense():
-      return peft.LoRADense(rank=rank, dtype=dtype, wrapped=module)
-    case nn.Einsum():
-      return peft.LoRAEinsum(rank=rank, dtype=dtype, wrapped=module)
-    case nn.DenseGeneral():
-      return peft.LoRADenseGeneral(rank=rank, dtype=dtype, wrapped=module)
-    case _layers.Einsum():
-      # This hack is required because the FeedForward layer call two different
-      # Einsum with using `nn.share_scope`, so the two wrappers need a different
-      # name.
-      # This seems to be a bug in flax interceptor.
-      if module.weight_name != 'w':
-        name = f'_LoRAEinsum_{module.weight_name}'
-      else:
-        name = None
-      return _LoRAEinsum(name=name, rank=rank, dtype=dtype, wrapped=module)
-    case _:
-      return module
+  if isinstance(module, nn.Dense):
+    return peft.LoRADense(rank=rank, dtype=dtype, wrapped=module)
+  elif isinstance(module, nn.Einsum):
+    return peft.LoRAEinsum(rank=rank, dtype=dtype, wrapped=module)
+  elif isinstance(module, nn.DenseGeneral):
+    return peft.LoRADenseGeneral(rank=rank, dtype=dtype, wrapped=module)
+  elif isinstance(module, _layers.Einsum):
+    # This hack is required because the FeedForward layer call two different
+    # Einsum with using `nn.share_scope`, so the two wrappers need a different
+    # name.
+    # This seems to be a bug in flax interceptor.
+    if module.weight_name != 'w':
+      name = f'_LoRAEinsum_{module.weight_name}'
+    else:
+      name = None
+    return _LoRAEinsum(name=name, rank=rank, dtype=dtype, wrapped=module)
+  else:
+    return module
 
 
 class _LoRAEinsum(nn.Module):

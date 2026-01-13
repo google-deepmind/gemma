@@ -74,7 +74,7 @@ def _init_and_apply(
 
 def _get_config() -> gm.nn.config.TransformerConfig:
   return gm.nn.config.TransformerConfig(
-      num_embed=13,
+      vocab_size=13,
       embed_dim=32,
       hidden_dim=128,
       num_heads=2,
