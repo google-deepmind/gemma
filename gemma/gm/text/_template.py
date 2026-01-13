@@ -55,3 +55,8 @@ class UserTurn(Turn):
   """User turn."""
 
   # images: UInt8["N? H W C"] | None = None
+
+
+@dataclasses.dataclass(frozen=True, repr=False)
+class ToolTurn(Turn):
+  """Tool result turn."""

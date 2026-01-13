@@ -137,6 +137,8 @@ class ChatSampler:
       max_new_tokens: int | None = None,
       multi_turn: bool | None = None,
       print_stream: bool | None = None,
+      _add_turns: bool = True,
+      _turn_type: type[_template.Turn] = _template.UserTurn,
   ) -> str:
     # pylint: disable=g-docstring-quotes
     '''Samples a string from the model.
@@ -214,8 +216,10 @@ class ChatSampler:
 
     # Save the turns (after un-formatting).
     # Only save the user turn after the sampling has successfully finished.
-    self.turns.append(_template.UserTurn(unformatted_prompt))
-    self.turns.append(_template.ModelTurn(model_output))
+    if _add_turns:
+      self.turns.append(_turn_type(unformatted_prompt))
+      self.turns.append(_template.ModelTurn(model_output))
+
     object.__setattr__(self, 'last_state', out.state)
     return model_output
 
