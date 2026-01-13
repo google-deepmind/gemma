@@ -68,8 +68,7 @@ class TransformerConfig:
   final_logit_softcap: float | None
   use_post_attn_norm: bool
   use_post_ffw_norm: bool
-  # TODO(epot): Should be renamed `layers_types` or similar ?
-  attention_types: Sequence[_modules.AttentionType]
+  layers_types: Sequence[_modules.AttentionType]
   query_pre_attn_norm: QueryPreAttentionNormalisation = (
       QueryPreAttentionNormalisation.BY_ONE_OVER_SQRT_HEAD_DIM
   )
@@ -85,7 +84,7 @@ class TransformerConfig:
 
   @functools.cached_property
   def num_layers(self) -> int:
-    return len(self.attention_types)
+    return len(self.layers_types)
 
   def query_pre_attn_scalar(self) -> float:
     """Returns the scalar to multiply the query by before attention."""

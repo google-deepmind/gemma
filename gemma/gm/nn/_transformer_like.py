@@ -39,6 +39,7 @@ class TransformerConfig(Protocol):
     num_kv_heads: Number of key/value heads.
     head_dim: Attention head dimension.
     num_layers: Number of transformer layers.
+    layers_types: Sequence of layer types (e.g. attention, identity).
   """
 
   input_config: _types.InputConfig
@@ -48,6 +49,7 @@ class TransformerConfig(Protocol):
   num_kv_heads: int
   head_dim: int
   num_layers: int
+  layers_types: Sequence[Any]
 
   def init_cache(
       self,

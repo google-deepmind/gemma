@@ -114,7 +114,7 @@ def test_kv_cache_sharing_patterns():
       share_local=True,
   )
   num_layers = 10
-  attention_types = [
+  layers_types = [
       _modules.AttentionType.LOCAL_SLIDING,
       _modules.AttentionType.LOCAL_SLIDING,
       _modules.AttentionType.LOCAL_SLIDING,
@@ -127,7 +127,7 @@ def test_kv_cache_sharing_patterns():
       _modules.AttentionType.GLOBAL,
   ]
   kv_cache_sharing_patterns = _config.create_kv_cache_sharing_patterns(
-      kv_cache_sharing_config, num_layers, attention_types
+      kv_cache_sharing_config, num_layers, layers_types
   )
   assert kv_cache_sharing_patterns == [0, 1, 2, 3, 4, 3, 3, 3, 3, 4]
 

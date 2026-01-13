@@ -57,7 +57,7 @@ class Gemma2_2B(_transformer.Transformer):  # pylint: disable=invalid-name
       head_dim=256,
       num_kv_heads=4,
       final_logit_softcap=30.0,
-      attention_types=(
+      layers_types=(
           _modules.AttentionType.LOCAL_SLIDING,
           _modules.AttentionType.GLOBAL,
       )
@@ -86,7 +86,7 @@ class Gemma2_9B(_transformer.Transformer):  # pylint: disable=invalid-name
       head_dim=256,
       num_kv_heads=8,
       final_logit_softcap=30.0,
-      attention_types=(
+      layers_types=(
           _modules.AttentionType.LOCAL_SLIDING,
           _modules.AttentionType.GLOBAL,
       )
@@ -118,7 +118,7 @@ class Gemma2_27B(_transformer.Transformer):  # pylint: disable=invalid-name
       final_logit_softcap=30.0,
       use_post_attn_norm=True,
       use_post_ffw_norm=True,
-      attention_types=(
+      layers_types=(
           _modules.AttentionType.LOCAL_SLIDING,
           _modules.AttentionType.GLOBAL,
       )
@@ -149,7 +149,7 @@ class Gemma3_270M(_transformer.Transformer):  # pylint: disable=invalid-name
       use_post_attn_norm=True,
       use_post_ffw_norm=True,
       use_qk_norm=True,
-      attention_types=_config.make_attention_layers_types(
+      layers_types=_config.make_attention_layers_types(
           GEMMA3_ATTENTION_PATTERN, num_layers=_NUM_LAYERS_GEMMA3_270M
       ),
       query_pre_attn_norm=_config.QueryPreAttentionNormalisation.BY_ONE_OVER_SQRT_HEAD_DIM,
@@ -180,7 +180,7 @@ class Gemma3_1B(_transformer.Transformer):  # pylint: disable=invalid-name
       use_post_attn_norm=True,
       use_post_ffw_norm=True,
       use_qk_norm=True,
-      attention_types=_config.make_attention_layers_types(
+      layers_types=_config.make_attention_layers_types(
           GEMMA3_ATTENTION_PATTERN, num_layers=_NUM_LAYERS_GEMMA3_1B
       ),
       query_pre_attn_norm=_config.QueryPreAttentionNormalisation.BY_ONE_OVER_SQRT_HEAD_DIM,
@@ -232,7 +232,7 @@ class Gemma3_4B(_Gemma3Base):  # pylint: disable=invalid-name
       use_post_attn_norm=True,
       use_post_ffw_norm=True,
       use_qk_norm=True,
-      attention_types=_config.make_attention_layers_types(
+      layers_types=_config.make_attention_layers_types(
           GEMMA3_ATTENTION_PATTERN, num_layers=_NUM_LAYERS_GEMMA3_4B
       ),
       query_pre_attn_norm=_config.QueryPreAttentionNormalisation.BY_ONE_OVER_SQRT_HEAD_DIM,
@@ -265,7 +265,7 @@ class Gemma3_12B(_Gemma3Base):  # pylint: disable=invalid-name
       use_post_attn_norm=True,
       use_post_ffw_norm=True,
       use_qk_norm=True,
-      attention_types=_config.make_attention_layers_types(
+      layers_types=_config.make_attention_layers_types(
           GEMMA3_ATTENTION_PATTERN, num_layers=_NUM_LAYERS_GEMMA3_12B
       ),
       query_pre_attn_norm=_config.QueryPreAttentionNormalisation.BY_ONE_OVER_SQRT_HEAD_DIM,
@@ -297,7 +297,7 @@ class Gemma3_27B(_Gemma3Base):  # pylint: disable=invalid-name
       use_post_attn_norm=True,
       use_post_ffw_norm=True,
       use_qk_norm=True,
-      attention_types=_config.make_attention_layers_types(
+      layers_types=_config.make_attention_layers_types(
           GEMMA3_ATTENTION_PATTERN, num_layers=_NUM_LAYERS_GEMMA3_27B
       ),
       query_pre_attn_norm=_config.QueryPreAttentionNormalisation.BY_ONE_OVER_SQRT_EMBED_DIM_DIV_NUM_HEADS,
