@@ -19,10 +19,10 @@ report issues and feedback in
 
 ### Installation
 
-1.  Install JAX for CPU, GPU or TPU. Follow the instructions on
-    [the JAX website](https://jax.readthedocs.io/en/latest/installation.html).
-1.  Run
+**Note for Windows Users:** Native Windows installations are not officially supported and frequently encounter JAX compatibility issues. We **strongly recommend** using [WSL2 (Ubuntu 24.04)](https://learn.microsoft.com/en-us/windows/wsl/install) with **Python 3.12**. Avoid Python 3.14+ as stable JAX wheels are not yet available for these versions.
 
+1.  **Install JAX:** Follow the platform-specific instructions (CPU, GPU, or TPU) on [the JAX website](https://jax.readthedocs.io/en/latest/installation.html).
+2.  **Install Gemma:**
     ```sh
     pip install gemma
     ```
