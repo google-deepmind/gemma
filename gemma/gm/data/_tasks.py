@@ -271,6 +271,12 @@ class ContrastiveTask(grain.MapTransform):
 
 def _decode_bytes(element):
   if isinstance(element, bytes):
-    return element.decode("utf-8")
+    try:
+      return element.decode("utf-8")
+    except UnicodeDecodeError:
+      # We import locally here to avoid circular dependencies if any
+      from absl import logging
+      logging.warning("Invalid UTF-8 sequence encountered. Replacing with U+FFFD.")
+      return element.decode("utf-8", errors="replace")
   else:
     return element
