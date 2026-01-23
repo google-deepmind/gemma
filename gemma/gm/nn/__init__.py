@@ -68,3 +68,5 @@ with _epy.lazy_api_imports(globals()):
   from gemma.gm.nn._policy import AnchoredPolicyOutput
 
   from gemma.gm.nn import config
+
+  from gemma.multimodal.vision import SigLiPFromPatches
