@@ -59,4 +59,47 @@ jobs:
       with:
         pypi-token: ${{ secrets.PYPI_API_TOKEN }}
         gh-token: ${{ secrets.GITHUB_TOKEN }}
-        parse-changelog: true
+        parse-changelog: false
+      id: publish
+
+    - name: Generate Changelog
+      if: steps.publish.outputs.is-released == 'true'
+      uses: mikepenz/release-changelog-builder-action@32e3c96f29a6532607f638797455e9e98cfc703d # v4
+      id: build_changelog
+      with:
+        mode: "COMMIT"
+        configurationJson: |
+          {
+            "template": "# Changes\n\n#{{categories}}\n",
+            "categories": [
+              {
+                "title": "## Features",
+                "labels": ["^Add", "^Adding", "^Introduce", "^Expose", "^Support", "^New", "^Feat", "^Feature", "^Allow", "^Implement", "^Enable"]
+              },
+              {
+                "title": "## Bug Fixes",
+                "labels": ["^[Ff]ix", "^Fixing", "^Correct", "^Resolve", "^Patch", "^Bug"]
+              },
+              {
+                "title": "## Documentation",
+                "labels": ["^Doc", "^Docs", "^Document", "^Update README", "^More doc", "^Clarify", "^Updating"]
+              },
+              {
+                "title": "## Maintenance",
+                "labels": ["^Remove", "^Modify", "^Modifying", "^Refactor", "^Replace", "^Update", "^Upgrade", "^Bump", "^Misc", "^Temporary", "^Chore", "^Test", "^CI", "^Rename", "^Internal", "^Configure", "^Filter", "^Make", "^Log"]
+              }
+            ],
+            "ignore_emoji": true,
+            "pr_template": "- #{{TITLE}}",
+            "empty_template": "- No changes found for this category."
+          }
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Update Release
+      if: steps.publish.outputs.is-released == 'true'
+      uses: softprops/action-gh-release@5be0e66a0e4c4c9c0a13b04c4963e8b8e9f4c5e5 # v2.4.2
+      with:
+        tag_name: v${{ steps.publish.outputs.version }}
+        body: ${{ steps.build_changelog.outputs.changelog }}
+        token: ${{ secrets.GITHUB_TOKEN }}
