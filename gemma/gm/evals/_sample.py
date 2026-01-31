@@ -91,7 +91,7 @@ class SamplerEvaluator(kd.evals.EvaluatorBase):
     # TODO(epot): Better sharding, a few options:
     #  1. Allow to customize the sharding to process examples
     #  2. Or auto-detect the sharding to set to `FIRST_DIM` when possible.
-    #  3. Re-use sharding from `trainer.sharding.ds`
+    #  3. Re-use sharding from `trainer.sharding.batch`
     if self.ds.batch_size is None:
       sharding = kd.sharding.REPLICATED
     else:
