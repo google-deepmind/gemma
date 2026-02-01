@@ -208,7 +208,8 @@ class Tokenizer:
         )
     else:
       raise TypeError(
-          f'tokenizer.encode expects str or list[str], but got {type(text).__name__!r}'
+          'tokenizer.encode expects str or list[str], but got'
+          f' {type(text).__name__!r}'
       )
 
     if add_bos:
@@ -253,58 +254,18 @@ class Tokenizer:
         f'{type(self).__qualname__} does not define special tokens.'
     )
 
-  # TODO(epot): Global cache so all instances do not reload the tokenizer.
   @functools.cached_property
   def _sp(self) -> spm.SentencePieceProcessor:
     """Returns the sentencepiece processor."""
-    sp = spm.SentencePieceProcessor()
     model_file_path = _file_cache.maybe_get_from_cache(
         remote_file_path=self.path,
         cache_subdir='tokenizer',
     )
-    model_proto = epath.Path(model_file_path).read_bytes()
-
-    if self.custom_tokens:
-      model_proto = self._add_custom_tokens(model_proto)
-
-    sp.LoadFromSerializedProto(model_proto)
-    return sp
-
-  def _add_custom_tokens(self, serialized_proto: bytes) -> bytes:
-    """Update the custom tokens of the proto."""
-    proto = sentencepiece_model_pb2.ModelProto()
-    proto.ParseFromString(serialized_proto)
-
-    for i, token in self.custom_tokens.items():
-      if i < 0 or i > 98:
-        raise ValueError(
-            f'Custom token id {i} for {token!r} is not in [1, 98].'
-        )
-
-      # Update the piece
-      piece = proto.pieces[self.special_tokens.CUSTOM + i]
-      if piece.piece != f'<unused{i}>':
-        raise AssertionError(
-            f'Expected custom token id {i} for {token!r} to be `<unused{i}>`,'
-            f' but was {piece.piece}. This indicates the voab file'
-            " isn't as expected."
-        )
-      piece.piece = token
-
-      # Update the user_defined_symbols
-      # The user_defined_symbols do not have the same ids as the pieces.
-      # Gemma3 tokenizer do not have `user_defined_symbols`.
-      if proto.trainer_spec.user_defined_symbols:
-        for index, symbol in enumerate(proto.trainer_spec.user_defined_symbols):
-          if symbol == f'<unused{i}>':
-            break
-        else:
-          raise AssertionError(
-              f'Expected custom token id {i} for {token!r} to be in'
-              ' user_defined_symbols, but it was not found.'
-          )
-        proto.trainer_spec.user_defined_symbols[index] = token
-    return proto.SerializeToString()
+    return _load_sp_model(
+        str(model_file_path),
+        custom_tokens=tuple(sorted(self.custom_tokens.items())),
+        custom_token_start_index=self.special_tokens.CUSTOM,
+    )
 
   def plot_logits(
       self,
@@ -369,9 +330,7 @@ class Gemma2Tokenizer(Tokenizer):
   # TODO(epot): Add a util to auto-download and cache the tokenizer from gs://
   # bucket (e.g. in `~/.gemma/<tokenizer_name>`). Could be customized
   # through some `GEMMA_CACHE_DIR` environment variable.
-  path: epath.PathLike = (
-      'gs://gemma-data/tokenizers/tokenizer_gemma2.model'
-  )
+  path: epath.PathLike = 'gs://gemma-data/tokenizers/tokenizer_gemma2.model'
 
   special_tokens = _Gemma2SpecialTokens
 
@@ -386,9 +345,7 @@ class Gemma3Tokenizer(Tokenizer):
   # bucket (e.g. in `~/.gemma/<tokenizer_name>`). Could be customized
   # through some `GEMMA_CACHE_DIR` environment variable.
   # TODO(epot): Public GCS path
-  path: epath.PathLike = (
-      'gs://gemma-data/tokenizers/tokenizer_gemma3.model'
-  )
+  path: epath.PathLike = 'gs://gemma-data/tokenizers/tokenizer_gemma3.model'
 
   special_tokens = _Gemma3SpecialTokens
 
@@ -409,9 +366,7 @@ class Gemma3nTokenizer(Tokenizer):
   # bucket (e.g. in `~/.gemma/<tokenizer_name>`). Could be customized
   # through some `GEMMA_CACHE_DIR` environment variable.
   # TODO(epot): Public GCS path
-  path: epath.PathLike = (
-      'gs://gemma-data/tokenizers/tokenizer_gemma3n.model'
-  )
+  path: epath.PathLike = 'gs://gemma-data/tokenizers/tokenizer_gemma3n.model'
 
   special_tokens = _Gemma3SpecialTokens
 
@@ -427,3 +382,63 @@ class Gemma3nTokenizer(Tokenizer):
 def _real_whitespaces(text: str) -> str:
   """Normalize whitespaces."""
   return text.replace(_WHITESPACE_CHAR, ' ')
+
+
+@functools.lru_cache()
+def _load_sp_model(
+    model_file_path: str,
+    custom_tokens: tuple[tuple[int, str], ...],
+    custom_token_start_index: int,
+) -> spm.SentencePieceProcessor:
+  """Load the sentence piece model from the path (cached)."""
+  sp = spm.SentencePieceProcessor()
+  model_proto = epath.Path(model_file_path).read_bytes()
+
+  if custom_tokens:
+    model_proto = _update_proto_with_custom_tokens(
+        model_proto,
+        dict(custom_tokens),
+        custom_token_start_index,
+    )
+
+  sp.LoadFromSerializedProto(model_proto)
+  return sp
+
+
+def _update_proto_with_custom_tokens(
+    serialized_proto: bytes,
+    custom_tokens: dict[int, str],
+    custom_start_index: int,
+) -> bytes:
+  """Update the custom tokens of the proto."""
+  proto = sentencepiece_model_pb2.ModelProto()
+  proto.ParseFromString(serialized_proto)
+
+  for i, token in custom_tokens.items():
+    if i < 0 or i > 98:
+      raise ValueError(f'Custom token id {i} for {token!r} is not in [1, 98].')
+
+    # Update the piece
+    piece = proto.pieces[custom_start_index + i]
+    if piece.piece != f'<unused{i}>':
+      raise AssertionError(
+          f'Expected custom token id {i} for {token!r} to be `<unused{i}>`,'
+          f' but was {piece.piece}. This indicates the voab file'
+          " isn't as expected."
+      )
+    piece.piece = token
+
+    # Update the user_defined_symbols
+    # The user_defined_symbols do not have the same ids as the pieces.
+    # Gemma3 tokenizer do not have `user_defined_symbols`.
+    if proto.trainer_spec.user_defined_symbols:
+      for index, symbol in enumerate(proto.trainer_spec.user_defined_symbols):
+        if symbol == f'<unused{i}>':
+          break
+      else:
+        raise AssertionError(
+            f'Expected custom token id {i} for {token!r} to be in'
+            ' user_defined_symbols, but it was not found.'
+        )
+      proto.trainer_spec.user_defined_symbols[index] = token
+  return proto.SerializeToString()
