@@ -26,10 +26,10 @@ from grain import python as grain
 from kauldron import kd
 
 with epy.lazy_imports():
-    # pylint: disable=g-import-not-at-top   # pytype: disable=import-error
+  # pylint: disable=g-import-not-at-top   # pytype: disable=import-error
   import pyarrow as pa
   import pyarrow.parquet as pq
-    # pylint: enable=g-import-not-at-top   # pytype: disable=import-error
+  # pylint: enable=g-import-not-at-top   # pytype: disable=import-error
 
 # TODO(epot): Move to kd.data.py (or `kd.contrib` ?)
 
@@ -48,10 +48,15 @@ class ParquetDataSource(grain.RandomAccessDataSource):
 
     # Normalize path to a list.
     if isinstance(self.path, epath.PathLikeCls):
-      with epath.Path(self.path).open(mode='rb') as f:
-        return pq.read_table(f)
+      paths = [self.path]
     else:
-      return pq.read_table(self.path)
+      paths = self.path
+
+    tables = []
+    for p in paths:
+      with epath.Path(p).open(mode='rb') as f:
+        tables.append(pq.read_table(f))
+    return pa.concat_tables(tables)
 
   def __len__(self) -> int:
     return len(self.table)
