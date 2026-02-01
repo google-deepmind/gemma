@@ -68,7 +68,8 @@ class SpecialTokens(enum.IntEnum, metaclass=_DisplayEnumType):
   START_OF_TURN: ClassVar[int]  # <start_of_turn>
   END_OF_TURN: ClassVar[int]  # <end_of_turn>
 
-  START_OF_IMAGE: ClassVar[int]  # '<start_of_image>'
+  START_OF_IMAGE: ClassVar[int]  # '
+'
   END_OF_IMAGE: ClassVar[int]  # '<end_of_image>'
 
 
@@ -92,7 +93,8 @@ class _Gemma2SpecialTokens(SpecialTokens, enum.IntEnum):
   START_OF_TURN = 106  # <start_of_turn>
   END_OF_TURN = 107  # <end_of_turn>
 
-  # '<start_of_image>' = 255999
+  # '
+' = 255999
 
 
 class _Gemma3SpecialTokens(SpecialTokens, enum.IntEnum):
@@ -116,7 +118,8 @@ class _Gemma3SpecialTokens(SpecialTokens, enum.IntEnum):
   END_OF_TURN = 106  # <end_of_turn>
 
   # Multimodal tokens (Gemma3 only)
-  START_OF_IMAGE = 255999  # '<start_of_image>'
+  START_OF_IMAGE = 255999  # '
+'
   END_OF_IMAGE = 256000  # <end_of_image>
 
 
@@ -194,12 +197,23 @@ class Tokenizer:
     Returns:
       The list of token ids.
     """
+    if not isinstance(text, (str, list)):
+      raise TypeError(
+          'tokenizer.encode expects str or list[str], but got'
+          f' {type(text).__name__}'
+      )
+
     if isinstance(text, str):
       token_ids = self._sp.EncodeAsIds(text)
     else:
-      token_ids = [
-          self._sp.PieceToId(t.replace(' ', _WHITESPACE_CHAR)) for t in text
-      ]
+      token_ids = []
+      for t in text:
+        if not isinstance(t, str):
+          raise TypeError(
+              'tokenizer.encode expects str or list[str], but got'
+              f' {type(t).__name__}'
+          )
+        token_ids.append(self._sp.PieceToId(t.replace(' ', _WHITESPACE_CHAR)))
       if self.special_tokens.UNK in token_ids:
         index = token_ids.index(self.special_tokens.UNK)
         raise ValueError(
