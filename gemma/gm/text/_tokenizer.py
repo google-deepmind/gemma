@@ -208,7 +208,8 @@ class Tokenizer:
         )
     else:
       raise TypeError(
-          f'tokenizer.encode expects str or list[str], but got {type(text).__name__!r}'
+          'tokenizer.encode expects str or list[str], but got'
+          f' {type(text).__name__!r}'
       )
 
     if add_bos:
@@ -366,12 +367,7 @@ class Tokenizer:
 class Gemma2Tokenizer(Tokenizer):
   """Tokenizer for Gemma 2."""
 
-  # TODO(epot): Add a util to auto-download and cache the tokenizer from gs://
-  # bucket (e.g. in `~/.gemma/<tokenizer_name>`). Could be customized
-  # through some `GEMMA_CACHE_DIR` environment variable.
-  path: epath.PathLike = (
-      'gs://gemma-data/tokenizers/tokenizer_gemma2.model'
-  )
+  path: epath.PathLike = 'gs://gemma-data/tokenizers/tokenizer_gemma2.model'
 
   special_tokens = _Gemma2SpecialTokens
 
@@ -382,13 +378,8 @@ class Gemma2Tokenizer(Tokenizer):
 class Gemma3Tokenizer(Tokenizer):
   """Tokenizer for Gemma 3."""
 
-  # TODO(epot): Add a util to auto-download and cache the tokenizer from gs://
-  # bucket (e.g. in `~/.gemma/<tokenizer_name>`). Could be customized
-  # through some `GEMMA_CACHE_DIR` environment variable.
   # TODO(epot): Public GCS path
-  path: epath.PathLike = (
-      'gs://gemma-data/tokenizers/tokenizer_gemma3.model'
-  )
+  path: epath.PathLike = 'gs://gemma-data/tokenizers/tokenizer_gemma3.model'
 
   special_tokens = _Gemma3SpecialTokens
 
@@ -405,13 +396,8 @@ class Gemma3Tokenizer(Tokenizer):
 class Gemma3nTokenizer(Tokenizer):
   """Tokenizer for Gemma3n."""
 
-  # TODO(epot): Add a util to auto-download and cache the tokenizer from gs://
-  # bucket (e.g. in `~/.gemma/<tokenizer_name>`). Could be customized
-  # through some `GEMMA_CACHE_DIR` environment variable.
   # TODO(epot): Public GCS path
-  path: epath.PathLike = (
-      'gs://gemma-data/tokenizers/tokenizer_gemma3n.model'
-  )
+  path: epath.PathLike = 'gs://gemma-data/tokenizers/tokenizer_gemma3n.model'
 
   special_tokens = _Gemma3SpecialTokens
 
