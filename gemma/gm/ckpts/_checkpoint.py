@@ -62,7 +62,9 @@ class LoadCheckpoint(kd.ckpts.AbstractPartialLoader):
   path: epath.PathLike
   quantize: bool = False
 
-  def transform(self, state: _StateT) -> _StateT:  # pytype: disable=signature-mismatch
+  def transform(
+      self, state: _StateT
+  ) -> _StateT:  # pytype: disable=signature-mismatch
     new_params = load_params(
         self.path, params=state.params, quantize=self.quantize
     )
@@ -137,9 +139,7 @@ class _CheckpointTree:
       tree = _remove_mm_params(tree)
     return _CheckpointTree(tree=tree)
 
-  def make_tree_for_params(
-      self, params: _CheckpointTree
-  ) -> Params:
+  def make_tree_for_params(self, params: _CheckpointTree) -> Params:
     """Returns the tree matching the checkpoint structure."""
     metadata = _wrap_skip(self)
 
@@ -272,84 +272,90 @@ def load_params(
   if sharding is not None and params is not None:
     raise ValueError('`sharding` and `params` are mutually exclusive.')
 
-  ckpt = ocp.StandardCheckpointer()
-
-  metadata, path = _get_metadata_and_path(ckpt, path)
-
-  metadata = _CheckpointTree.shape_dtype_struct_like(tree=metadata)
-
   # Eventually clear up the memory.
   if donate and params is not None:
     params = release_memory(params)
 
-  # Params contain the output structure.
-  if params is None:
-    # If the params are not provided, we create a dummy tree matching the
-    # checkpoint structure, so orbax restore as bfloat16 jax.Array, rather than
-    # numpy arrays.
-    # Params are always restored as NESTED
-    params = metadata.as_nested(remove_mm=text_only and metadata.has_mm_params)
-    if sharding is not None:
-      params = kd.sharding.with_sharding_constraint(params, sharding)
+  if params is None and sharding is None:
+    tree = _load_cached_params_decorated(path, text_only, quantize)
+    tree = etree.copy(tree)  # Copy to allow mutating the tree.
   else:
-    # If params explicitly provided, use that
-    params = _CheckpointTree(tree=params)
-    if params.type != _CheckpointType.NESTED:
-      raise ValueError(
-          'The input params provided to `load_params()` should be the raw'
-          " model params matching the Flax `model.init()['params']` structure."
-          f' Got: {_CheckpointType.NESTED}'
+    ckpt = ocp.StandardCheckpointer()
+
+    metadata, path = _get_metadata_and_path(ckpt, path)
+
+    metadata = _CheckpointTree.shape_dtype_struct_like(tree=metadata)
+
+    # Params contain the output structure.
+    if params is None:
+      # If the params are not provided, we create a dummy tree matching the
+      # checkpoint structure, so orbax restore as bfloat16 jax.Array, rather than
+      # numpy arrays.
+      # Params are always restored as NESTED
+      params = metadata.as_nested(
+          remove_mm=text_only and metadata.has_mm_params
       )
-    if text_only and params.has_mm_params:
+      if sharding is not None:
+        params = kd.sharding.with_sharding_constraint(params, sharding)
+    else:
+      # If params explicitly provided, use that
+      params = _CheckpointTree(tree=params)
+      if params.type != _CheckpointType.NESTED:
+        raise ValueError(
+            'The input params provided to `load_params()` should be the raw'
+            " model params matching the Flax `model.init()['params']`"
+            f' structure. Got: {_CheckpointType.NESTED}'
+        )
+      if text_only and params.has_mm_params:
+        raise ValueError(
+            'The input params provided to `load_params()` has multimodal'
+            ' params, but `text_only` is `True`.'
+        )
+
+    if params.has_mm_params and not metadata.has_mm_params:
       raise ValueError(
-          'The input params provided to `load_params()` has multimodal params,'
-          ' but `text_only` is `True`.'
+          'The input params provided to `load_params()` has MM params, but the'
+          ' checkpoint does not. This is not supported.'
       )
 
-  if params.has_mm_params and not metadata.has_mm_params:
-    raise ValueError(
-        'The input params provided to `load_params()` has MM params, but the'
-        ' checkpoint does not. This is not supported.'
+    # Restore the params
+    # To supports different checkpoint structures, the original params have to
+    # be remapped into the checkpoint structure.
+    output_with_skip = metadata.make_tree_for_params(params)
+    restore_fn = functools.partial(ckpt.restore, path)
+    output = _partial_restore(restore_fn, output_with_skip)
+
+    # TODO(epot): Better API. Currently this do not quantize the weights, but
+    # just refactor the params to the QAT structure.
+    # Eventually quantize the params. Note: It would be better to do this
+    # while the weights are loaded, so restore do not use unecessary memory.
+    if quantize:
+      output = _quantization.convert_to_qat_checkpoint(output)
+
+    # Then after restoring, the params are remapped back to the final structure.
+    output = _CheckpointTree(tree=output)
+    output = output.as_nested(
+        remove_mm=metadata.has_mm_params and not params.has_mm_params
     )
-
-  # Restore the params
-  # To supports different checkpoint structures, the original params have to
-  # be remapped into the checkpoint structure.
-  output_with_skip = metadata.make_tree_for_params(params)
-  restore_fn = functools.partial(ckpt.restore, path)
-  output = _partial_restore(restore_fn, output_with_skip)
-
-  # TODO(epot): Better API. Currently this do not quantize the weights, but
-  # just refactor the params to the QAT structure.
-  # Eventually quantize the params. Note: It would be better to do this
-  # while the weights are loaded, so restore do not use unecessary memory.
-  if quantize:
-    output = _quantization.convert_to_qat_checkpoint(output)
-
-  # Then after restoring, the params are remapped back to the final structure.
-  output = _CheckpointTree(tree=output)
-  output = output.as_nested(
-      remove_mm=metadata.has_mm_params and not params.has_mm_params
-  )
+    tree = output.tree
 
   # HACK: Manually cast the MM embedder params to f32, otherwise, image
   # produce wrong output on old GPUs (T4, V100)
-  tree = output.tree
   # TODO: b/441529595 - Update this if we need bfloat16 for audio input
   # embedding.
-  if output.has_audio_input_embedding:
+  if 'embedder' in tree and 'audio_input_embedding' in tree['embedder']:
     tree['embedder']['audio_input_embedding'] = jax.tree.map(
         lambda x: x.astype(np.float32),
-        output.tree['embedder']['audio_input_embedding'],
+        tree['embedder']['audio_input_embedding'],
     )
-  if output.has_mm_params:
+  if 'vision_encoder' in tree:
     tree['embedder']['mm_input_projection'] = jax.tree.map(
         lambda x: x.astype(np.float32),
-        output.tree['embedder']['mm_input_projection'],
+        tree['embedder']['mm_input_projection'],
     )
     tree['embedder']['mm_soft_embedding_norm'] = jax.tree.map(
         lambda x: x.astype(np.float32),
-        output.tree['embedder']['mm_soft_embedding_norm'],
+        tree['embedder']['mm_soft_embedding_norm'],
     )
   return tree
 
@@ -381,7 +387,9 @@ def _flat_to_nested(params: Params) -> Params:
   if mm_params:
     mm_params = _flat_to_nested_single(mm_params, name='SigLiPFromPatches_0')
     # TODO(epot): More conversions needed.
-    transformer_params['vision_encoder'] = mm_params  # pytype: disable=unsupported-operands
+    transformer_params['vision_encoder'] = (
+        mm_params  # pytype: disable=unsupported-operands
+    )
   return transformer_params
 
 
