@@ -119,6 +119,7 @@ class Input:
         self.text,
         max_num_images=self.max_num_images,
         num_tokens_per_image=self.config.num_tokens_per_image,
+        special_tokens=self.config.special_tokens,
     )
 
   @property

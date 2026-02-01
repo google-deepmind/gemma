@@ -96,6 +96,7 @@ class Gemma3nTransformer(_transformer.Transformer):
       Otherwise, return all logits. Default to `False`
     dtype: The parameter dtype. Default to `jnp.bfloat16`.
   """
+
   _: dataclasses.KW_ONLY
 
   return_last_only: bool | None = None
@@ -161,7 +162,8 @@ class Gemma3nTransformer(_transformer.Transformer):
             activation_sparsity=(
                 self.config.activation_sparsity_pattern[i]
                 if self.config.activation_sparsity_pattern is not None
-                else None),
+                else None
+            ),
             use_laurel=self.config.use_laurel,
             laurel_rank=self.config.laurel_rank,
             per_layer_input_dim=self.config.per_layer_input_dim,
@@ -183,13 +185,15 @@ class Gemma3nTransformer(_transformer.Transformer):
           _layers.Einsum(
               shape=(self.config.embed_dim, self.config.embed_dim),
               weight_name=f'altup_projection_{i}',
-          ) for i in range(self.config.num_altup_inputs - 1)
+          )
+          for i in range(self.config.num_altup_inputs - 1)
       ]
       self.altup_unembed_projection = [
           _layers.Einsum(
               shape=(self.config.embed_dim, self.config.embed_dim),
               weight_name=f'altup_unembed_projection_{i}',
-          ) for i in range(self.config.num_altup_inputs - 1)
+          )
+          for i in range(self.config.num_altup_inputs - 1)
       ]
 
   if not typing.TYPE_CHECKING:
@@ -313,7 +317,9 @@ class Gemma3nTransformer(_transformer.Transformer):
             else None,
             kv_shared_cache=kv_shared_cache,
         )
-        new_cache[layer_name] = layer_cache  # pytype: disable=container-type-mismatch
+        new_cache[layer_name] = (
+            layer_cache  # pytype: disable=container-type-mismatch
+        )
 
       x = self._maybe_postprocess_embeddings_with_altup(x)
       x = self.final_norm(x)
@@ -330,6 +336,7 @@ class Gemma3nTransformer(_transformer.Transformer):
           logits=x,
           tokens=tokens,
           num_tokens_per_image=self.config.vision_encoder.num_mm_tokens_per_image,  # pytype: disable=attribute-error
+          special_tokens=self.config.input_config.special_tokens,
       )
 
     logits = self.embedder.decode(x)
@@ -501,8 +508,8 @@ class Gemma3nTransformer(_transformer.Transformer):
       target_magnitude = jnp.mean(x**2, axis=-1, keepdims=True) ** 0.5
       x = [x] * self.config.num_altup_inputs
       for i in range(1, self.config.num_altup_inputs):
-        x[i] = self.altup_projection[i-1](eq, x[i]).astype(x[0].dtype)
-        new_magnitude = jnp.mean(x[i]**2, axis=-1, keepdims=True) ** 0.5
+        x[i] = self.altup_projection[i - 1](eq, x[i]).astype(x[0].dtype)
+        new_magnitude = jnp.mean(x[i] ** 2, axis=-1, keepdims=True) ** 0.5
         x[i] *= target_magnitude / jnp.maximum(new_magnitude, 1e-12)
       if guard_against_excess_precision:
         x[0] = _layers.reduce_precision(x[0])
@@ -514,10 +521,10 @@ class Gemma3nTransformer(_transformer.Transformer):
   ) -> Float['*B L D']:
     if self.config.use_altup:
       eq = '...F,FD->...D'
-      target_magnitude = jnp.mean(x[0]**2, axis=-1, keepdims=True) ** 0.5
+      target_magnitude = jnp.mean(x[0] ** 2, axis=-1, keepdims=True) ** 0.5
       for i in range(1, self.config.num_altup_inputs):
-        x[i] = self.altup_unembed_projection[i-1](eq, x[i]).astype(x[0].dtype)
-        new_magnitude = jnp.mean(x[i]**2, axis=-1, keepdims=True) ** 0.5
+        x[i] = self.altup_unembed_projection[i - 1](eq, x[i]).astype(x[0].dtype)
+        new_magnitude = jnp.mean(x[i] ** 2, axis=-1, keepdims=True) ** 0.5
         x[i] *= target_magnitude / jnp.maximum(new_magnitude, 1e-12)
       x = jnp.mean(jnp.stack(x, axis=0), axis=0)
     return x  # pytype: disable=bad-return-type

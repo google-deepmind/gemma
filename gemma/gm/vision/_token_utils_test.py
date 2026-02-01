@@ -21,6 +21,11 @@ _IMAGE_TOKENS = [108, 255999, -2, -2, -2, 256000, 108]
 _PAD = [0] * (len(_IMAGE_TOKENS) - 1)
 
 
+class MockSpecialTokens:
+  START_OF_IMAGE = 255999
+  END_OF_IMAGE = 256000
+
+
 @pytest.mark.parametrize(
     'max_num_images, tokens, expected_output',
     [
@@ -49,6 +54,7 @@ def test_single_add_extra_tokens_for_images(
       tokens=tokens[None, ...],
       max_num_images=max_num_images,
       num_tokens_per_image=3,
+      special_tokens=MockSpecialTokens,
   )
 
   assert (
@@ -80,6 +86,7 @@ def test_batched_add_extra_tokens_for_images():
       tokens=tokens,
       max_num_images=2,
       num_tokens_per_image=3,
+      special_tokens=MockSpecialTokens,
   )
 
   expected = [
