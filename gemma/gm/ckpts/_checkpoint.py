@@ -197,6 +197,51 @@ def save_params(
     ckpt.wait_until_finished()
 
 
+def _load_cached_params(
+    path: epath.PathLike,
+    text_only: bool,
+    quantize: bool,
+) -> Params:
+  """Cached helper to restore params from orbax checkpoint."""
+  ckpt = ocp.StandardCheckpointer()
+
+  metadata, path = _get_metadata_and_path(ckpt, path)
+
+  metadata = _CheckpointTree.shape_dtype_struct_like(tree=metadata)
+
+  params = metadata.as_nested(remove_mm=text_only and metadata.has_mm_params)
+
+  # Restore the params
+  # To supports different checkpoint structures, the original params have to
+  # be remapped into the checkpoint structure.
+  output_with_skip = metadata.make_tree_for_params(params)
+  restore_fn = functools.partial(ckpt.restore, path)
+  output = _partial_restore(restore_fn, output_with_skip)
+
+  # TODO(epot): Better API. Currently this do not quantize the weights, but
+  # just refactor the params to the QAT structure.
+  # Eventually quantize the params. Note: It would be better to do this
+  # while the weights are loaded, so restore do not use unecessary memory.
+  if quantize:
+    output = _quantization.convert_to_qat_checkpoint(output)
+
+  # Then after restoring, the params are remapped back to the final structure.
+  output = _CheckpointTree(tree=output)
+  output = output.as_nested(
+      remove_mm=metadata.has_mm_params and not params.has_mm_params
+  )
+  return output.tree
+
+
+@functools.lru_cache(maxsize=128)
+def _load_cached_params_decorated(
+    path: epath.PathLike,
+    text_only: bool,
+    quantize: bool,
+) -> Params:
+  return _load_cached_params(path, text_only, quantize)
+
+
 def load_params(
     path: epath.PathLike,
     *,
