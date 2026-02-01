@@ -219,7 +219,8 @@ def load_params(
     sharding: If provided, the params will be restored with this sharding. This
       is mutually exclusive with `params`.
     quantize: If `True`, the params will be mapped to enable quantization aware
-      training.
+      training (QAT). Note: This does NOT quantize the weights to int8/int4;
+      it only converts the structure. Actual quantization occurs during training.
 
   Returns:
     The restored params.
