@@ -174,6 +174,7 @@ class Tokenizer:
       *,
       add_bos: bool = False,
       add_eos: bool = False,
+      strict: bool = False,
   ) -> list[int]:
     """Encode a text into a list of token ids.
 
@@ -190,6 +191,7 @@ class Tokenizer:
       text: The text to encode. Can be a single string or a list of tokens.
       add_bos: Whether to prepend the BOS token (`2`) (begin of sentence).
       add_eos: Whether to append the EOS token (`1`) (end of sentence).
+      strict: Whether to perform strict validation (e.g. check for UNK tokens).
 
     Returns:
       The list of token ids.
@@ -200,7 +202,7 @@ class Tokenizer:
       token_ids = [
           self._sp.PieceToId(t.replace(' ', _WHITESPACE_CHAR)) for t in text
       ]
-      if self.special_tokens.UNK in token_ids:
+      if strict and self.special_tokens.UNK in token_ids:
         index = token_ids.index(self.special_tokens.UNK)
         raise ValueError(
             f'Cannot tokenize {text!r}. Token {text[index]!r} is an unknown'
