@@ -467,7 +467,7 @@ class Sampler:
     for i, state in enumerate(state_iter):
       yield self._decode_state(
           state,
-          predicted_tokens=state.predicted_tokens[..., :i+1],
+          predicted_tokens=state.predicted_tokens[..., i],
           has_batch_dim=has_batch_dim,
           return_state=return_state,
       )
