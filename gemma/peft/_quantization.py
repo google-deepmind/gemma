@@ -20,6 +20,7 @@ import einops
 from flax import linen as nn
 from flax.linen import dtypes as flax_dtypes
 from flax.typing import Array  # pylint: disable=g-importing-member
+from gemma.gm.utils import _dtype_params
 from gemma.peft import _quantization_utils
 import jax
 import jax.numpy as jnp
@@ -220,12 +221,13 @@ class IntDense(nn.Module):
 
   @nn.compact
   def __call__(self, inputs: Array) -> Array:
-    kernel = self.param(  # pytype: disable=wrong-keyword-args
-        'kernel',
-        nn.initializers.ones_init(),
-        (inputs.shape[-1], self.wrapped.features),
-        self.dtype,
-    )
+    with _dtype_params.initialize_param_with_dtype(None):
+      kernel = self.param(  # pytype: disable=wrong-keyword-args
+          'kernel',
+          nn.initializers.ones_init(),
+          (inputs.shape[-1], self.wrapped.features),
+          self.dtype,
+      )
     scale = self.param(
         'scale',
         nn.initializers.ones_init(),
@@ -283,12 +285,13 @@ class IntEinsum(nn.Module):
     )
     einsum_str = self.process_einsum_str(einsum_str)
 
-    kernel = self.param(
-        'kernel',
-        nn.initializers.ones_init(),
-        self.wrapped.shape,
-        self.dtype,
-    ).astype(self.wrapped.dtype)
+    with _dtype_params.initialize_param_with_dtype(None):
+      kernel = self.param(
+          'kernel',
+          nn.initializers.ones_init(),
+          self.wrapped.shape,
+          self.dtype,
+      ).astype(self.wrapped.dtype)
     scale = self.param(
         'scale',
         nn.initializers.ones_init(),
