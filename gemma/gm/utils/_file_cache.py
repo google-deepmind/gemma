@@ -29,12 +29,20 @@ def maybe_get_from_cache(
     cache_subdir: str,
 ) -> epath.Path:
   """Returns the cached file if exists, otherwise returns the remote file path."""
-  filename = epath.Path(remote_file_path).name
+  remote_path = epath.Path(remote_file_path)
+  filename = remote_path.name
 
-  cache_filepath = _get_cache_dir() / cache_subdir / filename
+  cache_dir = _get_cache_dir() / cache_subdir
+  cache_filepath = cache_dir / filename
   if cache_filepath.exists():
     return cache_filepath
-  return epath.Path(remote_file_path)
+
+  # Download the file to the cache
+  cache_dir.mkdir(parents=True, exist_ok=True)
+  # TODO(epot): Add logging using `absl.logging`
+  print(f'Downloading {remote_path} to {cache_filepath}...')
+  remote_path.copy(cache_filepath)
+  return cache_filepath
 
 
 def _get_cache_dir() -> epath.Path:
