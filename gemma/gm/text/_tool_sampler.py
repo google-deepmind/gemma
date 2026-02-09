@@ -73,6 +73,7 @@ class ToolSampler(_chat_sampler.ChatSampler):
       max_new_tokens: int | None = None,
       multi_turn: bool | None = None,
       print_stream: bool | None = None,
+      _tool_called: bool = False,
   ) -> str:
     # pylint: disable=g-docstring-quotes
     """Sampler which supports tool use.
@@ -118,6 +119,7 @@ class ToolSampler(_chat_sampler.ChatSampler):
         max_new_tokens=max_new_tokens,
         multi_turn=multi_turn,
         print_stream=print_stream,
+        _turn_type=_template.ToolTurn if _tool_called else _template.UserTurn,
     )
 
     # Detect if the model requested a tool call, and execute it.
@@ -131,7 +133,7 @@ class ToolSampler(_chat_sampler.ChatSampler):
         _plot_separator()
         print(tool_answer.text, flush=True)
         _plot_separator()
-      # TODO(epot): Should use `_template.ToolTurn` or similar.
+
       return self.chat(
           tool_answer.text,
           images=tool_answer.images,
@@ -139,6 +141,7 @@ class ToolSampler(_chat_sampler.ChatSampler):
           sampling=sampling,
           rng=rng,
           print_stream=print_stream,
+          _tool_called=True,
       )
     else:
       return model_output

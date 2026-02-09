@@ -116,7 +116,7 @@ class Gemma3nTransformer(_transformer.Transformer):
 
   def setup(self):
     self.embedder = _modules.Embedder(
-        vocab_size=self.config.num_embed,
+        vocab_size=self.config.vocab_size,
         embed_dim=self.config.embed_dim,
         vision_proj_dim=self.config.vision_encoder.siglip_encoder.width
         if self.config.vision_encoder
@@ -128,7 +128,7 @@ class Gemma3nTransformer(_transformer.Transformer):
     self.kv_cache_sharing_patterns = _config.create_kv_cache_sharing_patterns(
         self.config.kv_cache_sharing_config,
         self.config.num_layers,
-        self.config.attention_types,
+        self.config.layers_types,
     )
 
     self.blocks = [
@@ -169,7 +169,7 @@ class Gemma3nTransformer(_transformer.Transformer):
             guard_against_excess_precision=self.config.guard_against_excess_precision,
         )
         for i, attn_type in zip(
-            range(self.config.num_layers), self.config.attention_types
+            range(self.config.num_layers), self.config.layers_types
         )
     ]
     self.final_norm = _layers.RMSNorm(
@@ -217,7 +217,7 @@ class Gemma3nTransformer(_transformer.Transformer):
           'return_hidden_states',
       ),
   )
-  # The function accepts/returns aribtrary batch shape, but inside the
+  # The function accepts/returns arbitrary batch shape, but inside the
   # function, the batch dimension is flattened to a single dimension.
   @_jax_utils.flatten_unflatten_batch_dim()
   @typechecked
@@ -320,8 +320,9 @@ class Gemma3nTransformer(_transformer.Transformer):
 
     if return_last_only:
       last_input_token_idx = jnp.sum(inputs.inputs_mask, axis=-1) - 1
-      # TODO(epot): Use `jnp.take_along_axis`
-      x = x[jnp.arange(len(x)), last_input_token_idx, ...]
+      last_token_idx = last_input_token_idx[..., None, None]
+      x = jnp.take_along_axis(x, last_token_idx, axis=1)
+      x = jnp.squeeze(x, axis=1)
     elif images is not None:
       # Remove the MM extra tokens inserted.
       # During fine-tuning, the prompt is always masked, and the model cannot

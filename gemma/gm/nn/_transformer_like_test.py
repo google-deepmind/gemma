@@ -74,14 +74,14 @@ def _init_and_apply(
 
 def _get_config() -> gm.nn.config.TransformerConfig:
   return gm.nn.config.TransformerConfig(
-      num_embed=13,
+      vocab_size=13,
       embed_dim=32,
       hidden_dim=128,
       num_heads=2,
       num_kv_heads=2,
       head_dim=128,
       final_logit_softcap=None,
-      attention_types=(gm.nn.AttentionType.GLOBAL,),
+      layers_types=(gm.nn.AttentionType.GLOBAL,),
       use_post_attn_norm=False,
       attn_logits_soft_cap=None,
       use_post_ffw_norm=False,

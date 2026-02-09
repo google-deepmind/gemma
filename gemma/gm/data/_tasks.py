@@ -271,6 +271,6 @@ class ContrastiveTask(grain.MapTransform):
 
 def _decode_bytes(element):
   if isinstance(element, bytes):
-    return element.decode("utf-8")
+    return element.decode("utf-8", errors="replace")
   else:
     return element

@@ -14,6 +14,8 @@
 
 """Chat sampler."""
 
+from __future__ import annotations
+
 from collections.abc import Iterator, Sequence
 import dataclasses
 import functools
@@ -68,7 +70,7 @@ class ChatSampler:
       conversation can have (prompts, answers, images for all turns). Setting
       this to a fixed value avoids re-compilation between turns.
     max_out_length: Length of the output buffer for a single turn. Static value
-      used to avoid trigering a jit recompilation. Shouldn't be changed unless
+      used to avoid triggering a jit recompilation. Shouldn't be changed unless
       you have a task where the model generates really long outputs.
     last_state: Last state of the sampler, automatically handled by the sampler,
       but exposed for power users to access the logits, cache, ... or initialize
@@ -137,6 +139,8 @@ class ChatSampler:
       max_new_tokens: int | None = None,
       multi_turn: bool | None = None,
       print_stream: bool | None = None,
+      _add_turns: bool = True,
+      _turn_type: type[_template.Turn] = _template.UserTurn,
   ) -> str:
     # pylint: disable=g-docstring-quotes
     '''Samples a string from the model.
@@ -184,7 +188,10 @@ class ChatSampler:
     unformatted_prompt = prompt
 
     # Format the prompt.
-    prompt = _template.PROMPT.format(prompt)
+    if issubclass(_turn_type, _template.ToolTurn):
+      prompt = _template.TOOL_PROMPT.format(prompt)
+    else:
+      prompt = _template.PROMPT.format(prompt)
 
     if not multi_turn:
       # Non-multi-turn, erase the previous conversations.
@@ -210,12 +217,18 @@ class ChatSampler:
       out = _print_stream(out)
     assert isinstance(out, _sampler.SamplerOutput)  # For pytype.
     assert isinstance(out.text, str)  # For pytype.
-    model_output = out.text.removesuffix('<end_of_turn>')  # pytype: disable=attribute-error
+    # model_output = out.text.removesuffix('<end_of_turn>')  # pytype: disable=attribute-error
+    if out.text.endswith('<end_of_turn>'):
+      model_output = out.text[:-len('<end_of_turn>')]
+    else:
+      model_output = out.text
 
     # Save the turns (after un-formatting).
     # Only save the user turn after the sampling has successfully finished.
-    self.turns.append(_template.UserTurn(unformatted_prompt))
-    self.turns.append(_template.ModelTurn(model_output))
+    if _add_turns:
+      self.turns.append(_turn_type(unformatted_prompt))
+      self.turns.append(_template.ModelTurn(model_output))
+
     object.__setattr__(self, 'last_state', out.state)
     return model_output
 

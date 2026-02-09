@@ -54,7 +54,7 @@ def make_attention_layers_types(
 def create_kv_cache_sharing_patterns(  # pylint: disable=invalid-name
     kv_cache_sharing_config: KVCacheSharingConfig,
     num_layers: int,
-    attention_types: Sequence[_modules.AttentionType],
+    layers_types: Sequence[_modules.AttentionType],
 ) -> list[int]:
   """Creates a list of layer indices for which KV cache is used."""
   if kv_cache_sharing_config is not None:
@@ -67,12 +67,12 @@ def create_kv_cache_sharing_patterns(  # pylint: disable=invalid-name
         kv_cache_sharing_patterns.append(i)
       else:
         if (
-            attention_types[i] == _modules.AttentionType.GLOBAL
+            layers_types[i] == _modules.AttentionType.GLOBAL
             and kv_cache_sharing_config.share_global
         ):
           kv_cache_sharing_patterns.append(num_unshared_layers - 1)
         elif (
-            attention_types[i] == _modules.AttentionType.LOCAL_SLIDING
+            layers_types[i] == _modules.AttentionType.LOCAL_SLIDING
             and kv_cache_sharing_config.share_local
         ):
           kv_cache_sharing_patterns.append(num_unshared_layers - 2)
@@ -103,7 +103,7 @@ class QueryPreAttentionNormalisation(enum.Enum):
 class TransformerConfig:
   """Configuration for the gemma transformer."""
 
-  num_embed: int  # TODO(epot): Rename to `vocab_size` for consistency.
+  vocab_size: int
   embed_dim: int
   hidden_dim: int
   num_heads: int
@@ -112,8 +112,7 @@ class TransformerConfig:
   final_logit_softcap: float | None
   use_post_attn_norm: bool
   use_post_ffw_norm: bool
-  # TODO(epot): Should be renamed `layers_types` or similar ?
-  attention_types: Sequence[_modules.AttentionType]
+  layers_types: Sequence[_modules.AttentionType]
   query_pre_attn_norm: QueryPreAttentionNormalisation = (
       QueryPreAttentionNormalisation.BY_ONE_OVER_SQRT_HEAD_DIM
   )
@@ -141,19 +140,18 @@ class TransformerConfig:
 
   @functools.cached_property
   def num_layers(self) -> int:
-    return len(self.attention_types)
+    return len(self.layers_types)
 
   def query_pre_attn_scalar(self) -> float:
     """Returns the scalar to multiply the query by before attention."""
-    match self.query_pre_attn_norm:
-      case QueryPreAttentionNormalisation.NONE:
-        return 1.0
-      case QueryPreAttentionNormalisation.BY_EMBED_DIM_DIV_NUM_HEADS:
-        return self.embed_dim // self.num_heads
-      case QueryPreAttentionNormalisation.BY_ONE_OVER_SQRT_EMBED_DIM_DIV_NUM_HEADS:  # pylint: disable=line-too-long
-        return (self.embed_dim // self.num_heads) ** -0.5
-      case QueryPreAttentionNormalisation.BY_ONE_OVER_SQRT_HEAD_DIM | _:
-        return self.head_dim**-0.5
+    if self.query_pre_attn_norm == QueryPreAttentionNormalisation.NONE:
+      return 1.0
+    elif self.query_pre_attn_norm == QueryPreAttentionNormalisation.BY_EMBED_DIM_DIV_NUM_HEADS:
+      return float(self.embed_dim // self.num_heads)
+    elif self.query_pre_attn_norm == QueryPreAttentionNormalisation.BY_ONE_OVER_SQRT_EMBED_DIM_DIV_NUM_HEADS:
+      return (self.embed_dim // self.num_heads) ** -0.5
+    else:
+      return self.head_dim**-0.5
 
   @functools.cached_property
   def input_config(self) -> _types.InputConfig:

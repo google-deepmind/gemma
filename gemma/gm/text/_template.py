@@ -25,6 +25,11 @@ PROMPT = """\
 {}<end_of_turn>
 <start_of_turn>model
 """
+TOOL_PROMPT = """\
+<start_of_turn>tool
+{}<end_of_turn>
+<start_of_turn>model
+"""
 ANSWER = '{}<end_of_turn>'
 
 
@@ -55,3 +60,8 @@ class UserTurn(Turn):
   """User turn."""
 
   # images: UInt8["N? H W C"] | None = None
+
+
+@dataclasses.dataclass(frozen=True, repr=False)
+class ToolTurn(Turn):
+  """Tool result turn."""

@@ -65,7 +65,7 @@ def _get_gemma3n_config(
 ) -> _config.TransformerConfig:
   return _config.TransformerConfig(
       final_logit_softcap=None,
-      num_embed=262_144,
+      vocab_size=262_144,
       embed_dim=2048,
       hidden_dim=hidden_dim,
       num_heads=8,
@@ -76,7 +76,7 @@ def _get_gemma3n_config(
       use_qk_norm=True,
       qk_norm_with_scale=True,
       use_value_norm=True,
-      attention_types=_config.make_attention_layers_types(
+      layers_types=_config.make_attention_layers_types(
           GEMMA3N_ATTENTION_PATTERN,
           num_layers=num_layers,
       ),

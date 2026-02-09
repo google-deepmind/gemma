@@ -33,7 +33,6 @@ with _epy.lazy_api_imports(globals()):
   from gemma.gm.text._tool_sampler import ToolSampler
 
   # Sampling methods
-  # TODO(mblondel): Add nucleus sampling
   from gemma.gm.text._sampling import SamplingMethod
   from gemma.gm.text._sampling import Greedy
   from gemma.gm.text._sampling import RandomSampling
