@@ -282,7 +282,7 @@ class Tokenizer:
       if piece.piece != f'<unused{i}>':
         raise AssertionError(
             f'Expected custom token id {i} for {token!r} to be `<unused{i}>`,'
-            f' but was {piece.piece}. This indicates the voab file'
+            f' but was {piece.piece}. This indicates the vocab file'
             " isn't as expected."
         )
       piece.piece = token
