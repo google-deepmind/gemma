@@ -196,7 +196,7 @@ class Tokenizer:
     """
     if isinstance(text, str):
       token_ids = self._sp.EncodeAsIds(text)
-    else:
+    elif isinstance(text, list):
       token_ids = [
           self._sp.PieceToId(t.replace(' ', _WHITESPACE_CHAR)) for t in text
       ]
@@ -206,6 +206,10 @@ class Tokenizer:
             f'Cannot tokenize {text!r}. Token {text[index]!r} is an unknown'
             ' token.'
         )
+    else:
+      raise TypeError(
+          f'tokenizer.encode expects str or list[str], but got {type(text).__name__!r}'
+      )
 
     if add_bos:
       token_ids.insert(0, self.special_tokens.BOS)

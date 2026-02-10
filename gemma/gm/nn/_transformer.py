@@ -92,6 +92,7 @@ class Transformer(nn.Module):
       Otherwise, return all logits. Default to `False`
     dtype: The parameter dtype. Default to `jnp.bfloat16`.
   """
+
   _: dataclasses.KW_ONLY
 
   return_last_only: bool | None = None
@@ -260,6 +261,7 @@ class Transformer(nn.Module):
           logits=x,
           tokens=tokens,
           num_tokens_per_image=self.config.vision_encoder.num_mm_tokens_per_image,  # pytype: disable=attribute-error
+          special_tokens=self.config.input_config.special_tokens,
       )
 
     logits = self.embedder.decode(x)
@@ -297,7 +299,9 @@ class Transformer(nn.Module):
           old_cache.get(layer_name),
           inputs.attention_mask,
       )
-      new_cache[layer_name] = layer_cache  # pytype: disable=container-type-mismatch
+      new_cache[layer_name] = (
+          layer_cache  # pytype: disable=container-type-mismatch
+      )
 
     x = self.final_norm(x)
     return x, new_cache

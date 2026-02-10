@@ -47,36 +47,38 @@ def add_extra_tokens_for_images(
     *,
     max_num_images: int,
     num_tokens_per_image: int,
+    special_tokens: type[_tokenizer.SpecialTokens],
 ):  # -> Int['B L+(max_num_images * (num_tokens_per_image + 3))']:
   r"""Add the extra image tokens to the text tokens.
 
-  If the model has images, we expand each `<start_of_image>` token by the image
-  placeholder tokens.
+    If the model has images, we expand each `
+  ` token by the image
+    placeholder tokens.
 
-  Example:
+    Example:
 
-  ```python
-  input = [..., x, <start_of_image>, y, ...]
-  output = [
-      ..., x, \n\n, <start_of_image>, SOFT_TOKEN_PLACEHOLDER,
-      SOFT_TOKEN_PLACEHOLDER, ..., SOFT_TOKEN_PLACEHOLDER,
-      SOFT_TOKEN_PLACEHOLDER, <end_of_image>, \n\n, y, ...
-  ]
-  ```
+    ```python
+    input = [..., x,
+  , y, ...]
+    output = [
+        ..., x, \n\n,
+  , SOFT_TOKEN_PLACEHOLDER,
+        SOFT_TOKEN_PLACEHOLDER, ..., SOFT_TOKEN_PLACEHOLDER,
+        SOFT_TOKEN_PLACEHOLDER, <end_of_image>, \n\n, y, ...
+    ]
+    ```
 
-  The `\n\n` tokens are added to match how the model was trained.
+    The `\n\n` tokens are added to match how the model was trained.
 
-  Args:
-    tokens: The text tokens.
-    max_num_images: The maximum number of images in the batch.
-    num_tokens_per_image: The number of soft tokens per image.
+    Args:
+      tokens: The text tokens.
+      max_num_images: The maximum number of images in the batch.
+      num_tokens_per_image: The number of soft tokens per image.
+      special_tokens: The class containing special tokens definitions.
 
-  Returns:
-    The text tokens with the extra image tokens.
+    Returns:
+      The text tokens with the extra image tokens.
   """
-
-  # TODO(epot): This value should be propagated from the model.
-  special_tokens = _tokenizer.Gemma3Tokenizer.special_tokens
 
   # New tokens which will be inserted for each image.
   mm_tokens = [
@@ -93,6 +95,26 @@ def add_extra_tokens_for_images(
       tokens=tokens,
       max_num_images=max_num_images,
   )
+
+
+@typechecked
+def remove_mm_logits(
+    *,
+    logits: Float['B L V'],
+    tokens: Int['B L_no_mm'],
+    num_tokens_per_image: int,
+    special_tokens: type[_tokenizer.SpecialTokens],
+) -> Float['B L_no_mm V']:
+  """Remove the logits which are not MM."""
+
+  # Shift the original tokens, to recover the original position.
+  new_text_tokens_pos = _get_new_text_tokens_positions(
+      offset_on=tokens == special_tokens.START_OF_IMAGE,
+      # `+3` as `\n\n` is already present in the input tokens.
+      offset_by=num_tokens_per_image + 3,
+  )
+
+  return jnp.take_along_axis(logits, new_text_tokens_pos[..., None], axis=1)
 
 
 def insert_sequence(
