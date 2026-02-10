@@ -75,13 +75,16 @@ class ChatSampler:
       the sampler.
     turns: The current conversation.
   """
+
   # TODO(epot): Custom repr to avoid displaying the full weights.
 
   model: _transformer_like.TransformerLike
   params: _common.Params = dataclasses.field(repr=False)
   multi_turn: bool = False
   print_stream: bool = False
-  tokenizer: _tokenizer.Tokenizer = None  # pytype: disable=annotation-type-mismatch
+  tokenizer: _tokenizer.Tokenizer = (
+      None  # pytype: disable=annotation-type-mismatch
+  )
   sampling: _sampling.SamplingMethod = dataclasses.field(
       default_factory=_sampling.Greedy
   )
@@ -95,8 +98,10 @@ class ChatSampler:
   # Internal variables, but exposed for power users.
 
   # Last state of the sampler.
-  last_state: _sampler_loop.SamplingState = dataclasses.field(  # pytype: disable=annotation-type-mismatch
-      default=None, repr=False
+  last_state: _sampler_loop.SamplingState = (
+      dataclasses.field(  # pytype: disable=annotation-type-mismatch
+          default=None, repr=False
+      )
   )
   turns: list[_template.Turn] = dataclasses.field(default_factory=list)
 
@@ -184,7 +189,68 @@ class ChatSampler:
     unformatted_prompt = prompt
 
     # Format the prompt.
-    prompt = _template.PROMPT.format(prompt)
+    formatted_prompt = _template.PROMPT.format(prompt)
+
+    # Check for rolling cache.
+    if multi_turn and self.last_state is not None:
+      # Estimate the length of the new tokens.
+      # Note: We use the tokenizer from the sampler, which should be the same
+      # as `self.tokenizer`.
+      new_tokens = self.tokenizer.encode(formatted_prompt, add_bos=False)
+      num_new_tokens = len(new_tokens)
+
+      if (
+          self.last_state.used_cache_length + num_new_tokens
+          >= self.cache_length
+      ):
+        # Cache is full. Trigger rolling cache.
+        if print_stream:
+          print(
+              '\n[ChatSampler] Rolling cache triggered (Usage:'
+              f' {self.last_state.used_cache_length} + {num_new_tokens} >='
+              f' {self.cache_length})...',
+              flush=True,
+          )
+
+        # Reconstruct the full history.
+        full_text = self._get_full_history() + formatted_prompt
+
+        # Tokenize and truncate.
+        # We need to add BOS because we are resetting the state (prefill).
+        full_tokens = self.tokenizer.encode(full_text, add_bos=True)
+
+        # Logic to truncate:
+        # We want to keep the suffix that fits in the cache.
+        # We leave some buffer (e.g. 1 token) just to be safe, but typically
+        # we want to allow generation space?
+        # If we fill the cache completely, the model stops immediately.
+        # So we should probably allow at least some generation.
+        # Use max_out_length as a heuristic for desired generation space?
+        # Or just fit what we can? The prompt says "evicting old tokens when the context window is full".
+        # Let's ensure we fit effectively.
+
+        # Truncate to leave `max_out_length` space if possible, or at least 512.
+        # But `max_out_length` is for a single turn output.
+        # If we can't fit context + generation, we must truncate context.
+        # Let's try to fit context in `cache_length - 64` (small safety buffer).
+        limit = self.cache_length - 64
+        if len(full_tokens) > limit:
+          full_tokens = full_tokens[-limit:]
+
+        # Decode back to string.
+        # Note: This might split special tokens if they are multi-token, but
+        # normally they are single tokens.
+        prompt = self.tokenizer.decode(full_tokens)
+
+        # Force reset state.
+        object.__setattr__(self, 'last_state', None)
+        # Note: We do NOT clear `self.turns` because we want to keep the record
+        # of the conversation, even if the model "forgot" the beginning.
+      else:
+        # Fits in cache. Use the formatted prompt.
+        prompt = formatted_prompt
+    else:
+      prompt = formatted_prompt
 
     if not multi_turn:
       # Non-multi-turn, erase the previous conversations.
@@ -210,7 +276,9 @@ class ChatSampler:
       out = _print_stream(out)
     assert isinstance(out, _sampler.SamplerOutput)  # For pytype.
     assert isinstance(out.text, str)  # For pytype.
-    model_output = out.text.removesuffix('<end_of_turn>')  # pytype: disable=attribute-error
+    model_output = out.text.removesuffix(
+        '<end_of_turn>'
+    )  # pytype: disable=attribute-error
 
     # Save the turns (after un-formatting).
     # Only save the user turn after the sampling has successfully finished.
@@ -218,6 +286,18 @@ class ChatSampler:
     self.turns.append(_template.ModelTurn(model_output))
     object.__setattr__(self, 'last_state', out.state)
     return model_output
+
+  def _get_full_history(self) -> str:
+    """Reconstructs the full conversation history as a string."""
+    text = ''
+    for turn in self.turns:
+      if isinstance(turn, _template.UserTurn):
+        text += _template.PROMPT.format(turn.text)
+      elif isinstance(turn, _template.ModelTurn):
+        text += turn.text + '<end_of_turn>\n'
+      else:
+        raise ValueError(f'Unknown turn type: {type(turn)}')
+    return text
 
 
 def _print_stream(

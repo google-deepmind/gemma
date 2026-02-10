@@ -59,10 +59,9 @@ class SamplingState:
   last_token: Int['B']
   last_token_pos: Int['B']
   predicted_tokens: Int['B max_out_length']
-  # TODO(epot): Better way to extract logits. This takes a lot of memory.
-  # TODO(epot): Only keep the top-k logits instead? But sorting might increase
-  # computation.
-  # predicted_logits: Float['B max_out_length V']
+  # Store top-k logits for analysis without consuming O(V) memory.
+  predicted_top_k_values: Float['B max_out_length 10']
+  predicted_top_k_indices: Int['B max_out_length 10']
   # TODO(epot): Uses `_cache_helper.Cache` everywhere !!!
   cache: _config.Cache
   rng: PRNGKey
@@ -245,7 +244,15 @@ class SamplerLoop:
 
     # Update the buffers to save the outputs.
     predicted_tokens = state.predicted_tokens.at[:, state.step].set(next_token)
-    # predicted_logits = state.predicted_logits.at[:, state.step].set(logits)
+
+    # Save top-k logits
+    top_k_values, top_k_indices = jax.lax.top_k(logits, 10)
+    predicted_top_k_values = state.predicted_top_k_values.at[:, state.step].set(
+        top_k_values
+    )
+    predicted_top_k_indices = state.predicted_top_k_indices.at[
+        :, state.step
+    ].set(top_k_indices)
 
     # Check whether we have reached an end token.
     done = state.done | jnp.isin(next_token, jnp.asarray(self.end_tokens))
@@ -258,7 +265,8 @@ class SamplerLoop:
         # is still incremented, so we use previous `state.done`.
         last_token_pos=state.last_token_pos + ~state.done,
         predicted_tokens=predicted_tokens,
-        # predicted_logits=predicted_logits,
+        predicted_top_k_values=predicted_top_k_values,
+        predicted_top_k_indices=predicted_top_k_indices,
         cache=out.cache,
         rng=next_rng,
         init_cache_length=state.init_cache_length,

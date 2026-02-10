@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import pickle
+import pytest
 
 from gemma import gm
 
@@ -25,3 +26,13 @@ def test_pickle():
   tokenizer.encode('Hello world!')  # Trigger the lazy-loading of the tokenizer.
 
   pickle.dumps(tokenizer)
+
+
+def test_encode_invalid_inputs():
+  tokenizer = gm.text.Gemma3Tokenizer()
+
+  with pytest.raises(TypeError, match='tokenizer.encode expects str or list'):
+    tokenizer.encode(123)
+
+  with pytest.raises(TypeError, match='tokenizer.encode expects str or list'):
+    tokenizer.encode(None)

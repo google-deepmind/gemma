@@ -26,16 +26,22 @@ def cache_dir(tmp_path: pathlib.Path):
   del os.environ['GEMMA_CACHE_DIR']
 
 
-def test_cache_miss_returns_remote_path():
-  if 'GEMMA_CACHE_DIR' in os.environ:
-    del os.environ['GEMMA_CACHE_DIR']
-  # As we do not create the cache file, there will be a miss and the remote path
-  # will be returned.
+def test_cache_miss_downloads_file(cache_dir: pathlib.Path):
+  # Create a source file
+  source_dir = cache_dir / 'source'
+  source_dir.mkdir()
+  source_file = source_dir / 'source.txt'
+  source_file.write_text('content')
+
   filename = _file_cache.maybe_get_from_cache(
-      remote_file_path='/this/path/will/not/be/used.txt',
-      cache_subdir='test',
+      remote_file_path=os.fspath(source_file),
+      cache_subdir='test_subdir',
   )
-  assert filename == epath.Path('/this/path/will/not/be/used.txt')
+
+  expected_cache_path = epath.Path(cache_dir) / 'test_subdir' / 'source.txt'
+  assert filename == expected_cache_path
+  assert expected_cache_path.exists()
+  assert expected_cache_path.read_text() == 'content'
 
 
 def test_cache_dir_from_env_var(cache_dir: pathlib.Path):  # pylint: disable=redefined-outer-name
