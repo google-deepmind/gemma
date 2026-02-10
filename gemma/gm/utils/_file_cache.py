@@ -28,13 +28,24 @@ def maybe_get_from_cache(
     remote_file_path: epath.PathLike,
     cache_subdir: str,
 ) -> epath.Path:
-  """Returns the cached file if exists, otherwise returns the remote file path."""
-  filename = epath.Path(remote_file_path).name
+  """Returns the cached file if exists, otherwise downloads it and returns the local path."""
+  remote_path = epath.Path(remote_file_path)
+  filename = remote_path.name
 
-  cache_filepath = _get_cache_dir() / cache_subdir / filename
+  cache_dir = _get_cache_dir() / cache_subdir
+  cache_filepath = cache_dir / filename
+
   if cache_filepath.exists():
     return cache_filepath
-  return epath.Path(remote_file_path)
+
+  # If remote, download to cache
+  if str(remote_path).startswith('gs://'):
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    # TODO(epot): Add a progress bar?
+    remote_path.copy(cache_filepath)
+    return cache_filepath
+
+  return remote_path
 
 
 def _get_cache_dir() -> epath.Path:
