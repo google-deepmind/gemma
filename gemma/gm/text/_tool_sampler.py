@@ -44,18 +44,23 @@ class ToolSampler(_chat_sampler.ChatSampler):
   Attributes:
     tools: List of tools to use.
     manager_cls: Allow to customize how the system prompt and tools are handled.
+    max_tool_depth: Maximum number of recursive tool calls allowed per
+      conversation. Prevents unbounded recursion if model repeatedly generates
+      tool calls. Defaults to 10.
   """
 
   tools: list[_tools.Tool] = dataclasses.field(default_factory=list)
   manager_cls: type[_manager_lib.ToolManagerBase] = (
       _manager_lib.OneShotToolManager
   )
+  max_tool_depth: int = 10
 
   # Manager class is mutable (as states can be stateful), so reset for every new
   # conversation.
   _manager: _manager_lib.ToolManagerBase = dataclasses.field(
       init=False, repr=False
   )
+  _tool_depth: int = dataclasses.field(init=False, repr=False, default=0)
 
   def __post_init__(self):
     super().__post_init__()
@@ -106,6 +111,8 @@ class ToolSampler(_chat_sampler.ChatSampler):
       # Initialize the manager.
       manager = self.manager_cls(tools=list(self.tools))
       object.__setattr__(self, '_manager', manager)
+      # Reset tool depth counter for new conversation.
+      object.__setattr__(self, '_tool_depth', 0)
 
       # Add the system prompt.
       prompt = self._manager.system_prompt + prompt
@@ -126,6 +133,11 @@ class ToolSampler(_chat_sampler.ChatSampler):
     # If model requested a tool call, execute it and fetch the response
     # back to the model.
     if tool_answer:
+      # Check recursion depth to prevent unbounded tool call loops.
+      if self._tool_depth >= self.max_tool_depth:
+        return model_output
+      object.__setattr__(self, '_tool_depth', self._tool_depth + 1)
+
       if print_stream:
         print(flush=True)  # New line
         _plot_separator()
