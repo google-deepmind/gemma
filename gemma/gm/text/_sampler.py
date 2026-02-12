@@ -21,6 +21,7 @@ import random as py_random
 import typing
 from typing import Literal
 
+import dialog
 from etils import enp
 from gemma.gm.data import _functional
 from gemma.gm.nn import _transformer_like
@@ -42,6 +43,14 @@ import numpy as np
 #   so the same data pipeline can be used for both training and sampling.
 # * Mode which queue the prompts and compute them asynchronously ?
 # * Mode which yields tokens as they get predicted ?
+
+type _Prompt = (
+    # Prompts can be:
+    str
+    | Sequence[str]
+    | dialog.Conversation
+    | Sequence[dialog.Conversation]
+)
 
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
@@ -158,7 +167,7 @@ class Sampler:
   @typing.overload
   def sample(
       self,
-      prompt: str,
+      prompt: str | dialog.Conversation,
       *,
       images: UInt8['N? H W C'] | None = ...,
       max_new_tokens: int | None = ...,
@@ -175,7 +184,7 @@ class Sampler:
   @typing.overload
   def sample(
       self,
-      prompt: Sequence[str],
+      prompt: Sequence[str | dialog.Conversation],
       *,
       images: Sequence[UInt8['N H W C']] | None = ...,
       max_new_tokens: int | None = ...,
@@ -193,7 +202,7 @@ class Sampler:
   @typing.overload
   def sample(
       self,
-      prompt: str | Sequence[str],
+      prompt: _Prompt,
       *,
       images: UInt8['B? N? H W C'] | None = ...,
       max_new_tokens: int | None = ...,
@@ -258,8 +267,8 @@ class Sampler:
     ```
 
     Args:
-      prompt: Prompt to sample from. Can be a single string or a list of
-        strings.
+      prompt: Prompt(s) to sample from. Can be a single string or
+        `dialog.Conversation` or a list of those.
       images: Images for the prompt. The position where the image should be
         inserted in the prompt is determined by the `<start_of_image>` token in
         the prompt.
@@ -403,13 +412,13 @@ class Sampler:
 
   def _tokenize_prompts(
       self,
-      prompt: str | Sequence[str],
+      prompt: _Prompt,
       *,
       add_bos: bool,
       pad_length: int | None = None,
   ) -> Float['B L']:
     """Encode the prompts."""
-    prompt = _normalize_prompt(prompt)
+    prompt = _normalize_prompt(prompt, format=self.tokenizer.FORMAT)
     tokens = [self.tokenizer.encode(p, add_bos=add_bos) for p in prompt]
 
     # Notice that if pad_length exceeds the maximum length of the prompts,
@@ -500,9 +509,9 @@ class Sampler:
       return tuple(_normalize_token(self.tokenizer, t) for t in tokens)
 
 
-def _get_has_batch_dim(prompt: str | Sequence[str]) -> bool:
+def _get_has_batch_dim(prompt: _Prompt) -> bool:
   """Returns whether the prompt batched or not."""
-  if isinstance(prompt, str):
+  if isinstance(prompt, str | dialog.Conversation):
     return False
   elif _is_str_array(prompt):  # Scalar str array.
     assert isinstance(prompt, np.ndarray)
@@ -511,16 +520,22 @@ def _get_has_batch_dim(prompt: str | Sequence[str]) -> bool:
     return True
 
 
-def _normalize_prompt(prompt: str | Sequence[str]) -> list[str]:
+def _normalize_prompt(prompt: _Prompt, format: dialog.Format) -> list[str]:  # pylint: disable=redefined-builtin
   """Normalize the inputs."""
   if _is_str_array(prompt):  # Supports batched input array
     assert isinstance(prompt, np.ndarray)
     prompt = prompt.tolist()
 
-  if isinstance(prompt, str):
+  if isinstance(prompt, str | dialog.Conversation):
     prompt = [prompt]
   else:
     prompt = list(prompt)
+
+  # Normalize the prompt to strings.
+  prompt = [
+      c.as_text(format=format) if isinstance(c, dialog.Conversation) else c
+      for c in prompt
+  ]
 
   return prompt
 
