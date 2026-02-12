@@ -94,6 +94,11 @@ class SamplingState:
     attention_mask = self.full_attention_mask * step_mask
     return attention_mask
 
+  @property
+  def cache_info(self) -> _cache_helper.Cache:
+    """Cache info."""
+    return _cache_helper.Cache(self.cache)
+
 
 # TODO(epot): Refactor into simple function, rather than class.
 # * autoregressive_sample()
@@ -156,14 +161,13 @@ class SamplerLoop:
       # Keep going while we have not reached the maximum number of tokens, and
       # at least one of the samples is not done.
 
-      cache = _cache_helper.Cache(state.cache)
       return (
           # We predicted too many tokens.
           (state.step < max_new_tokens)
           # All batch have yield the `<end_of_turn>` token.
           & ~jnp.all(state.done)
           # End if the cache is full.
-          & ~cache.is_full
+          & ~state.cache_info.is_full
       )
 
     state = jax.lax.while_loop(cond_fn, step_fn, state)
@@ -204,8 +208,7 @@ class SamplerLoop:
     # Sample autoregressively.
     for _ in range(max_new_tokens):
       # Exit if the cache is full.
-      cache = _cache_helper.Cache(state.cache)
-      if jnp.all(state.done) or cache.is_full:
+      if jnp.all(state.done) or state.cache_info.is_full:
         break
 
       state = self._sample_step(

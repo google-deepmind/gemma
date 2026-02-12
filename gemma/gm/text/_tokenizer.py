@@ -22,6 +22,7 @@ import functools
 import typing
 from typing import ClassVar
 
+import dialog
 import einops
 from etils import enp
 from etils import epath
@@ -71,6 +72,9 @@ class SpecialTokens(enum.IntEnum, metaclass=_DisplayEnumType):
   START_OF_IMAGE: ClassVar[int]  # '<start_of_image>'
   END_OF_IMAGE: ClassVar[int]  # '<end_of_image>'
 
+  BEGIN_OF_TOOL_RESPONSE: ClassVar[int]  # '<begin_of_tool_response>'
+  END_OF_TOOL_RESPONSE: ClassVar[int]  # '<end_of_tool_response>'
+
 
 class _Gemma2SpecialTokens(SpecialTokens, enum.IntEnum):
   """Special tokens ids."""
@@ -119,6 +123,9 @@ class _Gemma3SpecialTokens(SpecialTokens, enum.IntEnum):
   START_OF_IMAGE = 255999  # '<start_of_image>'
   END_OF_IMAGE = 256000  # <end_of_image>
 
+  # Tool tokens
+  BEGIN_OF_TOOL_RESPONSE = 50
+
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
 class Tokenizer:
@@ -145,6 +152,9 @@ class Tokenizer:
       (0-98) to the token string. (`e.g. `{0: '<start_of_audio>'}`)
     VERSION: The Gemma version of the tokenizer (2, 3).
     FORBIDDEN_TOKENS: Default forbidden tokens.
+    FORMAT: The dialog format to use for the tokenizer (gemma3, ...).
+    FORMAT_TO_CONVERT: When the tokenizer use a different token names than the
+      default.
   """
 
   path: epath.PathLike
@@ -152,6 +162,9 @@ class Tokenizer:
 
   VERSION: ClassVar[int | str] = 0
   FORBIDDEN_TOKENS: ClassVar[tuple[int, ...]] = ()  # pylint: disable=g-missing-from-attributes
+
+  FORMAT: ClassVar[dialog.Format] = dialog.Format.GEMMA3
+  FORMAT_TO_CONVERT: ClassVar[dialog.Format | None] = None
 
   def __post_init__(self):
     immutabledict.freeze_dict_attrs(self, ['custom_tokens'])
@@ -197,9 +210,8 @@ class Tokenizer:
     if isinstance(text, str):
       token_ids = self._sp.EncodeAsIds(text)
     else:
-      token_ids = [
-          self._sp.PieceToId(t.replace(' ', _WHITESPACE_CHAR)) for t in text
-      ]
+      text = [t.replace(' ', _WHITESPACE_CHAR) for t in text]
+      token_ids = [self._sp.PieceToId(t) for t in text]
       if self.special_tokens.UNK in token_ids:
         index = token_ids.index(self.special_tokens.UNK)
         raise ValueError(
@@ -214,6 +226,8 @@ class Tokenizer:
     return token_ids
 
   def decode(self, ids: int | list[int] | enp.typing.Array) -> str:
+    """Decode a token id(s) into a text."""
+
     if isinstance(ids, int):
       ids = [ids]
     elif enp.lazy.is_array(ids):  # Supports decoding from jnp, np arrays
@@ -224,7 +238,8 @@ class Tokenizer:
         ids = ids.tolist()
       else:
         raise ValueError(f'Array must be 0 or 1 dimensional, got {ids.shape}.')
-    return self._sp.DecodeIds(ids)
+    text = self._sp.DecodeIds(ids)
+    return text
 
   def split(self, text: str) -> list[str]:
     """Split a text into pieces."""

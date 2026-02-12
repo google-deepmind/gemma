@@ -285,6 +285,8 @@ class Sampler:
       The sampled output.
     '''
 
+    # TODO(epot): Supports list[dialog.Conversation] | dialog.Conversation
+
     # pylint: enable=g-docstring-quotes
     sampling = sampling or self.sampling
 
@@ -336,6 +338,7 @@ class Sampler:
         end_tokens=(
             self.tokenizer.special_tokens.EOS,
             self.tokenizer.special_tokens.END_OF_TURN,
+            self.tokenizer.special_tokens.BEGIN_OF_TOOL_RESPONSE,
             *self._normalized_stop_tokens,
         ),
         forbidden_tokens=self._normalized_forbidden_tokens,
@@ -447,6 +450,12 @@ class Sampler:
     # # Unbatch the single prompts.
     if not has_batch_dim:
       (predicted_texts,) = predicted_texts
+
+    if state.cache_info.is_full.item():
+      kd.utils.status.log(
+          'Cache is full! Try increasing `Sampler.cache_length`. Current:'
+          f' {self.cache_length}'
+      )
 
     # Returns either text or detailed output.
     if return_state:

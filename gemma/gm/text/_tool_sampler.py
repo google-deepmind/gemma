@@ -18,11 +18,10 @@ from __future__ import annotations
 
 import dataclasses
 
-from etils import epy
+import dialog
 from gemma.gm.text import _chat_sampler
 from gemma.gm.text import _sampling
 from gemma.gm.tools import _manager as _manager_lib
-from gemma.gm.tools import _tools
 from kauldron.typing import PRNGKeyLike, UInt8  # pylint: disable=g-multiple-import,g-importing-member
 
 
@@ -36,43 +35,29 @@ class ToolSampler(_chat_sampler.ChatSampler):
   sampler = gm.text.ToolSampler(
       model=model,
       params=params,
-      tools=[gm.tools.Calculator()],
+      tool_handler=fastmcp.Client(server),
   )
-  sampler.chat('What is 25 times 4 plus 10?')
+  sampler.chat('Do you see an issue with my ~/.bashrc ?')
   ```
 
   Attributes:
-    tools: List of tools to use.
-    manager_cls: Allow to customize how the system prompt and tools are handled.
+    tool_handler: Allow to customize how the system prompt and tools are
+      handled.
   """
 
-  tools: list[_tools.Tool] = dataclasses.field(default_factory=list)
-  manager_cls: type[_manager_lib.ToolManagerBase] = (
-      _manager_lib.OneShotToolManager
-  )
-
-  # Manager class is mutable (as states can be stateful), so reset for every new
-  # conversation.
-  _manager: _manager_lib.ToolManagerBase = dataclasses.field(
-      init=False, repr=False
-  )
-
-  def __post_init__(self):
-    super().__post_init__()
-    # Normalize `Tool` to `list[Tool]`.
-    if isinstance(self.tools, _tools.Tool):
-      object.__setattr__(self, 'tools', [self.tools])
+  tool_handler: _manager_lib.ToolHandlerBase
 
   def chat(
       self,
-      prompt: str,
+      prompt: str | dialog.Conversation,
       *,
       images: UInt8['N? H W C'] | None = None,
       sampling: _sampling.SamplingMethod | None = None,
       rng: PRNGKeyLike | None = None,
       max_new_tokens: int | None = None,
       multi_turn: bool | None = None,
-      print_stream: bool | None = None,
+      print_stream: bool | dialog.Stream | None = None,
+      is_legacy_tool_answer: bool = False,
   ) -> str:
     # pylint: disable=g-docstring-quotes
     """Sampler which supports tool use.
@@ -95,59 +80,67 @@ class ToolSampler(_chat_sampler.ChatSampler):
         `multi_turn` attribute.
       print_stream: If `True`, will print the sampled output as it is generated.
         Overrites the `multi_turn` attribute.
+      is_legacy_tool_answer: When `True`, indicates that the model has emitted
+        `<eos>` rather than `<|tool_response>`, thus this needs to be corrected.
+        (this is an internal variable that should never be explictly set).
 
     Returns:
       The sampled output.
     """
-    if print_stream is None:
-      print_stream = self.print_stream
+    if multi_turn is None:
+      multi_turn = self.multi_turn
 
-    if not self.turns or not multi_turn:  # First turn
-      # Initialize the manager.
-      manager = self.manager_cls(tools=list(self.tools))
-      object.__setattr__(self, '_manager', manager)
+    stream = self.initialize_stream(print_stream)
 
-      # Add the system prompt.
-      prompt = self._manager.system_prompt + prompt
+    with self.tool_handler:
+      if isinstance(prompt, str):
+        prompt = dialog.Conversation(dialog.User(prompt))
+      if not self.conversation or not multi_turn:  # First turn
+        # Add the system prompt.
+        prompt = self.tool_handler.add_system_prompt(prompt)
 
-    model_output = super().chat(
-        prompt,
-        images=images,
-        sampling=sampling,
-        rng=rng,
-        max_new_tokens=max_new_tokens,
-        multi_turn=multi_turn,
-        print_stream=print_stream,
-    )
-
-    # Detect if the model requested a tool call, and execute it.
-    tool_answer = self._manager.maybe_execute_tool(model_output)
-
-    # If model requested a tool call, execute it and fetch the response
-    # back to the model.
-    if tool_answer:
-      if print_stream:
-        print(flush=True)  # New line
-        _plot_separator()
-        print(tool_answer.text, flush=True)
-        _plot_separator()
-      # TODO(epot): Should use `_template.ToolTurn` or similar.
-      return self.chat(
-          tool_answer.text,
-          images=tool_answer.images,
-          multi_turn=True,
+      model_output = super().chat(
+          prompt,
+          images=images,
           sampling=sampling,
           rng=rng,
-          print_stream=print_stream,
+          max_new_tokens=max_new_tokens,
+          multi_turn=multi_turn,
+          print_stream=stream,
+          is_legacy_tool_answer=is_legacy_tool_answer,
       )
-    else:
-      return model_output
 
+      # Detect if the model requested a tool call, and execute it.
+      tool_answer = self.tool_handler.maybe_execute_tool(model_output)
 
-def _plot_separator() -> None:
-  if epy.is_notebook():
-    import IPython.display  # pylint: disable=g-import-not-at-top  # pytype: disable=import-error
+      # If model requested a tool call, execute it and fetch the response
+      # back to the model.
+      if tool_answer:
+        # The nano models (2B and 4B), sometimes emit `<eos>` instead of
+        # `<|tool_response>`. We need to:
+        # * Mutate the cache to remove the last `<eos>` token.
+        # * Ensure that `<|tool_response>` is provided to the next model turn.
+        if not model_output.endswith(dialog.Tags.TOOL_RESPONSE.open):
+          is_legacy_tool_answer = True
+        else:
+          is_legacy_tool_answer = False
 
-    IPython.display.display(IPython.display.HTML('<hr>'))
-  else:
-    print('------------------------------------------------------------------')
+        tool_answer = dialog.Conversation(dialog.Model(tool_answer))
+        if stream:
+          text = tool_answer.as_text(
+              add_tool_response_tag_after_call=not is_legacy_tool_answer
+          )
+          _chat_sampler.print_(stream, text)
+
+        # TODO(epot): Should use `_template.ToolTurn` or similar.
+        return self.chat(
+            tool_answer,
+            # images=tool_answer.images,
+            multi_turn=True,
+            sampling=sampling,
+            rng=rng,
+            print_stream=stream,
+            is_legacy_tool_answer=is_legacy_tool_answer,
+        )
+      else:
+        return model_output

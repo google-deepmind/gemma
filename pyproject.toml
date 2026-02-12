@@ -4,7 +4,7 @@
 name = "gemma"
 description = "Gemma open-weight LLM library from Google DeepMind."
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 license = {file = "LICENSE"}
 authors = [
     {name = "Alek Andreev", email="alekandreev@google.com"},
@@ -33,6 +33,7 @@ keywords = []
 # Installed locally with `pip install -e .`
 dependencies = [
     "absl-py",
+    "dialog",
     "etils[edc,enp,epath,epy,etree]",
     "einops",
     "grain ; sys_platform != 'win32'",
@@ -44,6 +45,9 @@ dependencies = [
     "orbax-checkpoint",
     "sentencepiece",
     "treescope",
+    # tool use
+    "fastmcp",
+    "mcp",
 ]
 
 # `version` is automatically set by flit to use `gemma.__version__`

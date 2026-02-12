@@ -16,42 +16,39 @@
 
 from __future__ import annotations
 
+from typing import Annotated, Literal
+
 from etils import epath
 from etils import epy
-from gemma.gm.tools import _tools
+import pydantic
 
 
-class FileExplorer(_tools.Tool):
-  """File explorer tool (read-only)."""
-
-  DESCRIPTION = 'File explorer tool.'
-  EXAMPLE = _tools.Example(
-      query="What's the content of /tmp/foo.txt?",
-      thought='I need to `cat /tmp/foo.txt`.',
-      tool_kwargs={'method': 'cat', 'path': '/tmp/foo.txt'},
-      tool_kwargs_doc={'method': 'ONEOF(cat, ls)', 'path': '<PATH>'},
-      result='...',
-      answer='Here is the content of the file: ...',
-  )
-  KEYWORDS = ('file', 'directory', 'folder')
-
-  def call(self, method: str, path: str) -> str:  # pytype: disable=signature-mismatch
-    """Calculates the expression."""
-    path = epath.Path(path)
-    if method == 'cat':
-      try:
-        return path.read_text()
-      except FileNotFoundError:
-        return 'File not found. Make sure to use the absolute path.'
-      except OSError as e:  # Trying to read a directory.
-        return repr(e)
-    elif method == 'ls':
+def file_explorer(
+    *,
+    method: Annotated[
+        Literal['cat', 'ls', 'exists'],
+        pydantic.Field(description='The method to call.'),
+    ],
+    path: Annotated[
+        str,
+        pydantic.Field(
+            description=(
+                'The path to read. Supports remote filesystems, like `gs://`.'
+            )
+        ),
+    ],
+):  # pytype: disable=signature-mismatch
+  """File explorer tool."""
+  path = epath.Path(path)
+  match method:
+    case 'cat':
+      return path.read_text()
+    case 'ls':
       lines = epy.Lines()
-      try:
-        for p in path.iterdir():
-          lines += f'{p.name}'
-      except OSError as e:
-        return repr(e)
+      for p in path.iterdir():
+        lines += f'{p.name}/' if p.is_dir() else p.name
       return lines.join()
-    else:
-      return f'Unknown method: {method}'
+    case 'exists':
+      return path.exists()
+    case _:
+      raise ValueError(f'Unknown method: {method}')

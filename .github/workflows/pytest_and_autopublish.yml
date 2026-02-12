@@ -18,12 +18,18 @@ jobs:
     # Install deps
     - uses: actions/setup-python@v5
       with:
-        python-version: "3.11"
+        python-version: "3.12"
         # Uncomment to cache of pip dependencies (if tests too slow)
         # cache: pip
         # cache-dependency-path: '**/pyproject.toml'
 
     - run: pip --version
+    # During development, gemma can use unreleased etils/dialog features.
+    - run: |
+        pip install \
+          git+https://github.com/google/etils \
+          git+https://github.com/google-research/kauldron \
+          git+https://github.com/google-deepmind/dialog
     - run: pip install -e .[dev]
     - run: pip freeze
 

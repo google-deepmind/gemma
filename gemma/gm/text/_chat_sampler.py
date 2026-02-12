@@ -18,6 +18,8 @@ from collections.abc import Iterator, Sequence
 import dataclasses
 import functools
 
+import dialog
+from etils import epy
 # from gemma.gm.data import _functional
 from gemma.gm.nn import _transformer_like
 from gemma.gm.text import _sampler
@@ -73,14 +75,15 @@ class ChatSampler:
     last_state: Last state of the sampler, automatically handled by the sampler,
       but exposed for power users to access the logits, cache, ... or initialize
       the sampler.
-    turns: The current conversation.
+    turns: Track the conversation.
   """
+
   # TODO(epot): Custom repr to avoid displaying the full weights.
 
   model: _transformer_like.TransformerLike
   params: _common.Params = dataclasses.field(repr=False)
   multi_turn: bool = False
-  print_stream: bool = False
+  print_stream: bool | dialog.Stream = False
   tokenizer: _tokenizer.Tokenizer = None  # pytype: disable=annotation-type-mismatch
   sampling: _sampling.SamplingMethod = dataclasses.field(
       default_factory=_sampling.Greedy
@@ -129,14 +132,15 @@ class ChatSampler:
 
   def chat(
       self,
-      prompt: str,
+      prompt: str | dialog.Conversation,
       *,
       images: UInt8['N? H W C'] | None = None,
       sampling: _sampling.SamplingMethod | None = None,
       rng: PRNGKeyLike | None = None,
       max_new_tokens: int | None = None,
       multi_turn: bool | None = None,
-      print_stream: bool | None = None,
+      print_stream: bool | dialog.Stream | None = None,
+      is_legacy_tool_answer: bool = False,
   ) -> str:
     # pylint: disable=g-docstring-quotes
     '''Samples a string from the model.
@@ -171,20 +175,16 @@ class ChatSampler:
         `multi_turn` attribute.
       print_stream: If `True`, will print the sampled output as it is generated.
         Overrites the `multi_turn` attribute.
+      is_legacy_tool_answer: When `True`, indicates that the model has emitted
+        `<eos>` rather than `<|tool_response>`, thus this needs to be corrected.
+        (this is an internal variable that should never be explictly set).
 
     Returns:
       The sampled output.
     '''
     if multi_turn is None:
       multi_turn = self.multi_turn
-    if print_stream is None:
-      print_stream = self.print_stream
-
-    # Save the prompt (before formatting!).
-    unformatted_prompt = prompt
-
-    # Format the prompt.
-    prompt = _template.PROMPT.format(prompt)
+    stream = self.initialize_stream(print_stream)
 
     if not multi_turn:
       # Non-multi-turn, erase the previous conversations.
@@ -193,42 +193,115 @@ class ChatSampler:
       object.__setattr__(self, 'last_state', None)
       object.__setattr__(self, 'turns', [])
 
+    # Format the prompt.
+    if isinstance(prompt, str):
+      prompt = dialog.Conversation(dialog.User(prompt))
+    elif not isinstance(prompt, dialog.Conversation):
+      raise TypeError(f'Unsupported prompt type: {type(prompt)}')
+
+    last_state = self.last_state
+    if is_legacy_tool_answer:
+      # This means the previous model turn ended with an EOS token rather than
+      # the expected `<|tool_response>`
+      last_state = _remove_eos_token(last_state, tokenizer=self.tokenizer)
+
+    prompt_text = prompt.as_text(
+        format=self.tokenizer.FORMAT,
+        add_tool_response_tag_after_call=not is_legacy_tool_answer,
+    )
     out = self.sampler.sample(  # pytype: disable=wrong-arg-types
-        prompt,
+        prompt_text,
         images=images,
         sampling=sampling,
         max_new_tokens=max_new_tokens,
         rng=rng,
         return_state=True,
-        last_state=self.last_state,
-        stream=print_stream,
+        last_state=last_state,
+        stream=bool(stream),
     )
 
     # In streaming mode, the output is an iterator, yielding tokens one at a
     # time.
-    if print_stream:
-      out = _print_stream(out)
+    if stream:
+      out = _print_stream(out, stream=stream)
     assert isinstance(out, _sampler.SamplerOutput)  # For pytype.
     assert isinstance(out.text, str)  # For pytype.
-    model_output = out.text.removesuffix('<end_of_turn>')  # pytype: disable=attribute-error
 
-    # Save the turns (after un-formatting).
+    # TODO(epot): Remove the <turn|> end-of-turn token.
+
+    # Save the raw turns text (unformatted).
     # Only save the user turn after the sampling has successfully finished.
-    self.turns.append(_template.UserTurn(unformatted_prompt))
-    self.turns.append(_template.ModelTurn(model_output))
+    self.turns.append(_template.Prompt(prompt_text))
+    self.turns.append(_template.Response(out.text))
     object.__setattr__(self, 'last_state', out.state)
-    return model_output
+    return out.text  # pytype: disable=bad-return-type
+
+  def initialize_stream(
+      self,
+      stream: dialog.Stream | bool | None,
+  ) -> dialog.Stream | None:
+    """Initializes a stream for the sampler."""
+    if stream is None:
+      stream = self.print_stream
+
+    if stream is False:  # pylint: disable=g-bool-id-comparison
+      return None
+    elif stream is True:  # pylint: disable=g-bool-id-comparison
+      stream = dialog.Stream()
+      if epy.is_notebook():
+        dialog.Model(stream).show()
+      return stream
+    elif isinstance(stream, dialog.Stream):
+      return stream
+    else:
+      raise ValueError(f'Unexpected stream type: {type(stream)}')
+
+  @property
+  def conversation(self) -> dialog.Conversation:
+    """Returns the conversation."""
+    return dialog.Conversation(''.join(t.text for t in self.turns))
+
+
+def _remove_eos_token(
+    state: _sampler_loop.SamplingState,
+    tokenizer: _tokenizer.Tokenizer,
+) -> _sampler_loop.SamplingState:
+  """Removes the EOS token from the sampling state."""
+  cache_info = state.cache_info.set_end_index(state.cache_info.end_index - 1)
+  return dataclasses.replace(
+      state,
+      step=state.step - 1,
+      # done is True and last_token is EOS => False
+      # Otherwise, keep the same.
+      done=state.done ^ (state.last_token == tokenizer.special_tokens.EOS),
+      last_token_pos=state.last_token_pos - 1,
+      cache=cache_info.cache,
+  )
 
 
 def _print_stream(
     out: Iterator[_sampler.SamplerOutput],
+    *,
+    stream: dialog.Stream,
 ) -> _sampler.SamplerOutput:
   """Prints the streaming output."""
   text_tokens = []
+
   for state in out:
+    print_(stream, state.text)
+
     text_tokens.append(state.text)
     if state.text == '<end_of_turn>':  # Last token is not printed.
       continue
-    print(state.text, end='', flush=True)
   out = dataclasses.replace(state, text=''.join(text_tokens))  # pylint: disable=undefined-variable,undefined-loop-variable
   return out
+
+
+def print_(
+    stream: dialog.Stream,
+    text: str,
+) -> None:
+  if epy.is_notebook():
+    stream.add(text)
+  else:
+    print(text, end='', flush=True)

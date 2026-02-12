@@ -17,161 +17,126 @@
 from __future__ import annotations
 
 import abc
+from collections.abc import Iterator
+import contextlib
 import dataclasses
 import functools
-import json
-import re
+from typing import Any
 
+import dialog
 from etils import epy
-from gemma.gm.tools import _tools
+
+with epy.lazy_imports():
+  # pylint: disable=g-import-not-at-top # pytype: disable=import-error
+  import mcp
+  # pylint: enable=g-import-not-at-top # pytype: enable=import-error
 
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
-class ToolManagerBase(abc.ABC):
+class ToolHandlerBase(epy.ContextManager, abc.ABC):
   """Base class to orchestrate tools."""
 
-  tools: list[_tools.Tool]
+  # Used if ToolHandlerBase should be used as a context manager.
+  # See `McpToolHandler` for an example.
+  is_active: bool = dataclasses.field(default=False, repr=False, init=False)
 
-  @property
-  @abc.abstractmethod
-  def system_prompt(self) -> str:
-    """Returns the preprompt for the tool manager."""
-    raise NotImplementedError()
+  def __post_init__(self):
+    object.__setattr__(self, 'is_active', False)
 
-  @abc.abstractmethod
-  def maybe_execute_tool(self, model_output: str) -> _tools.ToolOutput | None:
+  def add_system_prompt(
+      self, prompt: dialog.Conversation
+  ) -> dialog.Conversation:
+    """Returns the system prompt."""
+    if isinstance(prompt[0], dialog.System):
+      system_prompt = prompt[0]
+      prompt = prompt[1:]
+    else:
+      system_prompt = dialog.System()
+    system_prompt += [dialog.Tool(t) for t in self.tools]
+    return system_prompt + prompt
+
+  def maybe_execute_tool(
+      self, model_output: str
+  ) -> list[dialog.ToolResponse] | None:
     """Parses the model output answer and call the associated tool if needed."""
+
+    if not model_output.endswith((
+        dialog.Tags.TOOL_RESPONSE.open,
+        # There's a bug in Gemma nano 4 (2B and 4B only) which predict `<eos>`
+        # rather than `<|tool_response>`. Thus we still need to support those.
+        dialog.Tags.TOOL_CALL.close,
+    )):
+      return None
+    model_output = model_output.removesuffix(dialog.Tags.TOOL_RESPONSE.open)
+    model_output = (
+        f'{dialog.Tags.TURN.open}model\n{model_output}{dialog.Tags.TURN.close}'
+    )
+    conv = dialog.ConversationStr(model_output).as_conversation()
+    (turn,) = conv
+    tool_responses = []
+    for chunk in turn:
+      if isinstance(chunk, dialog.ToolCall):
+        data = chunk.data.full_json
+        response = self.call_tool(**data)
+        response.name = chunk.data.name
+        response = _normalize_response(response)
+        tool_responses.append(dialog.ToolResponse(response))
+    return tool_responses
+
+  @functools.cached_property
+  def tools(self) -> list[mcp.types.Tool]:
+    """Returns the tools."""
+    with self:
+      return self._tools()
+
+  def call_tool(self, name: str, arguments: dict[str, Any]) -> Any:
+    """Calls the tool."""
+    with self:
+      return self._call_tool(name, arguments)
+
+  def _tools(self):
+    """Returns the tools."""
     raise NotImplementedError()
 
-  @functools.cached_property
-  def name_to_tool(self) -> dict[str, _tools.Tool]:
-    return {tool.name: tool for tool in self.tools}
+  @abc.abstractmethod
+  def _call_tool(self, name: str, arguments: dict[str, Any]) -> Any:
+    """Calls the tool."""
+    raise NotImplementedError()
 
-  def update_tools(self, tools: list[_tools.Tool]) -> None:
-    """Replace the current tools by the new ones."""
-    object.__setattr__(self, 'tools', tools)
-    # Reset the cached_property.
-    if 'name_to_tool' in self.__dict__:
-      object.__delattr__(self, 'name_to_tool')
+  def __contextmanager__(self) -> Iterator[None]:
+    """Context manager to activate the tool handler."""
+    if self.is_active:  # Do not recurse if already active.
+      yield
+    else:
+      try:
+        object.__setattr__(self, 'is_active', True)
+        with self._activate():
+          yield
+      finally:
+        object.__setattr__(self, 'is_active', False)
 
-
-_SYSTEM_PROMPT = """\
-You are a helpful assistant that can use tools.
-If you need to use a tool, output it in the specified format.
-IMPORTANT: Do NOT write `[Tool result: ...]` !!! Instead end your turn and
-let the user talk.
-
-
-Available tools:
-
-{}
-
-Now, answer the following:
-
-"""
-
-_TOOL_CALL_TEMPLATE = """\
-**{tool_name}**:
-
-Description: {description}
-Call format: {call_format}
-Example:
-{example}
-"""
+  @contextlib.contextmanager
+  def _activate(self) -> Iterator[None]:
+    """Activate the tool handler."""
+    del self
+    yield
 
 
-@dataclasses.dataclass(frozen=True, kw_only=True)
-class OneShotToolManager(ToolManagerBase):
-  """Tool manager that instructs the model through one-shot prompting."""
+def _normalize_response(
+    response: mcp.types.CallToolResult,
+) -> mcp.types.CallToolResult:
+  """Normalizes the response."""
+  if response.structuredContent is not None:
+    return response
 
-  @functools.cached_property
-  def system_prompt(self) -> str:
-    """Returns the preprompt for the tool manager."""
+  # Assume the response is a single text block.
+  assert len(response.content) == 1
+  assert response.content[0].type == 'text'
 
-    lines = epy.Lines()
-    for tool in self.tools:
-      lines += format_tool_instructions(tool)
-
-    return _SYSTEM_PROMPT.format(lines.join())
-
-  def maybe_execute_tool(self, model_output: str) -> _tools.ToolOutput | None:
-    """Executes the tool if the model output is a tool call."""
-    tool_kwargs = _parse_tool_call(model_output)
-    if not tool_kwargs:
-      return None
-
-    tool_name = tool_kwargs.pop('tool_name')
-    if tool_name not in self.name_to_tool:
-      return _tools.ToolOutput(
-          text=f'Unknown (or unregistered) tool: {tool_name}.'
-      )
-    tool = self.name_to_tool[tool_name]
-    tool_result = tool.call(**tool_kwargs)
-
-    # Normalize `str` to `ToolOutput`.
-    if not isinstance(tool_result, _tools.ToolOutput):
-      tool_result = _tools.ToolOutput(text=tool_result)
-
-    # Tools can also interact with the manager (e.g. to register, update,...
-    # tools)
-    if tool_result.update_tools:
-      self.update_tools(tool_result.update_tools(self.tools))
-
-    text = _format_tool_result(result=tool_result.text)
-    tool_result = dataclasses.replace(tool_result, text=text)
-    return tool_result
-
-
-def _parse_tool_call(model_output: str) -> dict[str, str] | None:
-  """Parses the tool call from the model output."""
-  # This regex finds the first '{' and the last '}'
-  match = re.search(r'\{.*\}', model_output)
-
-  if not match:
-    return None
-  json_string = match.group(0)
-  try:
-    return json.loads(json_string)
-  except json.JSONDecodeError:
-    return None
-
-
-def _format_tool_example(
-    *,
-    example: _tools.Example,
-    tool: _tools.Tool,
-) -> str:
-  """Formats a tool example."""
-
-  lines = epy.Lines()
-  lines += f'User: {example.query}'
-  lines += 'Assistant:'
-  if example.thought:
-    lines += f'Thought: {example.thought}'
-  lines += _format_tool_call(tool_kwargs=example.tool_kwargs, tool=tool)
-  lines += _format_tool_result(result=example.result)
-  lines += example.answer
-  return lines.join()
-
-
-def format_tool_instructions(tool: _tools.Tool) -> str:
-  return _TOOL_CALL_TEMPLATE.format(
-      tool_name=tool.name,
-      description=tool.DESCRIPTION,
-      call_format=_format_tool_call(
-          tool_kwargs=tool.EXAMPLE.tool_kwargs_doc, tool=tool
-      ),
-      example=_format_tool_example(example=tool.EXAMPLE, tool=tool),
-  )
-
-
-def _format_tool_call(
-    *,
-    tool_kwargs: dict[str, str],
-    tool: _tools.Tool,
-) -> str:
-  return json.dumps({'tool_name': tool.name, **tool_kwargs})
-
-
-def _format_tool_result(result: str) -> str:
-  return f'[Tool result: {result}]'
+  content = response.content[0].text
+  if response.isError:
+    structured_content = {'error': content}
+  else:
+    structured_content = {'result': content}
+  response.structuredContent = structured_content
+  return response
