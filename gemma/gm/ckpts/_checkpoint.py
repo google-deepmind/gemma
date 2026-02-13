@@ -46,7 +46,7 @@ else:
 
 # TODO(epot): Should be part of core Kauldron
 @dataclasses.dataclass(frozen=True)
-class LoadCheckpoint(kd.ckpts.AbstractPartialLoader):
+class LoadCheckpoint(kd.ckpts.InitTransform):
   """Loads weights from a Gemma checkpoint.
 
   Note: The checpoint only contains the Gemma transformer weights, not the
