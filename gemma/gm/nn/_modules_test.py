@@ -71,7 +71,31 @@ def test_embedder_decode():
   np.testing.assert_array_equal(output, jnp.array(expected))
 
 
-# TODO(mblondel): Add tests for `encode_vision` here.
+def test_embedder_encode_vision():
+  vocab_size = 10
+  embed_dim = 16
+  vision_proj_dim = 8
+  batch_size = 2
+  num_tokens = 5
+
+  embedder = gm.nn.Embedder(
+      vocab_size=vocab_size,
+      embed_dim=embed_dim,
+      vision_proj_dim=vision_proj_dim
+  )
+
+  # Mock SigLiP output
+  rng = jax.random.PRNGKey(0)
+  vision_input = jax.random.normal(rng, (batch_size, num_tokens, vision_proj_dim))
+
+  # Initialize and apply
+  params = embedder.init(rng, vision_input, method=embedder.encode_vision)
+  output = embedder.apply(params, vision_input, method=embedder.encode_vision)
+
+  assert output.shape == (batch_size, num_tokens, embed_dim)
+  assert "mm_input_projection" in params["params"]
+  assert "mm_soft_embedding_norm" in params["params"]
+
 
 
 def test_sliding_mask():
