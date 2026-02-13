@@ -60,7 +60,7 @@ changelog = "https://github.com/google-deepmind/gemma/blob/main/CHANGELOG.md"
 # documentation = ""
 
 [project.optional-dependencies]
-# Development deps (unittest, linting, formating,...)
+# Development deps (unittest, linting, formatting,...)
 # Installed through `pip install -e .[dev]`
 dev = [
     "pytest",

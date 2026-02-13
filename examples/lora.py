@@ -85,7 +85,7 @@ def get_config():
               mask="batch.loss_mask",
           ),
       },
-      # TODO(epot): Add Gradient accumenlation.
+      # TODO(epot): Add Gradient accumulation.
       optimizer=kd.optim.partial_updates(
           optax.adafactor(learning_rate=0.005),
           # We only optimize the LoRA weights. The rest of the model is frozen.
