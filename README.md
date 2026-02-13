@@ -85,9 +85,21 @@ To download the model weights. See
 [our documentation](https://gemma-llm.readthedocs.io/en/latest/checkpoints.html).
 
 ### System Requirements
+Gemma can run on CPU, GPU, and TPU.
 
-Gemma can run on a CPU, GPU and TPU. For GPU, we recommend 8GB+ RAM on GPU for
-The 2B checkpoint and 24GB+ RAM on GPU are used for the 7B checkpoint.
+* GPU (Most Critical):
+  * **Gemma 2B**:
+    * Min: ~8–12 GB VRAM (e.g., RTX 3060, RTX 4060)
+    * Recommended: 16 GB+
+  * **Gemma 7B**:
+    * Min (full precision): ~35 GB VRAM — e.g., RTX A6000 (48 GB)
+    * Recommended: 24–40 GB+ VRAM (RTX 4090, A6000, H100)
+  * **Full precision (no quant)**:
+    * Requires ~35 GB+ VRAM on a single GPU
+  * **Quantization**:
+    * Float16/BF16: ~16 GB model load (plus 20% overhead → ~19 GB total)
+    * 4-bit (INT4): ~4 GB model load (plus 20% overhead → ~5 GB total)
+
 
 ### Contributing
 
