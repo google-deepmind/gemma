@@ -53,8 +53,8 @@ def create_sliding_mask(
 
 
 class AttentionType(enum.Enum):
-  GLOBAL = 1
-  LOCAL_SLIDING = 2
+  GLOBAL = enum.auto()
+  LOCAL_SLIDING = enum.auto()
 
 
 class Embedder(nn.Module):
@@ -267,6 +267,11 @@ class Attention(nn.Module):
       )
       # [batch_size, seq_len, cache_size]
       attn_mask *= sliding_mask
+    elif self.attn_type != AttentionType.GLOBAL:
+      raise ValueError(
+          'Attn_type must be either AttentionType.GLOBAL or'
+          f' AttentionType.GLOBAL not {self.attn_type}'
+      )
 
     # [batch_size, seq_len, num_heads, cache_size]
     padded_logits = jnp.where((jnp.expand_dims(attn_mask, -2)), logits, K_MASK)
