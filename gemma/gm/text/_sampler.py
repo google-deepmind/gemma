@@ -572,7 +572,7 @@ def _normalize_token(tokenizer, token: str | int) -> int:
   token_id = tokenizer.encode(token)
   if len(token_id) != 1:
     raise ValueError(
-        'Invalid token: {token!r}. `stop_token`s and `forbidden_token`s must'
+        f'Invalid token: {token!r}. `stop_token`s and `forbidden_token`s must'
         ' map to single token ids in the vocab.'
     )
   (token_id,) = token_id
