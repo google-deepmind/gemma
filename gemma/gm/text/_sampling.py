@@ -58,6 +58,8 @@ class RandomSampling(SamplingMethod):
 
   @typechecked
   def get_next_tokens(self, logits: Float['*B V'], rng: PRNGKey) -> Int['*B']:
+    if self.temperature < 1e-6:
+      return Greedy().get_next_tokens(logits, rng)
     return jax.random.categorical(rng, logits / self.temperature, axis=-1)
 
 
@@ -70,6 +72,9 @@ class TopkSampling(SamplingMethod):
 
   @typechecked
   def get_next_tokens(self, logits: Float['*B V'], rng: PRNGKey) -> Int['*B']:
+    if self.temperature < 1e-6:
+      return Greedy().get_next_tokens(logits, rng)
+
     logits, batch_shape = enp.flatten(logits, '... V')
 
     batch_size = logits.shape[0]
@@ -91,6 +96,9 @@ class TopPSampling(SamplingMethod):
 
   @typechecked
   def get_next_tokens(self, logits: Float['... V'], rng: PRNGKey) -> Int['...']:
+    if self.temperature < 1e-6:
+      return Greedy().get_next_tokens(logits, rng)
+
     # temperature scaling
     logits = logits / self.temperature
 
@@ -115,4 +123,3 @@ class TopPSampling(SamplingMethod):
       )
 
     return jax.random.categorical(rng, logits, axis=-1)
-
