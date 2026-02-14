@@ -62,8 +62,13 @@ Our documentation contains various Colabs and tutorials, including:
 * [Sampling](https://gemma-llm.readthedocs.io/en/latest/colab_sampling.html)
 * [Multi-modal](https://gemma-llm.readthedocs.io/en/latest/colab_multimodal.html)
 * [Fine-tuning](https://gemma-llm.readthedocs.io/en/latest/colab_finetuning.html)
-* [LoRA](https://gemma-llm.readthedocs.io/en/latest/colab_lora_sampling.html)
-* ...
+* [LoRA sampling](https://gemma-llm.readthedocs.io/en/latest/colab_lora_sampling.html)
+* [LoRA fine-tuning](https://gemma-llm.readthedocs.io/en/latest/colab_lora_finetuning.html)
+* [Tokenizer](https://gemma-llm.readthedocs.io/en/latest/colab_tokenizer.html)
+* [Tool use](https://gemma-llm.readthedocs.io/en/latest/colab_tool_use.html)
+* [Sharding](https://gemma-llm.readthedocs.io/en/latest/colab_sharding.html)
+* [Quantization sampling](https://gemma-llm.readthedocs.io/en/latest/colab_quantization_sampling.html)
+* [Quantization-aware training](https://gemma-llm.readthedocs.io/en/latest/colab_quantization_aware_training.html)
 
 Additionally, our
 [examples/](https://github.com/google-deepmind/gemma/tree/main/examples) folder
