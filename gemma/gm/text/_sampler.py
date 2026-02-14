@@ -126,7 +126,9 @@ class Sampler:
 
   model: _transformer_like.TransformerLike
   params: _common.Params
-  tokenizer: _tokenizer.Tokenizer = None  # pytype: disable=annotation-type-mismatch
+  tokenizer: _tokenizer.Tokenizer = (
+      None  # pytype: disable=annotation-type-mismatch
+  )
   sampling: _sampling.SamplingMethod = dataclasses.field(
       default_factory=_sampling.Greedy
   )
@@ -341,7 +343,7 @@ class Sampler:
 
     # TODO(epot): Donate the `init_state`, `last_state`
 
-    sampler = _sampler_loop.SamplerLoop(
+    config = _sampler_loop.SamplerConfig(
         # Static attributes. Changing those will trigger a recompilation.
         model=self.model,
         end_tokens=(
@@ -359,14 +361,24 @@ class Sampler:
     # TODO(epot): Use `jnp.cond` to detect when the cache is full (or use
     # rolling-cache). Also do add a check that the cache wasn't filled up
     # after the sampling.
-    state = sampler.sample(
-        # Dynamic attributes. If the shape changes, will trigger a
-        # recompilation.
-        params=self.params,
-        init_state=init_state,
-        max_new_tokens=max_new_tokens,
-        stream=stream,
-    )
+    if stream:
+      state = _sampler_loop.autoregressive_stream_sample(
+          # Dynamic attributes. If the shape changes, will trigger a
+          # recompilation.
+          config=config,
+          params=self.params,
+          init_state=init_state,
+          max_new_tokens=max_new_tokens,
+      )
+    else:
+      state = _sampler_loop.autoregressive_sample(
+          # Dynamic attributes. If the shape changes, will trigger a
+          # recompilation.
+          config=config,
+          params=self.params,
+          init_state=init_state,
+          max_new_tokens=max_new_tokens,
+      )
 
     if stream:
       return self._stream_decode_state(  # pytype: disable=bad-return-type
@@ -557,11 +569,15 @@ def _normalize_images(
   # TODO(epot): Supports sequences of images, rather than array. Need then
   # to resize and batch the images.
   if not has_batch_dim:
-    if len(images.shape) == 3:  # Add the `N` optional dimension   # pytype: disable=attribute-error
+    if (
+        len(images.shape) == 3
+    ):  # Add the `N` optional dimension   # pytype: disable=attribute-error
       images = images[None, ...]
     images = images[None, ...]  # Add the `B` dimension
   else:
-    if len(images.shape) == 4:  # Add the `N` optional dimension   # pytype: disable=attribute-error
+    if (
+        len(images.shape) == 4
+    ):  # Add the `N` optional dimension   # pytype: disable=attribute-error
       images = images[:, None, ...]
   return images
 
