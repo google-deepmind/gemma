@@ -46,6 +46,7 @@ class ToolSampler(_chat_sampler.ChatSampler):
   """
 
   tool_handler: _manager_lib.ToolHandlerBase
+  max_tool_depth: int = 10
 
   def chat(
       self,
@@ -58,6 +59,7 @@ class ToolSampler(_chat_sampler.ChatSampler):
       multi_turn: bool | None = None,
       print_stream: bool | dialog.Stream | None = None,
       is_legacy_tool_answer: bool = False,
+      _current_depth: int = 0,
   ) -> str:
     # pylint: disable=g-docstring-quotes
     """Sampler which supports tool use.
@@ -83,10 +85,21 @@ class ToolSampler(_chat_sampler.ChatSampler):
       is_legacy_tool_answer: When `True`, indicates that the model has emitted
         `<eos>` rather than `<|tool_response>`, thus this needs to be corrected.
         (this is an internal variable that should never be explictly set).
+      _current_depth: Internal counter tracking the current recursive tool call
+        depth. Should not be set by users.
 
     Returns:
       The sampled output.
+
+    Raises:
+      RecursionError: If the tool call depth exceeds `max_tool_depth`.
     """
+    if _current_depth > self.max_tool_depth:
+      raise RecursionError(
+          f'Tool call depth exceeded maximum of {self.max_tool_depth}. '
+          'The model keeps requesting tool calls without terminating. '
+          'Increase `max_tool_depth` if deeper tool chains are expected.'
+      )
     if multi_turn is None:
       multi_turn = self.multi_turn
 
@@ -141,6 +154,7 @@ class ToolSampler(_chat_sampler.ChatSampler):
             rng=rng,
             print_stream=stream,
             is_legacy_tool_answer=is_legacy_tool_answer,
+            _current_depth=_current_depth + 1,
         )
       else:
         return model_output
