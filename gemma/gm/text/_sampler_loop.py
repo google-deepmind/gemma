@@ -30,7 +30,8 @@ from gemma.gm.typing import _common
 from gemma.gm.utils import _cache_helper
 import jax
 import jax.numpy as jnp
-from kauldron.typing import Bool, Int, PRNGKey, check_type, typechecked  # pylint: disable=g-multiple-import,g-importing-member
+from kauldron.ktyping import Bool, SInt, check_type, typechecked  # pylint: disable=g-multiple-import,g-importing-member
+from kauldron.typing import PRNGKey  # pylint: disable=g-importing-member
 
 
 @flax.struct.dataclass(kw_only=True)
@@ -54,11 +55,11 @@ class SamplingState:
       the prompt, the MM tokens, and the previous turns.
   """
 
-  step: Int['']
+  step: SInt['']
   done: Bool['B']
-  last_token: Int['B']
-  last_token_pos: Int['B']
-  predicted_tokens: Int['B max_out_length']
+  last_token: SInt['B']
+  last_token_pos: SInt['B']
+  predicted_tokens: SInt['B max_out_length']
   # TODO(epot): Better way to extract logits. This takes a lot of memory.
   # TODO(epot): Only keep the top-k logits instead? But sorting might increase
   # computation.
@@ -71,11 +72,11 @@ class SamplingState:
   # Are converted to array to avoid re-compilation when `init_cache_length`
   # changes.
   # TODO(epot): Remove `init_cache_length` and only use `used_cache_length` ?
-  init_cache_length: Int['']
+  init_cache_length: SInt['']
   full_attention_mask: Bool['B cache_length']
 
   @property
-  def used_cache_length(self) -> Int['']:
+  def used_cache_length(self) -> SInt['']:
     """Length of the cache currently used."""
     return self.init_cache_length + self.step
 
@@ -128,7 +129,7 @@ class SamplerLoop:
       *,
       params: _common.Params,
       init_state: SamplingState,
-      max_new_tokens: Int[''],
+      max_new_tokens: SInt[''],
       stream: bool = False,
   ) -> SamplingState | Iterator[SamplingState]:
     """Sample the prompt."""
@@ -149,7 +150,7 @@ class SamplerLoop:
       *,
       params: _common.Params,
       state: SamplingState,
-      max_new_tokens: Int[''],
+      max_new_tokens: SInt[''],
   ) -> SamplingState:
     """Internal sampling function (to be jitted)."""
 
@@ -202,7 +203,7 @@ class SamplerLoop:
       *,
       params: _common.Params,
       state: SamplingState,
-      max_new_tokens: Int[''],
+      max_new_tokens: SInt[''],
   ) -> Iterator[SamplingState]:
     """Streaming sampling function."""
     # Sample autoregressively.
@@ -244,7 +245,7 @@ class SamplerLoop:
     # Sample next token.
     next_rng, curr_rng = jax.random.split(state.rng)
     next_token = self.sampling.get_next_tokens(logits, rng=curr_rng)
-    check_type(next_token, Int['B'])
+    check_type(next_token, SInt['B'])
 
     # Update the buffers to save the outputs.
     predicted_tokens = state.predicted_tokens.at[:, state.step].set(next_token)
@@ -271,10 +272,10 @@ class SamplerLoop:
 
 @typechecked
 def _mask_tokens_after_end_tokens(
-    tokens: Int['B L'],
+    tokens: SInt['B L'],
     *,
     end_tokens: tuple[int, ...],
-) -> Int['B L']:
+) -> SInt['B L']:
   """Mask token IDs after the EOS token with the padding ID."""
   end_tokens_mask = jnp.isin(tokens, jnp.asarray(end_tokens))
   end_tokens_mask = jnp.cumsum(end_tokens_mask, axis=-1) - end_tokens_mask == 0
@@ -284,8 +285,8 @@ def _mask_tokens_after_end_tokens(
 def _mask_full_attention_mask_prefix_for_next_turn(
     *,
     full_attention_mask: Bool['B cache_length'],
-    predicted_tokens: Int['B L'],
-    init_cache_length: Int[''],
+    predicted_tokens: SInt['B L'],
+    init_cache_length: SInt[''],
 ) -> Bool['B cache_length']:
   """Mask the full attention mask for the next turn."""
   num_predicted_tokens = jnp.sum(predicted_tokens != 0, axis=-1)

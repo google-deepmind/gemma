@@ -17,7 +17,7 @@
 from etils import enp
 import flax
 import jax
-from kauldron.typing import Array, Bool, Int, PyTree  # pylint: disable=g-multiple-import,g-importing-member
+from kauldron.ktyping import Array, Bool, PyTree, SInt  # pylint: disable=g-multiple-import,g-importing-member
 import numpy as np
 
 
@@ -92,8 +92,8 @@ def _pad(
 class Seq2SeqFields:
   """Fields for next token prediction."""
 
-  input: Int["*b l"]
-  target: Int["*b l"]
+  input: SInt["*b l"]
+  target: SInt["*b l"]
   target_mask: Bool["*b l"]
 
 
@@ -101,8 +101,8 @@ class Seq2SeqFields:
 # each example has a different length, so batching can only be applied
 # after the output is padded.
 def make_seq2seq_fields(
-    prompt: Int["prompt_len"],
-    response: Int["response_len"],
+    prompt: SInt["prompt_len"],
+    response: SInt["response_len"],
 ) -> Seq2SeqFields:
   """Create the model `input`, `target` and `loss_mask`.
 

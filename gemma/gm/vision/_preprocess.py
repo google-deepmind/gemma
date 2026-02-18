@@ -17,7 +17,7 @@
 import einops
 import jax
 from jax import numpy as jnp
-from kauldron.typing import Float, typechecked  # pylint: disable=g-multiple-import,g-importing-member
+from kauldron.ktyping import Float, typechecked  # pylint: disable=g-multiple-import,g-importing-member
 
 
 _IMAGE_MEAN = (127.5,) * 3

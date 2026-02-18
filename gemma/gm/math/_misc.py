@@ -16,7 +16,7 @@
 
 import itertools
 
-from kauldron.typing import Array
+from kauldron.ktyping import Array
 import numpy as np
 
 

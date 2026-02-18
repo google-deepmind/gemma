@@ -28,7 +28,7 @@ from flax import linen as nn
 from gemma.gm.nn.vision import _vision_utils
 import jax
 from jax import numpy as jnp
-from kauldron.typing import Bool, Float, Int, typechecked  # pylint: disable=g-multiple-import,g-importing-member
+from kauldron.ktyping import Bool, Float, SInt, typechecked  # pylint: disable=g-multiple-import,g-importing-member
 
 with epy.lazy_imports():
   # TODO(epot): Refactor to move everything inside gemma/gm/
@@ -42,7 +42,7 @@ NUM_PLACEHOLDER_TOKENS_PER_IMAGE = 256
 NUM_TOKENS_PER_MEDIA = NUM_PLACEHOLDER_TOKENS_PER_IMAGE + 4
 
 
-def check_mask(input_data: Float["L"]) -> tuple[Bool["1"], Int["L"]]:
+def check_mask(input_data: Float["L"]) -> tuple[Bool["1"], SInt["L"]]:
   """Checks that the mask contains the correct number of blocks.
 
   Args:
@@ -79,7 +79,7 @@ def check_mask(input_data: Float["L"]) -> tuple[Bool["1"], Int["L"]]:
 def check_special_vision_token(
     input_data: Float["B L"],
     *,
-    start_positions: Int["B L"],
+    start_positions: SInt["B L"],
     special_token: int,
     position_offset: int,
 ) -> Bool["1"]:
@@ -112,15 +112,15 @@ class VisionInitEmbeddings:
   """Container for vision encoder output."""
 
   patches: Float["B N P D"] | None
-  token_buffer: Int["B NEW_BUFFER"]
-  num_input_tokens: Int["B"]
+  token_buffer: SInt["B NEW_BUFFER"]
+  num_input_tokens: SInt["B"]
 
 
 @typechecked
 def initialize_vision_tokens(
     patches: Float["B N P D"] | None,
-    token_buffer: Int["B BUFFER"],
-    num_input_tokens: Int["B"],
+    token_buffer: SInt["B BUFFER"],
+    num_input_tokens: SInt["B"],
 ) -> VisionInitEmbeddings:
   """Initializes vision embeddings.
 

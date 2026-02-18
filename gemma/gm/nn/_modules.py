@@ -21,7 +21,7 @@ from gemma.gm.nn import _layers
 import jax
 import jax.numpy as jnp
 from kauldron import kd
-from kauldron.typing import Bool, Int  # pylint: disable=g-multiple-import,g-importing-member
+from kauldron.ktyping import Bool, SInt  # pylint: disable=g-multiple-import,g-importing-member
 
 K_MASK = -2.3819763e38  # Set to a large negative number.
 DEFAULT_ROPE_BASE_FREQUENCY = 10_000
@@ -36,9 +36,9 @@ LayerCache = dict[str, jax.Array]
 
 
 def create_sliding_mask(
-    positions: Int['B L'],
+    positions: SInt['B L'],
     *,
-    cache_positions: Int['B cache_len'] | None = None,
+    cache_positions: SInt['B cache_len'] | None = None,
     sliding_window_size: int,
 ) -> Bool['B L cache_len']:
   """Create the sliding mask for local sliding attention."""

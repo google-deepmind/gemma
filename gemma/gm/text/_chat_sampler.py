@@ -29,7 +29,8 @@ from gemma.gm.text import _template
 from gemma.gm.text import _tokenizer
 from gemma.gm.typing import _common
 # from gemma.gm.vision import _token_utils
-from kauldron.typing import PRNGKeyLike, UInt8  # pylint: disable=g-multiple-import,g-importing-member
+from kauldron.ktyping import UInt8  # pylint: disable=g-importing-member
+from kauldron.typing import PRNGKeyLike  # pylint: disable=g-importing-member
 
 
 @dataclasses.dataclass(frozen=True, kw_only=True, eq=False)

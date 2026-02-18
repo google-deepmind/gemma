@@ -22,7 +22,7 @@ from etils import epy
 import flax
 from gemma.gm.nn import _config
 import jax.numpy as jnp
-from kauldron.typing import Bool, Int  # pylint: disable=g-multiple-import
+from kauldron.ktyping import Bool, SInt  # pylint: disable=g-multiple-import
 
 _Slice = slice | int
 _GetItem = _Slice | tuple[_Slice, ...]
@@ -71,7 +71,7 @@ class Cache:
     return _CacheProxyAt(self)
 
   @property
-  def end_index(self) -> Int['']:
+  def end_index(self) -> SInt['']:
     """End index of the cache."""
     layer_data = next(iter(self.cache.values()))
     return layer_data['end_index'][0]

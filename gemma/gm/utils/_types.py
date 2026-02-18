@@ -27,7 +27,7 @@ from gemma.gm.utils import _attention_mask
 from gemma.gm.vision import _token_utils
 import jax
 import jax.numpy as jnp
-from kauldron.typing import Bool, Int, UInt8  # pylint: disable=g-multiple-import,g-importing-member
+from kauldron.ktyping import Bool, SInt, UInt8  # pylint: disable=g-multiple-import,g-importing-member
 
 _PADDING_ID = 0
 
@@ -57,7 +57,7 @@ class Input:
 
   # Name `text` rather than `tokens` to avoid accidental usage instead of
   # `tokens_with_mm`.
-  text: Int['B length_no_mm']
+  text: SInt['B length_no_mm']
   images: UInt8['B N H W C'] | None
 
   # Model metadata.
@@ -109,7 +109,7 @@ class Input:
 
   @property
   @jax.jit
-  def tokens_with_mm(self) -> Int['B length_with_mm']:
+  def tokens_with_mm(self) -> SInt['B length_with_mm']:
     """Tokens after inserting placeholders for images."""
     # No images, tokens are only text.
     if not self.config.support_images or self.images is None:
@@ -146,20 +146,20 @@ class Input:
 
   @property
   @jax.jit
-  def positions(self) -> Int['B length_with_mm']:
+  def positions(self) -> SInt['B length_with_mm']:
     """Positions for the input (always including the MM tokens)."""
     return _pos_utils.build_positions_from_mask(self.inputs_mask)
 
   @property
   @jax.jit
-  def last_token_pos(self) -> Int['B']:
+  def last_token_pos(self) -> SInt['B']:
     """Position of the last token in the sentence (after MM tokens)."""
     # Could also be `self.positions.max(axis=-1)`
     return jnp.sum(self.inputs_mask, axis=-1) - 1
 
   @property
   @jax.jit
-  def last_token(self) -> Int['B']:
+  def last_token(self) -> SInt['B']:
     """Last token in the sentence (after MM tokens).
 
     Used as the first input token of the model for the auto-regressive sampling.

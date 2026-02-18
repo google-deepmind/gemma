@@ -29,7 +29,8 @@ from gemma.gm.utils import _types
 import jax
 from jax import numpy as jnp
 from kauldron import kd
-from kauldron.typing import Bool, Int, PRNGKey, UInt8  # pylint: disable=g-multiple-import,g-importing-member
+from kauldron.ktyping import Bool, SInt, UInt8  # pylint: disable=g-multiple-import,g-importing-member
+from kauldron.typing import PRNGKey  # pylint: disable=g-importing-member
 
 _PADDING_ID = 0
 
@@ -40,9 +41,9 @@ _PADDING_ID = 0
 class PrefillInput:
   """Input for the prefill phase."""
 
-  tokens: Int['B L']
+  tokens: SInt['B L']
   images: UInt8['B N H W C'] | None
-  positions: Int['B L']
+  positions: SInt['B L']
   attention_mask: Bool['B L cache_length']
   cache: _cache_helper.Cache
 

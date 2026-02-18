@@ -25,7 +25,7 @@ from gemma.gm.nn import _config
 from gemma.gm.utils import _types
 import jax.numpy as jnp
 from kauldron import kd
-from kauldron.typing import Bool, Float, Int, UInt8, typechecked  # pylint: disable=g-multiple-import,g-importing-member
+from kauldron.ktyping import Bool, Float, SInt, UInt8, typechecked  # pylint: disable=g-multiple-import,g-importing-member
 
 
 class TransformerConfig(Protocol):
@@ -118,10 +118,10 @@ class TransformerLike(Protocol):
   @abc.abstractmethod
   def __call__(  # pytype: disable=signature-mismatch
       self,
-      tokens: Int['*B L'],
+      tokens: SInt['*B L'],
       *,
       images: UInt8['*B N H W C'] | UInt8['*B H W C'] | None = None,
-      positions: Int['*B L_with_mm'] | None = None,
+      positions: SInt['*B L_with_mm'] | None = None,
       cache: _config.Cache | None = None,
       attention_mask: Bool['*B L_with_mm cache_length'] | None = None,
       return_last_only: bool | None = None,
@@ -134,11 +134,11 @@ class TransformerLike(Protocol):
   def apply(
       self,
       variables: VariableDict,
-      tokens: Int['*B L'],
+      tokens: SInt['*B L'],
       *,
       images: UInt8['*B N H W C'] | UInt8['*B H W C'] | None = None,
       cache: _config.Cache | None = None,
-      positions: Int['*B L_with_mm'] | None = None,
+      positions: SInt['*B L_with_mm'] | None = None,
       attention_mask: Bool['*B L_with_mm cache_length'] | None = None,
   ) -> Any | tuple[Any, FrozenVariableDict | dict[str, Any]]:
     """Applies a module method to variables and returns output and modified variables."""

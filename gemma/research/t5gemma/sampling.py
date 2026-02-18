@@ -29,7 +29,8 @@ from gemma.research.t5gemma import t5gemma
 import jax
 import jax.numpy as jnp
 from kauldron import kd
-from kauldron.typing import Array, Bool, Float, Int, PRNGKey, PRNGKeyLike, typechecked, check_type  # pylint: disable=g-multiple-import,g-importing-member
+from kauldron.ktyping import Array, Bool, Float, SInt, check_type, typechecked  # pylint: disable=g-multiple-import,g-importing-member
+from kauldron.typing import PRNGKey, PRNGKeyLike  # pylint: disable=g-multiple-import,g-importing-member
 import numpy as np
 
 
@@ -65,11 +66,11 @@ class SamplingState:
     encoder_mask: Encoder mask for the input tokens.
   """
 
-  step: Int['']
+  step: SInt['']
   done: Bool['B']
-  last_token: Int['B']
-  last_token_pos: Int['B']
-  predicted_tokens: Int['B max_output_length']
+  last_token: SInt['B']
+  last_token_pos: SInt['B']
+  predicted_tokens: SInt['B max_output_length']
   predicted_logits: Float['B max_out_length']
   cache: Cache
   rng: PRNGKey
@@ -89,7 +90,7 @@ class SamplerOutput:
   state: SamplingState
 
   @property
-  def tokens(self) -> Int['B L'] | Int['L']:
+  def tokens(self) -> SInt['B L'] | SInt['L']:
     """Predicted tokens."""
     return self._maybe_unbatch(self.state.predicted_tokens)
 
@@ -271,7 +272,7 @@ class Sampler:
   def _decode_state(
       self,
       state: SamplingState,
-      predicted_tokens: Int['B L'],
+      predicted_tokens: SInt['B L'],
       *,
       is_single_prompt: bool,
       return_state: bool,
@@ -333,7 +334,7 @@ class SamplerCall:
       self,
       *,
       params: Params,
-      tokens: Int['B L'],
+      tokens: SInt['B L'],
       cache: Cache,
       max_new_tokens: int,
       rng: PRNGKey,
@@ -363,7 +364,7 @@ class SamplerCall:
       *,
       params: Params,
       cache: Cache,
-      tokens: Int['B L'],
+      tokens: SInt['B L'],
       rng: PRNGKey,
   ) -> SamplingState:
     """Prefills the KV cache."""
@@ -466,7 +467,7 @@ class SamplerCall:
     # Sample next token.
     next_rng, curr_rng = jax.random.split(state.rng)
     next_token = self.sampling.get_next_tokens(logits, rng=curr_rng)
-    check_type(next_token, Int['B'])
+    check_type(next_token, SInt['B'])
     next_logits = jnp.take_along_axis(logits, next_token[..., None], axis=-1)
     next_logits = jnp.squeeze(next_logits, axis=-1)
     check_type(next_logits, Float['B'])
@@ -550,10 +551,10 @@ def _merge_initial_cache(
 
 @typechecked
 def _mask_tokens_after_end_tokens(
-    tokens: Int['B L'],
+    tokens: SInt['B L'],
     *,
     end_tokens: tuple[int, ...],
-) -> Int['B L']:
+) -> SInt['B L']:
   """Mask token IDs after the EOS token with the padding ID."""
   end_tokens_mask = jnp.isin(tokens, jnp.asarray(end_tokens))
   end_tokens_mask = jnp.cumsum(end_tokens_mask, axis=-1) - end_tokens_mask == 0
@@ -568,7 +569,7 @@ class TopkSampling(SamplingMethod):
   k: int = 1
 
   @typechecked
-  def get_next_tokens(self, logits: Float['*B V'], rng: PRNGKey) -> Int['*B']:
+  def get_next_tokens(self, logits: Float['*B V'], rng: PRNGKey) -> SInt['*B']:
     batch_size = logits.shape[0]
     topk_values, topk_indices = jax.lax.top_k(logits, self.k)
     sampled_topk_indices = jax.random.categorical(

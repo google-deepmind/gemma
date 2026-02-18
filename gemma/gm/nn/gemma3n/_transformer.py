@@ -37,7 +37,7 @@ from gemma.gm.vision import _token_utils
 import jax.numpy as jnp
 from kauldron import kd
 from kauldron import kontext
-from kauldron.typing import Bool, Float, Int, UInt8, typechecked  # pylint: disable=g-multiple-import,g-importing-member
+from kauldron.ktyping import Bool, Float, SInt, UInt8, typechecked  # pylint: disable=g-multiple-import,g-importing-member
 
 _PADDING_ID = 0
 
@@ -82,7 +82,7 @@ class _Inputs:
   """
 
   embeddings: Float['B L D']
-  positions: Int['B L']
+  positions: SInt['B L']
   attention_mask: Bool['B L cache_length']
   inputs_mask: Bool['B L']
   per_layer_inputs: Float['B L P'] | None = None
@@ -223,12 +223,12 @@ class Gemma3nTransformer(_transformer.Transformer):
   @typechecked
   def __call__(  # pytype: disable=signature-mismatch
       self,
-      tokens: Int['*B L'],
+      tokens: SInt['*B L'],
       *,
       images: UInt8['*B N H W C'] | UInt8['*B H W C'] | None = None,
       # TODO(epot): Cleanup and simplify the API.
-      positions: Int['*B L'] | None = None,
-      positions_offset: Int['*B'] | None = None,
+      positions: SInt['*B L'] | None = None,
+      positions_offset: SInt['*B'] | None = None,
       cache: _config.Cache | None = None,
       # During training and pre-filling, the attention mask is `*B L L`
       # When sampling (after prefilling), tokens are decoded one by one,
@@ -373,11 +373,11 @@ class Gemma3nTransformer(_transformer.Transformer):
   def _encode_and_get_inputs(
       self,
       *,
-      tokens: Int['B L_no_mm'],
+      tokens: SInt['B L_no_mm'],
       images: UInt8['B H W C'] | UInt8['B N H W C'] | None = None,
       attention_mask: Bool['B L_no_mm cache_length'] | None = None,
-      positions: Int['B L_no_mm'] | None = None,
-      positions_offset: Int['B'] | None = None,
+      positions: SInt['B L_no_mm'] | None = None,
+      positions_offset: SInt['B'] | None = None,
   ) -> _Inputs:
     """Encode the text tokens, eventually including the vision embeddings."""
 
@@ -444,7 +444,7 @@ class Gemma3nTransformer(_transformer.Transformer):
   def _merge_mm_embeddings(
       self,
       *,
-      tokens: Int['B L'],
+      tokens: SInt['B L'],
       embeddings: Float['B L D'],
       images: UInt8['B N H W C'],
   ) -> Float['B L D']:

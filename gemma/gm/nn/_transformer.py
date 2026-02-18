@@ -35,7 +35,7 @@ from gemma.gm.vision import _token_utils
 import jax.numpy as jnp
 from kauldron import kd
 from kauldron import kontext
-from kauldron.typing import Bool, Float, Int, UInt8, typechecked  # pylint: disable=g-multiple-import,g-importing-member
+from kauldron.ktyping import Bool, Float, SInt, UInt8, typechecked  # pylint: disable=g-multiple-import,g-importing-member
 
 _PADDING_ID = 0
 
@@ -79,7 +79,7 @@ class _Inputs:
   """
 
   embeddings: Float['B L D']
-  positions: Int['B L']
+  positions: SInt['B L']
   attention_mask: Bool['B L cache_length']
   inputs_mask: Bool['B L']
 
@@ -184,13 +184,13 @@ class Transformer(nn.Module):
   @typechecked
   def __call__(  # pytype: disable=signature-mismatch
       self,
-      tokens: Int['*B L'],
+      tokens: SInt['*B L'],
       *,
       images: UInt8['*B N H W C'] | UInt8['*B H W C'] | None = None,
       # TODO(epot): Cleanup and simplify the API.
       # When provided, the positions and attention_mask should include
       # the extra inserted multi-modal tokens.
-      positions: Int['*B L_with_mm'] | None = None,
+      positions: SInt['*B L_with_mm'] | None = None,
       cache: _config.Cache | None = None,
       # During training and pre-filling, the attention mask is `*B L L`
       # When sampling (after prefilling), tokens are decoded one by one,
@@ -332,10 +332,10 @@ class Transformer(nn.Module):
   def _encode_and_get_inputs(
       self,
       *,
-      tokens: Int['B L_no_mm'],
+      tokens: SInt['B L_no_mm'],
       images: UInt8['B H W C'] | UInt8['B N H W C'] | None = None,
       attention_mask: Bool['B L_with_mm cache_length'] | None = None,
-      positions: Int['B L_with_mm'] | None = None,
+      positions: SInt['B L_with_mm'] | None = None,
   ) -> _Inputs:
     """Encode the text tokens, eventually including the vision embeddings."""
 
@@ -390,7 +390,7 @@ class Transformer(nn.Module):
   def _merge_mm_embeddings(
       self,
       *,
-      tokens: Int['B L'],
+      tokens: SInt['B L'],
       embeddings: Float['B L D'],
       images: UInt8['B N H W C'],
   ) -> Float['B L D']:

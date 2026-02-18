@@ -17,7 +17,7 @@
 from __future__ import annotations
 
 import jax.numpy as jnp
-from kauldron.typing import Bool, Int, typechecked  # pylint: disable=g-multiple-import,g-importing-member
+from kauldron.ktyping import Bool, SInt, typechecked  # pylint: disable=g-multiple-import,g-importing-member
 
 
 @typechecked
@@ -98,7 +98,7 @@ def _make_causal_mask(
 @typechecked
 def _make_block_mask_indices(
     bidirectional_mask: Bool['B L'],
-) -> Int['B L']:
+) -> SInt['B L']:
   """Creates block mask identifying segments based on a bidirectional mask.
 
   Args:

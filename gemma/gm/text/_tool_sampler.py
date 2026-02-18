@@ -22,7 +22,8 @@ import dialog
 from gemma.gm.text import _chat_sampler
 from gemma.gm.text import _sampling
 from gemma.gm.tools import _manager as _manager_lib
-from kauldron.typing import PRNGKeyLike, UInt8  # pylint: disable=g-multiple-import,g-importing-member
+from kauldron.ktyping import UInt8  # pylint: disable=g-importing-member
+from kauldron.typing import PRNGKeyLike  # pylint: disable=g-importing-member
 
 
 @dataclasses.dataclass(frozen=True, kw_only=True, eq=False)

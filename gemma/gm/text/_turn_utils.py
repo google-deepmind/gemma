@@ -19,7 +19,7 @@ from gemma.gm.data import _functional
 from gemma.gm.nn import _config
 from gemma.gm.text import _sampler_loop
 import jax.numpy as jnp
-from kauldron.typing import Bool, Int, typechecked  # pylint: disable=g-multiple-import,g-importing-member
+from kauldron.ktyping import Bool, SInt, typechecked  # pylint: disable=g-multiple-import,g-importing-member
 
 
 @flax.struct.dataclass(kw_only=True)
@@ -34,7 +34,7 @@ class PrevTurns:
     return self.last_state.cache
 
   @property
-  def last_token_pos(self) -> Int['#B']:
+  def last_token_pos(self) -> SInt['#B']:
     """Offset of the last predicated token position."""
     if self.last_state is None:
       return jnp.zeros((1,), dtype=jnp.int32)

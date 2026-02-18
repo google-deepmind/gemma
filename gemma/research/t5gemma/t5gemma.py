@@ -22,7 +22,7 @@ from flax import linen as nn
 from gemma.research.t5gemma import modules
 import jax.numpy as jnp
 from kauldron import kontext
-from kauldron.typing import Array, typechecked  # pylint: disable=g-multiple-import,g-importing-member
+from kauldron.ktyping import Array, typechecked  # pylint: disable=g-multiple-import,g-importing-member
 
 
 _PADDING_ID = 0

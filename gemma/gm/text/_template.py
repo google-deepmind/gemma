@@ -17,7 +17,7 @@
 import dataclasses
 import textwrap
 
-# from kauldron.typing import UInt8  # pylint: disable=g-multiple-import,g-importing-member
+# from kauldron.ktyping import UInt8  # pylint: disable=g-multiple-import,g-importing-member
 
 # DEPRECATED: Should not be used anymore!!!! Instead, use:
 # `dialog.Conversation(dialog.User()).as_text(format='gemma3')`

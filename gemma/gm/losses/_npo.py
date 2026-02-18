@@ -20,7 +20,8 @@ import jax
 import jax.numpy as jnp
 from kauldron import kd
 from kauldron import kontext
-from kauldron.typing import Bool, Float, Int, Schedule, typechecked  # pylint: disable=g-multiple-import,g-importing-member
+from kauldron.ktyping import Bool, Float, SInt, typechecked  # pylint: disable=g-multiple-import,g-importing-member
+from kauldron.typing import Schedule  # pylint: disable=g-importing-member
 
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
@@ -49,7 +50,7 @@ class NpoLoss(kd.losses.Loss):
   def get_values(
       self,
       *,
-      tokens: Int['*B L 1'],
+      tokens: SInt['*B L 1'],
       sequence_mask: Bool['*B L 1'],
       policy_logits: Float['*B L V'],
       anchor_logits: Float['*B L V'],
@@ -85,7 +86,7 @@ class NpoLoss(kd.losses.Loss):
 def _get_logprobs_for_target(
     *,
     logits: Float['*B L V'],
-    targets: Int['*B L'],
+    targets: SInt['*B L'],
     sequence_mask: Bool['*B L'],
 ) -> Float['*B']:
   """Computes the per token xent given logits."""

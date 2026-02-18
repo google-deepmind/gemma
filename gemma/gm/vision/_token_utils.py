@@ -18,7 +18,7 @@ import einops
 from gemma.gm.text import _tokenizer
 import jax
 import jax.numpy as jnp
-from kauldron.typing import Bool, Float, Int, typechecked  # pylint: disable=g-multiple-import,g-importing-member
+from kauldron.ktyping import Bool, Float, SInt, typechecked  # pylint: disable=g-multiple-import,g-importing-member
 
 # `\n\n` token for Gemma3 tokenizer.
 _DOUBLE_NEW_LINE_TOKEN = 108
@@ -43,11 +43,11 @@ def get_num_mm_tokens(
 
 @typechecked
 def add_extra_tokens_for_images(
-    tokens: Int['B L'],
+    tokens: SInt['B L'],
     *,
     max_num_images: int,
     num_tokens_per_image: int,
-):  # -> Int['B L+(max_num_images * (num_tokens_per_image + 3))']:
+):  # -> SInt['B L+(max_num_images * (num_tokens_per_image + 3))']:
   r"""Add the extra image tokens to the text tokens.
 
   If the model has images, we expand each `<start_of_image>` token by the image
@@ -96,12 +96,12 @@ def add_extra_tokens_for_images(
 
 
 def insert_sequence(
-    tokens: Int['B L'],
+    tokens: SInt['B L'],
     *,
     at: int,
-    sequence: Int['L'],
+    sequence: SInt['L'],
     max_num_images: int,
-) -> Int['B L']:
+) -> SInt['B L']:
   """Insert a sequence of tokens at a given position."""
   _, length = tokens.shape
 
@@ -146,10 +146,10 @@ def insert_sequence(
 def _get_new_text_tokens(
     *,
     mm_start: Bool['B L'],
-    text_tokens: Int['B L'],
+    text_tokens: SInt['B L'],
     offset_by: int,
     length_with_mm: int,
-) -> Int['B max_num_images num_tokens_per_image+4']:
+) -> SInt['B max_num_images num_tokens_per_image+4']:
   # Jax vmap does not support positional arguments, so need the
   # _get_new_text_tokens_inner indirection.
   return jax.vmap(_get_new_text_tokens_inner, in_axes=(0, 0, None, None))(
@@ -159,10 +159,10 @@ def _get_new_text_tokens(
 
 def _get_new_text_tokens_inner(
     mm_start: Bool['B L'],
-    text_tokens: Int['B L'],
+    text_tokens: SInt['B L'],
     offset_by: int,
     length_with_mm: int,
-) -> Int['L']:
+) -> SInt['L']:
   """`_get_new_text_tokens_positions` without batch dimension."""
 
   # Empty buffer in which text and MM tokens will be inserted.
@@ -190,7 +190,7 @@ def _get_new_text_tokens_positions(
     *,
     offset_on: Bool['L'],
     offset_by: int,
-) -> Int['L']:
+) -> SInt['L']:
   """Create the positions of the new tokens.
 
   Input: `[x, x, x, offset_on, x, x, offset_on, x]`

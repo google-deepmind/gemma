@@ -34,7 +34,8 @@ from gemma.gm.utils import _types
 import jax
 import jax.numpy as jnp
 from kauldron import kd
-from kauldron.typing import Array, Float, Int, PRNGKey, PRNGKeyLike, UInt8  # pylint: disable=g-multiple-import,g-importing-member
+from kauldron.ktyping import Array, Float, SInt, UInt8  # pylint: disable=g-multiple-import,g-importing-member
+from kauldron.typing import PRNGKey, PRNGKeyLike  # pylint: disable=g-multiple-import,g-importing-member
 import numpy as np
 
 
@@ -66,7 +67,7 @@ class SamplerOutput:
   state: _sampler_loop.SamplingState
 
   @property
-  def tokens(self) -> Int['B L'] | Int['L']:
+  def tokens(self) -> SInt['B L'] | SInt['L']:
     """Predicted tokens."""
     return self._maybe_unbatch(self.state.predicted_tokens)
 
@@ -436,7 +437,7 @@ class Sampler:
   def _decode_state(
       self,
       state: _sampler_loop.SamplingState,
-      predicted_tokens: Int['B L'],
+      predicted_tokens: SInt['B L'],
       *,
       has_batch_dim: bool,
       return_state: bool,

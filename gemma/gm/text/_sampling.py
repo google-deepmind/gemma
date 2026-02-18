@@ -20,14 +20,15 @@ import dataclasses
 from etils import enp
 import jax
 import jax.numpy as jnp
-from kauldron.typing import Float, Int, PRNGKey, typechecked  # pylint: disable=g-multiple-import,g-importing-member
+from kauldron.ktyping import Float, SInt, typechecked  # pylint: disable=g-multiple-import,g-importing-member
+from kauldron.typing import PRNGKey  # pylint: disable=g-importing-member
 
 
 class SamplingMethod(abc.ABC):
   """Base class for sampling methods."""
 
   @abc.abstractmethod
-  def get_next_tokens(self, logits: Float['*B V'], rng: PRNGKey) -> Int['*B']:
+  def get_next_tokens(self, logits: Float['*B V'], rng: PRNGKey) -> SInt['*B']:
     """Returns the next tokens to generate.
 
     Args:
@@ -45,7 +46,7 @@ class Greedy(SamplingMethod):
   """Greedy sampling."""
 
   @typechecked
-  def get_next_tokens(self, logits: Float['*B V'], rng: PRNGKey) -> Int['*B']:
+  def get_next_tokens(self, logits: Float['*B V'], rng: PRNGKey) -> SInt['*B']:
     del rng
     return jnp.argmax(logits, axis=-1)
 
@@ -57,7 +58,7 @@ class RandomSampling(SamplingMethod):
   temperature: float = 1.0
 
   @typechecked
-  def get_next_tokens(self, logits: Float['*B V'], rng: PRNGKey) -> Int['*B']:
+  def get_next_tokens(self, logits: Float['*B V'], rng: PRNGKey) -> SInt['*B']:
     return jax.random.categorical(rng, logits / self.temperature, axis=-1)
 
 
@@ -69,7 +70,7 @@ class TopkSampling(SamplingMethod):
   k: int = 1
 
   @typechecked
-  def get_next_tokens(self, logits: Float['*B V'], rng: PRNGKey) -> Int['*B']:
+  def get_next_tokens(self, logits: Float['*B V'], rng: PRNGKey) -> SInt['*B']:
     logits, batch_shape = enp.flatten(logits, '... V')
 
     batch_size = logits.shape[0]
@@ -90,7 +91,9 @@ class TopPSampling(SamplingMethod):
   temperature: float = 1.0
 
   @typechecked
-  def get_next_tokens(self, logits: Float['... V'], rng: PRNGKey) -> Int['...']:
+  def get_next_tokens(
+      self, logits: Float['... V'], rng: PRNGKey
+  ) -> SInt['...']:
     # temperature scaling
     logits = logits / self.temperature
 
@@ -115,4 +118,3 @@ class TopPSampling(SamplingMethod):
       )
 
     return jax.random.categorical(rng, logits, axis=-1)
-

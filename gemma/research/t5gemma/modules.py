@@ -25,7 +25,7 @@ from gemma.gm.nn import config as gemma_config
 from gemma.gm.utils import _dtype_params
 import jax
 import jax.numpy as jnp
-from kauldron.typing import Array, typechecked  # pylint: disable=g-multiple-import,g-importing-member
+from kauldron.ktyping import Array, typechecked  # pylint: disable=g-multiple-import,g-importing-member
 
 K_MASK = -2.3819763e38  # Set to a large negative number.
 DEFAULT_ROPE_BASE_FREQUENCY = 10_000
