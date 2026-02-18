@@ -344,12 +344,7 @@ class Sampler:
     sampler = _sampler_loop.SamplerLoop(
         # Static attributes. Changing those will trigger a recompilation.
         model=self.model,
-        end_tokens=(
-            self.tokenizer.special_tokens.EOS,
-            self.tokenizer.special_tokens.END_OF_TURN,
-            self.tokenizer.special_tokens.BEGIN_OF_TOOL_RESPONSE,
-            *self._normalized_stop_tokens,
-        ),
+        end_tokens=self._get_end_tokens(),
         forbidden_tokens=self._normalized_forbidden_tokens,
         sampling=sampling,
         cache_length=self.cache_length,
@@ -499,6 +494,16 @@ class Sampler:
   @functools.cached_property
   def _normalized_stop_tokens(self) -> tuple[int, ...]:
     return self._normalize_tokens(self.stop_tokens)
+
+  def _get_end_tokens(self) -> tuple[int, ...]:
+    """Build end_tokens, including BEGIN_OF_TOOL_RESPONSE only when available."""
+    tokens = [
+        self.tokenizer.special_tokens.EOS,
+        self.tokenizer.special_tokens.END_OF_TURN,
+    ]
+    if hasattr(self.tokenizer.special_tokens, 'BEGIN_OF_TOOL_RESPONSE'):
+      tokens.append(self.tokenizer.special_tokens.BEGIN_OF_TOOL_RESPONSE)
+    return (*tokens, *self._normalized_stop_tokens)
 
   def _normalize_tokens(
       self, tokens: Sequence[str | int] | None
