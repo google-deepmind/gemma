@@ -47,7 +47,7 @@ def test_transformer(model_cls: type[gt.Gemma3nTransformer]):
   model = model_cls()  # pylint: disable=missing-kwoa  # pytype: disable=missing-parameter
   tokens = jnp.ones((BATCH_SIZE, SEQ_LEN), dtype=jnp.int32)
   out, _ = _get_output(model, tokens=tokens)
-  assert out.logits.shape == (BATCH_SIZE, SEQ_LEN, model.config.num_embed)
+  assert out.logits.shape == (BATCH_SIZE, SEQ_LEN, model.config.vocab_size)
 
 
 def test_images():
@@ -58,7 +58,7 @@ def test_images():
   images = jnp.ones((BATCH_SIZE, NUM_IMAGES, 64, 64, 3), dtype=jnp.uint8)
   out, _ = _get_output(model, tokens=tokens, images=images)
 
-  assert out.logits.shape == (BATCH_SIZE, SEQ_LEN, model.config.num_embed)
+  assert out.logits.shape == (BATCH_SIZE, SEQ_LEN, model.config.vocab_size)
 
 
 def test_text_only():
@@ -73,7 +73,7 @@ def test_text_only():
 
   out, params = _get_output(model, tokens=tokens)
   assert 'vision_encoder' not in params  # Vision params not loaded
-  assert out.logits.shape == (BATCH_SIZE, SEQ_LEN, model.config.num_embed)
+  assert out.logits.shape == (BATCH_SIZE, SEQ_LEN, model.config.vocab_size)
 
 
 def test_last_only():
@@ -81,4 +81,4 @@ def test_last_only():
   tokens = jnp.ones((BATCH_SIZE, SEQ_LEN), dtype=jnp.int32)
   out, params = _get_output(model, tokens=tokens)
   assert 'vision_encoder' in params  # Vision by default
-  assert out.logits.shape == (BATCH_SIZE, model.config.num_embed)
+  assert out.logits.shape == (BATCH_SIZE, model.config.vocab_size)

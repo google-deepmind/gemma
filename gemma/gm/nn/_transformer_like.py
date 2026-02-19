@@ -33,11 +33,11 @@ class TransformerConfig(Protocol):
 
   Attributes:
     input_config: Configuration for the model's input.
-    num_embed: Vocabulary size.
+    vocab_size: Vocabulary size.
   """
 
   input_config: _types.InputConfig
-  num_embed: int
+  vocab_size: int
 
   def init_cache(
       self,
