@@ -92,7 +92,6 @@ class ChatSampler:
   forbidden_tokens: Sequence[str | int] | None = None
   stop_tokens: Sequence[str | int] | None = None
   # TODO(epot): Support and test rolling cache.
-  # TODO(epot): Add a property to show how much of the cache is used.
   cache_length: int | None = 4096
   max_out_length: int = 2048
 
@@ -116,6 +115,29 @@ class ChatSampler:
     # Set the tokenizer if not provided.
     if self.tokenizer is None:
       object.__setattr__(self, 'tokenizer', self.sampler.tokenizer)
+
+  @property
+  def cache_used(self) -> int:
+    """Returns the number of cache slots currently used.
+
+    Returns 0 if no generation has been performed yet.
+    """
+    if self.last_state is None:
+      return 0
+    return int(self.last_state.used_cache_length) + 1
+
+  @property
+  def cache_used_frac(self) -> float:
+    """Returns the fraction of the cache currently used (0.0 to 1.0).
+
+    Returns 0.0 if no generation has been performed yet.
+    Requires ``cache_length`` to be set.
+    """
+    if self.cache_length is None:
+      raise ValueError(
+          'cache_used_frac requires cache_length to be set.'
+      )
+    return min(self.cache_used / self.cache_length, 1.0)
 
   @functools.cached_property
   def sampler(self) -> _sampler.Sampler:

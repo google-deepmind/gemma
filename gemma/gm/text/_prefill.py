@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import dataclasses
+import logging
 
 from gemma.gm.data import _functional
 from gemma.gm.nn import _config
@@ -118,7 +119,16 @@ def prefill(
       return_last_only=True,
   )
 
-  # TODO(epot): Could check whether the cache is full.
+  # Check whether the prompt has filled the cache.
+  cache_info = _cache_helper.Cache(out.cache)
+  if cache_info.end_index >= cache_length:
+    logging.warning(
+        'Prompt length (%d) fills or exceeds the cache length (%d). '
+        'Generation quality may be degraded. Consider increasing '
+        '`cache_length`.',
+        int(cache_info.end_index),
+        cache_length,
+    )
 
   # Write the new cache back to the full cache.
   cache = _merge_cache(

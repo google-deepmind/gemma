@@ -127,7 +127,7 @@ class Sampler:
 
   model: _transformer_like.TransformerLike
   params: _common.Params
-  tokenizer: _tokenizer.Tokenizer = None  # pytype: disable=annotation-type-mismatch
+  tokenizer: _tokenizer.Tokenizer | None = None  # pytype: disable=annotation-type-mismatch
   sampling: _sampling.SamplingMethod = dataclasses.field(
       default_factory=_sampling.Greedy
   )
@@ -345,12 +345,7 @@ class Sampler:
     sampler = _sampler_loop.SamplerLoop(
         # Static attributes. Changing those will trigger a recompilation.
         model=self.model,
-        end_tokens=(
-            self.tokenizer.special_tokens.EOS,
-            self.tokenizer.special_tokens.END_OF_TURN,
-            self.tokenizer.special_tokens.BEGIN_OF_TOOL_RESPONSE,
-            *self._normalized_stop_tokens,
-        ),
+        end_tokens=self._get_end_tokens(),
         forbidden_tokens=self._normalized_forbidden_tokens,
         sampling=sampling,
         cache_length=self.cache_length,
@@ -392,7 +387,18 @@ class Sampler:
       has_batch_dim,
       sharding,
   ) -> _types.Input:
-    """Normalize the inputs."""
+    """Normalize the inputs.
+
+    Args:
+      prompt: The input prompt(s).
+      images: Optional images associated with the prompt.
+      add_bos: Whether to add the beginning-of-sequence token.
+      has_batch_dim: Whether the input has a batch dimension.
+      sharding: The sharding strategy to use.
+
+    Returns:
+      The normalized input object.
+    """
     # Normalize inputs to always be batched.
     tokens = self._tokenize_prompts(
         prompt,
@@ -418,7 +424,16 @@ class Sampler:
       add_bos: bool,
       pad_length: int | None = None,
   ) -> Float['B L']:
-    """Encode the prompts."""
+    """Encode the prompts.
+
+    Args:
+      prompt: The input prompt(s).
+      add_bos: Whether to add the beginning-of-sequence token.
+      pad_length: Optional length to pad the sequences to.
+
+    Returns:
+      The tokenized and padded prompts.
+    """
     prompt = _normalize_prompt(prompt, format=self.tokenizer.FORMAT)
     tokens = [self.tokenizer.encode(p, add_bos=add_bos) for p in prompt]
 
@@ -442,7 +457,17 @@ class Sampler:
       has_batch_dim: bool,
       return_state: bool,
   ) -> str | list[str] | SamplerOutput:
-    """Decode the output state."""
+    """Decode the output state.
+
+    Args:
+      state: The current sampling state.
+      predicted_tokens: The tokens predicted by the model.
+      has_batch_dim: Whether the input had a batch dimension.
+      return_state: Whether to return the full state or just the text.
+
+    Returns:
+      The decoded text(s) or a `SamplerOutput` object containing the state.
+    """
     # TODO(epot): Check that the text ends with an exit token (i.e. the
     # cache buffer hasn't been filled up).
 
@@ -483,6 +508,16 @@ class Sampler:
       return_state: bool,
       has_batch_dim: bool,
   ):
+    """Stream decode the output state.
+
+    Args:
+      state_iter: Iterator of sampling states.
+      return_state: Whether to return the full state or just the text.
+      has_batch_dim: Whether the input had a batch dimension.
+
+    Yields:
+      The decoded text(s) or `SamplerOutput` objects.
+    """
     for i, state in enumerate(state_iter):
       yield self._decode_state(
           state,
@@ -501,9 +536,24 @@ class Sampler:
   def _normalized_stop_tokens(self) -> tuple[int, ...]:
     return self._normalize_tokens(self.stop_tokens)
 
+  def _get_end_tokens(self) -> tuple[int, ...]:
+    """Build end_tokens, including BEGIN_OF_TOOL_RESPONSE only when available.
+
+    Returns:
+      A tuple of token IDs that signal the end of generation.
+    """
+    tokens = [
+        self.tokenizer.special_tokens.EOS,
+        self.tokenizer.special_tokens.END_OF_TURN,
+    ]
+    if hasattr(self.tokenizer.special_tokens, 'BEGIN_OF_TOOL_RESPONSE'):
+      tokens.append(self.tokenizer.special_tokens.BEGIN_OF_TOOL_RESPONSE)
+    return (*tokens, *self._normalized_stop_tokens)
+
   def _normalize_tokens(
       self, tokens: Sequence[str | int] | None
   ) -> tuple[int, ...]:
+    """Normalize tokens to a tuple of integer IDs."""
     if tokens is None:
       return ()
     else:
@@ -522,7 +572,16 @@ def _get_has_batch_dim(prompt: _Prompt) -> bool:
 
 
 def _normalize_prompt(prompt: _Prompt, format: dialog.Format) -> list[str]:  # pylint: disable=redefined-builtin
-  """Normalize the inputs."""
+  """Normalize the inputs.
+
+  Args:
+    prompt: The input prompt, which can be a string, a list of strings, or
+      conversation objects.
+    format: The dialog format to use for converting conversations to text.
+
+  Returns:
+    A list of normalized prompt strings.
+  """
   if _is_str_array(prompt):  # Supports batched input array
     assert isinstance(prompt, np.ndarray)
     prompt = prompt.tolist()
@@ -546,7 +605,15 @@ def _normalize_images(
     *,
     has_batch_dim: bool,
 ) -> UInt8['B N H W C'] | None:
-  """Add optional `B` and `N` dimensions if needed."""
+  """Add optional `B` and `N` dimensions if needed.
+
+  Args:
+    images: The input images.
+    has_batch_dim: Whether the input has a batch dimension.
+
+  Returns:
+    The images with added dimensions, or None.
+  """
   if images is None:
     return None
 
@@ -568,6 +635,18 @@ def _normalize_images(
 
 
 def _normalize_token(tokenizer, token: str | int) -> int:
+  """Normalize a single token to its integer ID.
+
+  Args:
+    tokenizer: The tokenizer instance.
+    token: The token to normalize (string or int).
+
+  Returns:
+    The integer ID of the token.
+
+  Raises:
+    ValueError: If a string token maps to multiple IDs.
+  """
   if isinstance(token, int):
     return token
   token_id = tokenizer.encode(token)
@@ -581,6 +660,14 @@ def _normalize_token(tokenizer, token: str | int) -> int:
 
 
 def _normalize_rng(seed_or_rng: PRNGKeyLike | None) -> PRNGKey:
+  """Normalize the random number generator key.
+
+  Args:
+    seed_or_rng: A seed integer, a PRNGKey, or None.
+
+  Returns:
+    A JAX PRNGKey.
+  """
   if seed_or_rng is None:
     seed_or_rng = py_random.randint(0, 1000000000)
   if not isinstance(seed_or_rng, jax.Array):
