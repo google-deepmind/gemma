@@ -79,3 +79,35 @@ def test_top1_sampling_matches_greedy_sampling():
   tokens_top1 = top1_sampling.get_next_tokens(logits, rng)
   np.testing.assert_array_equal(tokens_greedy, tokens_top1)
 
+
+def test_random_sampling_zero_temperature():
+  """temperature=0.0 should behave like greedy (no division by zero)."""
+  greedy = gm.text.Greedy()
+  sampling = gm.text.RandomSampling(temperature=0.0)
+  rng = jax.random.PRNGKey(0)
+  logits = jax.numpy.array([[1.0, 3.0, 2.0]])
+  tokens = sampling.get_next_tokens(logits, rng)
+  tokens_greedy = greedy.get_next_tokens(logits, rng)
+  np.testing.assert_array_equal(tokens, tokens_greedy)
+
+
+def test_topk_sampling_zero_temperature():
+  """temperature=0.0 should behave like greedy (no division by zero)."""
+  greedy = gm.text.Greedy()
+  sampling = gm.text.TopkSampling(k=3, temperature=0.0)
+  rng = jax.random.PRNGKey(0)
+  logits = jax.numpy.array([[1.0, 3.0, 2.0, 0.5, 0.1]])
+  tokens = sampling.get_next_tokens(logits, rng)
+  tokens_greedy = greedy.get_next_tokens(logits, rng)
+  np.testing.assert_array_equal(tokens, tokens_greedy)
+
+
+def test_topp_sampling_zero_temperature():
+  """temperature=0.0 should behave like greedy (no division by zero)."""
+  greedy = gm.text.Greedy()
+  sampling = gm.text.TopPSampling(p=0.9, temperature=0.0)
+  rng = jax.random.PRNGKey(0)
+  logits = jax.numpy.array([[1.0, 3.0, 2.0, 0.5, 0.1]])
+  tokens = sampling.get_next_tokens(logits, rng)
+  tokens_greedy = greedy.get_next_tokens(logits, rng)
+  np.testing.assert_array_equal(tokens, tokens_greedy)
