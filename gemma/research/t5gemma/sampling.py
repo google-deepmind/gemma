@@ -511,7 +511,7 @@ def _normalize_token(tokenizer, token: str | int) -> int:
   token_id = tokenizer.encode(token)
   if len(token_id) != 1:
     raise ValueError(
-        'Invalid forbidden token: {token!r}. Forbidden tokens must map to'
+        f'Invalid forbidden token: {token!r}. Forbidden tokens must map to'
         ' single token ids in the vocab.'
     )
   (token_id,) = token_id
