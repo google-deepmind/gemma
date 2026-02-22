@@ -100,15 +100,17 @@ class SamplingState:
     return _cache_helper.Cache(self.cache)
 
 
-# TODO(epot): Refactor into simple function, rather than class.
-# * autoregressive_sample()
-# * autoregressive_stream_sample()
 @dataclasses.dataclass(frozen=True, kw_only=True)
-class SamplerLoop:
-  """Single sampling call.
+class SamplerConfig:
+  """Configuration for autoregressive sampling.
 
-  This class only has static hashable attributes, so it can be passed to
-  `jax.jit`.
+  Attributes:
+    model: Gemma transformer model.
+    end_tokens: Tuple of token IDs that end generation.
+    forbidden_tokens: Token IDs that should not be generated.
+    sampling: Sampling method to use.
+    cache_length: Maximum cache length.
+    special_tokens: Special token definitions from tokenizer.
   """
 
   model: _transformer_like.TransformerLike
@@ -118,155 +120,164 @@ class SamplerLoop:
   cache_length: int
   special_tokens: type[_tokenizer.SpecialTokens]
 
-  # @functools.partial(
-  #     jax.jit,
-  #     static_argnames=('self', 'init_cache_length'),
-  # )
-  @typechecked
-  def sample(
-      self,
-      *,
-      params: _common.Params,
-      init_state: SamplingState,
-      max_new_tokens: Int[''],
-      stream: bool = False,
-  ) -> SamplingState | Iterator[SamplingState]:
-    """Sample the prompt."""
 
-    # Sample autoregressively.
-    sample_fn = self._stream_sample_loop if stream else self._sample_loop
-    state = sample_fn(
+@functools.partial(jax.jit, static_argnames=('config',))
+@typechecked
+def autoregressive_sample(
+    *,
+    config: SamplerConfig,
+    params: _common.Params,
+    init_state: SamplingState,
+    max_new_tokens: Int[''],
+) -> SamplingState:
+  """Autoregressively sample tokens from the model.
+
+  Args:
+    config: Static configuration for sampling.
+    params: Model parameters.
+    init_state: Initial sampling state.
+    max_new_tokens: Maximum number of tokens to generate.
+
+  Returns:
+    Final sampling state with generated tokens.
+  """
+  # ******** Sampling Loop. ********
+
+  step_fn = functools.partial(_sample_step, config=config, params=params)
+
+  def cond_fn(state: SamplingState):
+    # Keep going while we have not reached the maximum number of tokens, and
+    # at least one of the samples is not done.
+
+    return (
+        # We predicted too many tokens.
+        (state.step < max_new_tokens)
+        # All batch have yield the `<end_of_turn>` token.
+        & ~jnp.all(state.done)
+        # End if the cache is full.
+        & ~state.cache_info.is_full
+    )
+
+  state = jax.lax.while_loop(cond_fn, step_fn, init_state)
+
+  # ******** Post-processing after the loop. ********
+
+  # Mask out tokens predicted after the end tokens.
+  # TODO(epot): Could integrate this directly in the `_sample_step` function.
+  predicted_tokens = _mask_tokens_after_end_tokens(
+      state.predicted_tokens,
+      end_tokens=config.end_tokens,
+  )
+
+  # In multi-turn, the new full attention mask will be concatenated with the
+  # one from previous turns, so need to mask out tokens predicted after the
+  # end tokens.
+  full_attention_mask = _mask_full_attention_mask_prefix_for_next_turn(
+      full_attention_mask=state.full_attention_mask,
+      predicted_tokens=predicted_tokens,
+      init_cache_length=state.init_cache_length,
+  )
+
+  state = dataclasses.replace(
+      state,
+      predicted_tokens=predicted_tokens,
+      full_attention_mask=full_attention_mask,
+  )
+  return state
+
+
+def autoregressive_stream_sample(
+    *,
+    config: SamplerConfig,
+    params: _common.Params,
+    init_state: SamplingState,
+    max_new_tokens: Int[''],
+) -> Iterator[SamplingState]:
+  """Streaming sampling function.
+
+  Args:
+    config: Static configuration for sampling.
+    params: Model parameters.
+    init_state: Initial sampling state.
+    max_new_tokens: Maximum number of tokens to generate.
+
+  Yields:
+    Sampling states as tokens are generated.
+  """
+  state = init_state
+  # Sample autoregressively.
+  for _ in range(max_new_tokens):
+    # Exit if the cache is full.
+    if jnp.all(state.done) or state.cache_info.is_full:
+      break
+
+    state = _sample_step(
+        config=config,
         params=params,
-        state=init_state,
-        max_new_tokens=max_new_tokens,
+        state=state,
     )
+    yield state
 
-    return state
 
-  @functools.partial(jax.jit, static_argnames=('self',))
-  def _sample_loop(
-      self,
-      *,
-      params: _common.Params,
-      state: SamplingState,
-      max_new_tokens: Int[''],
-  ) -> SamplingState:
-    """Internal sampling function (to be jitted)."""
+@functools.partial(jax.jit, static_argnames=('config',))
+@typechecked
+def _sample_step(
+    *,
+    config: SamplerConfig,
+    params: _common.Params,
+    state: SamplingState,
+) -> SamplingState:
+  """Single sampling step.
 
-    # ******** Sampling Loop. ********
+  Args:
+    config: Static configuration for sampling.
+    params: Model parameters.
+    state: Current sampling state.
 
-    step_fn = functools.partial(self._sample_step, params=params)
+  Returns:
+    Updated sampling state after one step.
+  """
 
-    def cond_fn(state: SamplingState):
-      # Keep going while we have not reached the maximum number of tokens, and
-      # at least one of the samples is not done.
+  out = config.model.apply(
+      {'params': params},
+      tokens=state.last_token[..., None],
+      cache=state.cache,
+      positions=state.last_token_pos[..., None],
+      attention_mask=state.attention_mask_for_step[:, None, :],  # B 1 L
+  )
 
-      return (
-          # We predicted too many tokens.
-          (state.step < max_new_tokens)
-          # All batch have yield the `<end_of_turn>` token.
-          & ~jnp.all(state.done)
-          # End if the cache is full.
-          & ~state.cache_info.is_full
-      )
+  logits = out.logits
+  # Logit is `B L V` with `L=1`, so collapse the L dimension.
+  logits = einops.rearrange(logits, 'B 1 V -> B V')
+  if config.forbidden_tokens:  # Eventually filter out the forbidden tokens.
+    logits = logits.at[:, config.forbidden_tokens].set(-jnp.inf)
 
-    state = jax.lax.while_loop(cond_fn, step_fn, state)
+  # Sample next token.
+  next_rng, curr_rng = jax.random.split(state.rng)
+  next_token = config.sampling.get_next_tokens(logits, rng=curr_rng)
+  check_type(next_token, Int['B'])
 
-    # ******** Post-processing after the loop. ********
+  # Update the buffers to save the outputs.
+  predicted_tokens = state.predicted_tokens.at[:, state.step].set(next_token)
+  # predicted_logits = state.predicted_logits.at[:, state.step].set(logits)
 
-    # Mask out tokens predicted after the end tokens.
-    # TODO(epot): Could integrate this directly in the `_sample_step` function.
-    predicted_tokens = _mask_tokens_after_end_tokens(
-        state.predicted_tokens,
-        end_tokens=self.end_tokens,
-    )
+  # Check whether we have reached an end token.
+  done = state.done | jnp.isin(next_token, jnp.asarray(config.end_tokens))
 
-    # In multi-turn, the new full attention mask will be concatenated with the
-    # one from previous turns, so need to mask out tokens predicted after the
-    # end tokens.
-    full_attention_mask = _mask_full_attention_mask_prefix_for_next_turn(
-        full_attention_mask=state.full_attention_mask,
-        predicted_tokens=predicted_tokens,
-        init_cache_length=state.init_cache_length,
-    )
-
-    state = dataclasses.replace(
-        state,
-        predicted_tokens=predicted_tokens,
-        full_attention_mask=full_attention_mask,
-    )
-    return state
-
-  def _stream_sample_loop(
-      self,
-      *,
-      params: _common.Params,
-      state: SamplingState,
-      max_new_tokens: Int[''],
-  ) -> Iterator[SamplingState]:
-    """Streaming sampling function."""
-    # Sample autoregressively.
-    for _ in range(max_new_tokens):
-      # Exit if the cache is full.
-      if jnp.all(state.done) or state.cache_info.is_full:
-        break
-
-      state = self._sample_step(
-          params=params,
-          state=state,
-      )
-      yield state
-
-  @functools.partial(jax.jit, static_argnames=('self',))
-  @typechecked
-  def _sample_step(
-      self,
-      state: SamplingState,
-      *,
-      params: _common.Params,
-  ) -> SamplingState:
-    """Single sampling step."""
-
-    out = self.model.apply(
-        {'params': params},
-        tokens=state.last_token[..., None],
-        cache=state.cache,
-        positions=state.last_token_pos[..., None],
-        attention_mask=state.attention_mask_for_step[:, None, :],  # B 1 L
-    )
-
-    logits = out.logits
-    # Logit is `B L V` with `L=1`, so collapse the L dimension.
-    logits = einops.rearrange(logits, 'B 1 V -> B V')
-    if self.forbidden_tokens:  # Eventually filter out the forbidden tokens.
-      logits = logits.at[:, self.forbidden_tokens].set(-jnp.inf)
-
-    # Sample next token.
-    next_rng, curr_rng = jax.random.split(state.rng)
-    next_token = self.sampling.get_next_tokens(logits, rng=curr_rng)
-    check_type(next_token, Int['B'])
-
-    # Update the buffers to save the outputs.
-    predicted_tokens = state.predicted_tokens.at[:, state.step].set(next_token)
-    # predicted_logits = state.predicted_logits.at[:, state.step].set(logits)
-
-    # Check whether we have reached an end token.
-    done = state.done | jnp.isin(next_token, jnp.asarray(self.end_tokens))
-
-    return SamplingState(
-        step=state.step + 1,
-        done=done,
-        last_token=next_token,
-        # Only update the position if we are not done. The last predicted token
-        # is still incremented, so we use previous `state.done`.
-        last_token_pos=state.last_token_pos + ~state.done,
-        predicted_tokens=predicted_tokens,
-        # predicted_logits=predicted_logits,
-        cache=out.cache,
-        rng=next_rng,
-        init_cache_length=state.init_cache_length,
-        full_attention_mask=state.full_attention_mask,
-    )
+  return SamplingState(
+      step=state.step + 1,
+      done=done,
+      last_token=next_token,
+      # Only update the position if we are not done. The last predicted token
+      # is still incremented, so we use previous `state.done`.
+      last_token_pos=state.last_token_pos + ~state.done,
+      predicted_tokens=predicted_tokens,
+      # predicted_logits=predicted_logits,
+      cache=out.cache,
+      rng=next_rng,
+      init_cache_length=state.init_cache_length,
+      full_attention_mask=state.full_attention_mask,
+  )
 
 
 @typechecked
