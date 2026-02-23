@@ -342,15 +342,24 @@ class Sampler:
 
     # TODO(epot): Donate the `init_state`, `last_state`
 
+    # Build end_tokens conditionally: only include BEGIN_OF_TOOL_RESPONSE if
+    # the tokenizer supports it (Gemma3+), not Gemma2.
+    base_end_tokens = (
+        self.tokenizer.special_tokens.EOS,
+        self.tokenizer.special_tokens.END_OF_TURN,
+    )
+    # Only add tool token if the tokenizer defines it (Gemma3+ only).
+    tool_token = getattr(
+        self.tokenizer.special_tokens, 'BEGIN_OF_TOOL_RESPONSE', None
+    )
+    if tool_token is not None:
+        base_end_tokens = (*base_end_tokens, tool_token)
+    end_tokens = (*base_end_tokens, *self._normalized_stop_tokens)
+
     sampler = _sampler_loop.SamplerLoop(
         # Static attributes. Changing those will trigger a recompilation.
         model=self.model,
-        end_tokens=(
-            self.tokenizer.special_tokens.EOS,
-            self.tokenizer.special_tokens.END_OF_TURN,
-            self.tokenizer.special_tokens.BEGIN_OF_TOOL_RESPONSE,
-            *self._normalized_stop_tokens,
-        ),
+        end_tokens=end_tokens,  # ← Changed from tuple literal to variable
         forbidden_tokens=self._normalized_forbidden_tokens,
         sampling=sampling,
         cache_length=self.cache_length,
