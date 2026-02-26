@@ -348,7 +348,15 @@ class Sampler:
         end_tokens=(
             self.tokenizer.special_tokens.EOS,
             self.tokenizer.special_tokens.END_OF_TURN,
-            self.tokenizer.special_tokens.BEGIN_OF_TOOL_RESPONSE,
+            # BEGIN_OF_TOOL_RESPONSE was introduced in Gemma3; Gemma2 tokenizer
+            # does not define it. Only include it when available.
+            *(
+                (self.tokenizer.special_tokens.BEGIN_OF_TOOL_RESPONSE,)
+                if hasattr(
+                    self.tokenizer.special_tokens, 'BEGIN_OF_TOOL_RESPONSE'
+                )
+                else ()
+            ),
             *self._normalized_stop_tokens,
         ),
         forbidden_tokens=self._normalized_forbidden_tokens,
@@ -573,7 +581,7 @@ def _normalize_token(tokenizer, token: str | int) -> int:
   token_id = tokenizer.encode(token)
   if len(token_id) != 1:
     raise ValueError(
-        'Invalid token: {token!r}. `stop_token`s and `forbidden_token`s must'
+        f'Invalid token: {token!r}. `stop_token`s and `forbidden_token`s must'
         ' map to single token ids in the vocab.'
     )
   (token_id,) = token_id
