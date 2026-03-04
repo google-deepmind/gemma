@@ -41,106 +41,159 @@ def get_num_mm_tokens(
   return max_num_images * (num_tokens_per_image + 3)
 
 
+# Improved documentation for add_extra_tokens_for_images function
 @typechecked
 def add_extra_tokens_for_images(
     tokens: Int['B L'],
     *,
     max_num_images: int,
     num_tokens_per_image: int,
-):  # -> Int['B L+(max_num_images * (num_tokens_per_image + 3))']:
-  r"""Add the extra image tokens to the text tokens.
+) -> Int['B L+(max_num_images * (num_tokens_per_image + 3))']:
+    r"""Add the extra image tokens to the text tokens.
 
-  If the model has images, we expand each `<start_of_image>` token by the image
-  placeholder tokens.
+    This function expands each `<start_of_image>` token by inserting image 
+    placeholder tokens. It's used to prepare token sequences for multimodal
+    processing by the model.
 
-  Example:
+    Example:
 
-  ```python
-  input = [..., x, <start_of_image>, y, ...]
-  output = [
-      ..., x, \n\n, <start_of_image>, SOFT_TOKEN_PLACEHOLDER,
-      SOFT_TOKEN_PLACEHOLDER, ..., SOFT_TOKEN_PLACEHOLDER,
-      SOFT_TOKEN_PLACEHOLDER, <end_of_image>, \n\n, y, ...
-  ]
-  ```
+    Input:
+    ```
+    [..., x, <start_of_image>, y, ...]
+    ```
+    
+    Output:
+    ```
+    [..., x, \n\n, <start_of_image>, SOFT_TOKEN_PLACEHOLDER,
+    SOFT_TOKEN_PLACEHOLDER, ..., SOFT_TOKEN_PLACEHOLDER,
+    SOFT_TOKEN_PLACEHOLDER, <end_of_image>, \n\n, y, ...]
+    ```
 
-  The `\n\n` tokens are added to match how the model was trained.
+    The `\n\n` tokens are added to match how the model was trained.
+    The placeholders will later be replaced by actual image embedding tokens.
 
-  Args:
-    tokens: The text tokens.
-    max_num_images: The maximum number of images in the batch.
-    num_tokens_per_image: The number of soft tokens per image.
+    Args:
+        tokens: The text tokens with shape [batch_size, sequence_length].
+        max_num_images: The maximum number of images expected in the batch.
+        num_tokens_per_image: The number of soft tokens to allocate per image.
 
-  Returns:
-    The text tokens with the extra image tokens.
-  """
+    Returns:
+        The expanded token sequence with shape 
+        [batch_size, sequence_length + max_num_images * (num_tokens_per_image + 3)].
+    """
 
-  # TODO(epot): This value should be propagated from the model.
-  special_tokens = _tokenizer.Gemma3Tokenizer.special_tokens
+    # TODO(epot): This value should be propagated from the model.
+    special_tokens = _tokenizer.Gemma3Tokenizer.special_tokens
 
-  # New tokens which will be inserted for each image.
-  mm_tokens = [
-      _DOUBLE_NEW_LINE_TOKEN,
-      special_tokens.START_OF_IMAGE,
-      *[SOFT_TOKEN_PLACEHOLDER] * num_tokens_per_image,
-      special_tokens.END_OF_IMAGE,
-      _DOUBLE_NEW_LINE_TOKEN,
-  ]
+    # New tokens which will be inserted for each image.
+    mm_tokens = [
+        _DOUBLE_NEW_LINE_TOKEN,
+        special_tokens.START_OF_IMAGE,
+        *[SOFT_TOKEN_PLACEHOLDER] * num_tokens_per_image,
+        special_tokens.END_OF_IMAGE,
+        _DOUBLE_NEW_LINE_TOKEN,
+    ]
 
-  return insert_sequence(
-      at=special_tokens.START_OF_IMAGE,
-      sequence=mm_tokens,
-      tokens=tokens,
-      max_num_images=max_num_images,
-  )
+    return insert_sequence(
+        at=special_tokens.START_OF_IMAGE,
+        sequence=mm_tokens,
+        tokens=tokens,
+        max_num_images=max_num_images,
+    )
 
 
+# Added proper return type for the insert_sequence function
 def insert_sequence(
     tokens: Int['B L'],
     *,
     at: int,
     sequence: Int['L'],
     max_num_images: int,
-) -> Int['B L']:
-  """Insert a sequence of tokens at a given position."""
-  _, length = tokens.shape
+) -> Int['B L+(max_num_images * (len(sequence) - 1))']:
+    """Insert a sequence of tokens at a given position.
+    
+    Args:
+        tokens: The text tokens with shape [batch_size, sequence_length].
+        at: The token value at which to insert the sequence.
+        sequence: The sequence of tokens to insert.
+        max_num_images: The maximum number of images expected in the batch.
+        
+    Returns:
+        The modified tokens with the sequence inserted at each occurrence of
+        the specified token. The resulting shape will be 
+        [batch_size, sequence_length + max_num_images * (len(sequence) - 1)].
+    """
+    _, length = tokens.shape
 
-  mm_tokens = jnp.array(sequence, dtype=jnp.int32)
+    mm_tokens = jnp.array(sequence, dtype=jnp.int32)
 
-  # `-1` because `<start_of_image>` is already present in the input tokens.
-  offset_by = len(mm_tokens) - 1
+    # `-1` because the token at insertion point is already present in the input tokens.
+    offset_by = len(mm_tokens) - 1
 
-  # Maximum length, if all images are present.
-  length_with_mm = length + max_num_images * offset_by
+    # Maximum length, if all images are present.
+    length_with_mm = length + max_num_images * offset_by
 
-  mm_start = tokens == at
+    mm_start = tokens == at
 
-  # Get the text tokens correctly placed at their final position.
-  # The `<start_of_image>` are removed and expanded to leave space for the MM
-  # tokens.
-  # tokens = [..., x, <start_of_image>, y, ...]
-  # new_text_tokens = [..., x, 0, 0, 0, ..., 0, 0, 0, y, ...]
-  new_text_tokens = _get_new_text_tokens(
-      mm_start=mm_start,
-      text_tokens=tokens,
-      offset_by=offset_by,
-      length_with_mm=length_with_mm,
-  )
+    # Get the text tokens correctly placed at their final position.
+    # The insertion points are removed and expanded to leave space for the MM tokens.
+    # tokens = [..., x, <insertion_point>, y, ...]
+    # new_text_tokens = [..., x, 0, 0, 0, ..., 0, 0, 0, y, ...]
+    new_text_tokens = _get_new_text_tokens(
+        mm_start=mm_start,
+        text_tokens=tokens,
+        offset_by=offset_by,
+        length_with_mm=length_with_mm,
+    )
 
-  # Get the mm tokens placeholders, correctly placed at their final position.
-  # new_mm_tokens = [
-  #     ..., 0, 0, \n\n, <start_of_image>, ..., <end_of_image>, \n\n, 0, 0, ...
-  # ]
-  new_mm_tokens = _get_new_mm_tokens(
-      mm_start=mm_start,
-      mm_tokens_to_insert=mm_tokens,
-      max_num_images=max_num_images,
-      offset_by=offset_by,
-      length_with_mm=length_with_mm,
-  )
+    # Get the mm tokens placeholders, correctly placed at their final position.
+    # new_mm_tokens = [
+    #     ..., 0, 0, sequence[0], sequence[1], ..., sequence[-1], 0, 0, ...
+    # ]
+    new_mm_tokens = _get_new_mm_tokens(
+        mm_start=mm_start,
+        mm_tokens_to_insert=mm_tokens,
+        max_num_images=max_num_images,
+        offset_by=offset_by,
+        length_with_mm=length_with_mm,
+    )
 
-  # Merge the text and MM tokens.
-  return new_text_tokens + new_mm_tokens
+    # Merge the text and MM tokens.
+    return new_text_tokens + new_mm_tokens
+
+
+# Added a new utility function that could be useful
+@typechecked
+def count_mm_tokens_per_sample(
+    tokens: Int['B L'],
+    *,
+    start_token: int,
+    end_token: int = None,
+) -> Int['B']:
+    """Count the number of multimodal token sequences in each sample.
+    
+    This is useful for determining how many images are present in each
+    sample of a batch.
+    
+    Args:
+        tokens: The token sequence with shape [batch_size, sequence_length].
+        start_token: The token value that marks the start of a multimodal sequence.
+        end_token: Optional token value that marks the end of a multimodal sequence.
+            If provided, only complete sequences (with both start and end) are counted.
+            
+    Returns:
+        A tensor of shape [batch_size] containing the count of multimodal sequences
+        for each sample in the batch.
+    """
+    # Count occurrences of start token in each sample
+    mm_count = jnp.sum(tokens == start_token, axis=-1)
+    
+    # If end token is provided, ensure we only count complete sequences
+    if end_token is not None:
+        end_count = jnp.sum(tokens == end_token, axis=-1)
+        mm_count = jnp.minimum(mm_count, end_count)
+        
+    return mm_count
 
 
 def _get_new_text_tokens(
