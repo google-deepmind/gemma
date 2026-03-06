@@ -364,6 +364,7 @@ class Sampler:
         cache_length=self.cache_length,
         special_tokens=self.tokenizer.special_tokens,
     )
+    sampler = self._initialize_sampler_loop(sampling)
 
     # TODO(epot): Use `jnp.cond` to detect when the cache is full (or use
     # rolling-cache). Also do add a check that the cache wasn't filled up
@@ -390,6 +391,23 @@ class Sampler:
           has_batch_dim=has_batch_dim,
           return_state=return_state,
       )
+
+  def _initialize_sampler_loop(self, sampling) -> _sampler_loop.SamplerLoop:
+    """Initializes the sampler loop."""
+    return _sampler_loop.SamplerLoop(
+        # Static attributes. Changing those will trigger a recompilation.
+        model=self.model,
+        end_tokens=(
+            self.tokenizer.special_tokens.EOS,
+            self.tokenizer.special_tokens.END_OF_TURN,
+            self.tokenizer.special_tokens.BEGIN_OF_TOOL_RESPONSE,
+            *self._normalized_stop_tokens,
+        ),
+        forbidden_tokens=self._normalized_forbidden_tokens,
+        sampling=sampling,
+        cache_length=self.cache_length,
+        special_tokens=self.tokenizer.special_tokens,
+    )
 
   def _get_inputs(
       self,
