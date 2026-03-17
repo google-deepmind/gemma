@@ -106,12 +106,10 @@ def prefill(
       pad_lengths=pad_length,
   )
 
-  # Call the model to fill up the cache.
   out = model.apply(
-      {'params': params},
+      {"params": params},
       tokens=prefill_input.tokens,
       images=prefill_input.images,
-      # Slice the cache to the prompt length, to avoid shape missmatch error.
       cache=prefill_input.cache.cache,
       positions=prefill_input.positions,
       attention_mask=prefill_input.attention_mask,
@@ -297,9 +295,7 @@ def _make_prefill_input(
   token_length_padded = _pad_to_bucket(input.length_with_mm, pad_lengths)
   input = input.pad(length_with_mm=token_length_padded)
 
-  # Cache length is equal to the pad token length + the previous turns.
   prefill_cache_length = prev_turns.used_cache_length + token_length_padded
-  # Pad the cache length, to avoid unecessary re-compilations.
   prefill_cache_length = _pad_to_bucket(prefill_cache_length, pad_lengths)
   cache = cache[:, :prefill_cache_length]
 

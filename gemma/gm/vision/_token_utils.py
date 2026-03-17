@@ -88,7 +88,7 @@ def add_extra_tokens_for_images(
   ]
 
   return insert_sequence(
-      at=special_tokens.START_OF_IMAGE,
+      at=special_tokens.IMAGE_PLACEHOLDER,
       sequence=mm_tokens,
       tokens=tokens,
       max_num_images=max_num_images,

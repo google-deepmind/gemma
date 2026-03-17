@@ -38,8 +38,8 @@ class InputConfig:
 
   support_images: bool
   num_tokens_per_image: int
-  # <start_of_image>,...
   special_tokens: type[_tokenizer.SpecialTokens]
+  already_expanded: bool = False
 
 
 @flax.struct.dataclass(kw_only=True, frozen=True)
@@ -65,9 +65,10 @@ class Input:
 
   def __post_init__(self):
     if self.images is not None and not self.config.support_images:
-      raise ValueError(
-          'Images are provided, but the model does not support vision.'
-      )
+      if not self.config.already_expanded:
+        raise ValueError(
+            'Images are provided, but the model does not support vision.'
+        )
 
   def pad(self, length_with_mm: int) -> Input:
     old_text_len = self.text.shape[-1]
@@ -96,6 +97,9 @@ class Input:
   @functools.cached_property
   def length_with_mm(self) -> int:
     """Total length, after the multi-modal soft tokens are inserted."""
+    if self.config.already_expanded:
+      return self.text.shape[-1]
+
     if self.config.support_images:
       num_tokens_per_image = self.config.num_tokens_per_image
     else:
@@ -111,7 +115,9 @@ class Input:
   @jax.jit
   def tokens_with_mm(self) -> Int['B length_with_mm']:
     """Tokens after inserting placeholders for images."""
-    # No images, tokens are only text.
+    if self.config.already_expanded:
+      return self.text
+
     if not self.config.support_images or self.images is None:
       return self.text
 

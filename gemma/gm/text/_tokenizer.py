@@ -69,6 +69,7 @@ class SpecialTokens(enum.IntEnum, metaclass=_DisplayEnumType):
   START_OF_TURN: ClassVar[int]  # <start_of_turn>
   END_OF_TURN: ClassVar[int]  # <end_of_turn>
 
+  IMAGE_PLACEHOLDER: ClassVar[int]  # '<start_of_image>'
   START_OF_IMAGE: ClassVar[int]  # '<start_of_image>'
   END_OF_IMAGE: ClassVar[int]  # '<end_of_image>'
 
@@ -120,6 +121,7 @@ class _Gemma3SpecialTokens(SpecialTokens, enum.IntEnum):
   END_OF_TURN = 106  # <end_of_turn>
 
   # Multimodal tokens (Gemma3 only)
+  IMAGE_PLACEHOLDER = 255999  # <start_of_image>
   START_OF_IMAGE = 255999  # '<start_of_image>'
   END_OF_IMAGE = 256000  # <end_of_image>
 
