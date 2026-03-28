@@ -19,6 +19,29 @@ import jax.numpy as jnp
 import numpy as np
 
 
+class DummyGemmaWrapper(gm.testing.DummyGemma):
+
+  def __call__(
+      self,
+      tokens,
+      positions=None,
+      cache=None,
+      attention_mask=None,
+      images=None,
+      audio=None,
+      audio_lengths=None,
+      audio_soft_token_counts=None,
+      return_last_only=None,
+  ):
+    return super().__call__(
+        tokens,
+        positions=positions,
+        cache=cache,
+        attention_mask=attention_mask,
+        images=images,
+    )
+
+
 def test_end_tokens_mask():
   tokens = jnp.array([
       [1, 2, 3, 10, 4, 5],
@@ -37,7 +60,7 @@ def test_end_tokens_mask():
 
 
 def test_sampler():
-  model = gm.testing.DummyGemma()
+  model = DummyGemmaWrapper()
   params = model.init(
       jax.random.PRNGKey(0),
       jnp.zeros((5,), dtype=jnp.int32),

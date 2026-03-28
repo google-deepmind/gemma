@@ -28,6 +28,7 @@ _DOUBLE_NEW_LINE_TOKEN = 108
 # vision encoder.
 # This should never be manipulated by the end-user.
 SOFT_TOKEN_PLACEHOLDER = -2
+AUDIO_SOFT_TOKEN_PLACEHOLDER = -4
 
 
 def get_num_mm_tokens(

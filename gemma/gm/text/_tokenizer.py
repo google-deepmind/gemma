@@ -73,6 +73,10 @@ class SpecialTokens(enum.IntEnum, metaclass=_DisplayEnumType):
   START_OF_IMAGE: ClassVar[int]  # '<start_of_image>'
   END_OF_IMAGE: ClassVar[int]  # '<end_of_image>'
 
+  AUDIO_PLACEHOLDER: ClassVar[int]  # '<|audio|>'
+  START_OF_AUDIO: ClassVar[int]  # '<|audio>'
+  END_OF_AUDIO: ClassVar[int]  # '<audio|>'
+
   BEGIN_OF_TOOL_RESPONSE: ClassVar[int]  # '<begin_of_tool_response>'
   END_OF_TOOL_RESPONSE: ClassVar[int]  # '<end_of_tool_response>'
 

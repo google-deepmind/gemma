@@ -297,6 +297,16 @@ def load_params(
         lambda x: x.astype(np.float32),
         output.tree['embedder']['audio_input_embedding'],
     )
+    if 'audio_input_projection' in tree.get('embedder', {}):
+      tree['embedder']['audio_input_projection'] = jax.tree.map(
+          lambda x: x.astype(np.float32),
+          output.tree['embedder']['audio_input_projection'],
+      )
+    if 'audio_soft_embedding_norm' in tree.get('embedder', {}):
+      tree['embedder']['audio_soft_embedding_norm'] = jax.tree.map(
+          lambda x: x.astype(np.float32),
+          output.tree['embedder']['audio_soft_embedding_norm'],
+      )
   if output.has_mm_params:
     embedder = tree.get('embedder', {})
     if 'mm_input_projection' in embedder:
