@@ -12,6 +12,9 @@ build/
 dist/
 poetry.lock
 
+# UV
+uv.lock
+
 # Tests
 .pytest_cache/
 
