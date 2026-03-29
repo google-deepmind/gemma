@@ -71,10 +71,16 @@ class LoRADense(nn.Module):
     if self.scope is not None:
       nn.share_scope(self, self.wrapped)
 
+  def __repr__(self) -> str:
+    """Custom repr to avoid infinite recursion when inside interceptor."""
+    wrapped_type = type(self.wrapped).__name__
+    return (
+        f'{type(self).__name__}(rank={self.rank}, '
+        f'wrapped={wrapped_type}(features={self.wrapped.features}))'
+    )
+
   @nn.compact
   def __call__(self, inputs: Array) -> Array:
-    # TODO(epot): Fix infinite recursion when `repr(self.wrapped)` inside
-    # interceptor.
     adapter = LoRADenseAdapter(
         name='lora',
         rank=self.rank,
@@ -153,6 +159,15 @@ class LoRAEinsum(nn.Module):
     # parameters (instead of nesting `{'params': {'wrapped': params}}`).
     if self.scope is not None:
       nn.share_scope(self, self.wrapped)
+
+  def __repr__(self) -> str:
+    """Custom repr to avoid infinite recursion when inside interceptor."""
+    wrapped_type = type(self.wrapped).__name__
+    return (
+        f'{type(self).__name__}(rank={self.rank}, '
+        f'wrapped={wrapped_type}(einsum_str={self.wrapped.einsum_str}, '
+        f'shape={self.wrapped.shape}))'
+    )
 
   @nn.compact
   def __call__(self, inputs: Array, einsum_str: str | None = None) -> Array:
@@ -264,6 +279,15 @@ class LoRADenseGeneral(nn.Module):
     # parameters (instead of nesting `{'params': {'wrapped': params}}`).
     if self.scope is not None:
       nn.share_scope(self, self.wrapped)
+
+  def __repr__(self) -> str:
+    """Custom repr to avoid infinite recursion when inside interceptor."""
+    wrapped_type = type(self.wrapped).__name__
+    return (
+        f'{type(self).__name__}(rank={self.rank}, '
+        f'wrapped={wrapped_type}(features={self.wrapped.features}, '
+        f'axis={self.wrapped.axis}, batch_dims={self.wrapped.batch_dims}))'
+    )
 
   @nn.compact
   def __call__(self, inputs: Array) -> Array:
