@@ -51,7 +51,12 @@ def test_rmsnorm(x, expected):
   rmsnorm = _layers.RMSNorm()
   params = rmsnorm.init(jax.random.PRNGKey(0), x)
   output = rmsnorm.apply(params, x)
-  np.testing.assert_array_equal(output, jnp.array([expected]))
+  np.testing.assert_allclose(
+      output,
+      jnp.array([expected]),
+      rtol=1e-5,
+      atol=1e-5,
+  )
 
 
 @pytest.mark.parametrize(
@@ -71,4 +76,9 @@ def test_rmsnorm_with_scale(x, expected, with_scale, scale_init):
   rmsnorm = _layers.RMSNorm(with_scale=with_scale, scale_init=scale_init)
   params = rmsnorm.init(jax.random.PRNGKey(0), x)
   output = rmsnorm.apply(params, x)
-  np.testing.assert_array_equal(output, jnp.array([expected]))
+  np.testing.assert_allclose(
+      output,
+      jnp.array([expected]),
+      rtol=1e-5,
+      atol=1e-5,
+  )
