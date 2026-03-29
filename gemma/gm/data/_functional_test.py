@@ -63,3 +63,17 @@ def test_seq2seq():
   np.testing.assert_array_equal(out.input, expected_output["input"])
   np.testing.assert_array_equal(out.target, expected_output["target"])
   np.testing.assert_array_equal(out.target_mask, expected_output["target_mask"])
+
+
+def test_pad_axis():
+  arr = np.ones((2, 2))
+  # Pad axis 0 (rows) to 4
+  out = gm.data.pad(arr, max_length=4, axis=0)
+  np.testing.assert_array_equal(out.shape, (4, 2))
+  # Check content: first 2 rows are 1s, last 2 are 0s/fill_value
+  np.testing.assert_array_equal(out[:2], np.ones((2, 2)))
+  np.testing.assert_array_equal(out[2:], np.zeros((2, 2)))
+
+  # Test axis -2 (same as 0 for 2D)
+  out_neg = gm.data.pad(arr, max_length=4, axis=-2)
+  np.testing.assert_array_equal(out, out_neg)
