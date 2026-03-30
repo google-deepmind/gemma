@@ -17,6 +17,19 @@ For examples and use cases, see our
 report issues and feedback in
 [our GitHub](https://github.com/google-deepmind/gemma/issues).
 
+### Prerequisites
+
+Before installing Gemma, ensure that the following requirements are met:
+
+- Python 3.10 or newer is installed.
+- JAX is installed and working for your platform (CPU, GPU, or TPU).
+
+For a basic CPU-only setup, JAX can be installed with:
+
+```bash
+pip install --upgrade "jax[cpu]"
+```
+
 ### Installation
 
 1.  Install JAX for CPU, GPU or TPU. Follow the instructions on
