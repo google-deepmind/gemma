@@ -27,3 +27,6 @@ poetry.lock
 # Ignore generated docs
 docs/_build
 docs/api
+
+# Ignore local virtual environment
+gemma-env/
