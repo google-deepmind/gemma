@@ -24,33 +24,10 @@ import jax.numpy as jnp
 import numpy as np
 
 
-class DummyGemmaWrapper(gm.testing.DummyGemma):
-
-  def __call__(
-      self,
-      tokens,
-      positions=None,
-      cache=None,
-      attention_mask=None,
-      images=None,
-      audio=None,
-      audio_lengths=None,
-      audio_soft_token_counts=None,
-      return_last_only=None,
-  ):
-    return super().__call__(
-        tokens,
-        positions=positions,
-        cache=cache,
-        attention_mask=attention_mask,
-        images=images,
-    )
-
-
 def test_prefill():
 
   tokenizer = gm.testing.DummyTokenizer()
-  model = DummyGemmaWrapper()
+  model = gm.testing.DummyGemma()
 
   prompt = 'hello world'
   text = tokenizer.encode(prompt)
@@ -181,3 +158,4 @@ def test_full_attention_mask():
           [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1],
       ],
   )
+
