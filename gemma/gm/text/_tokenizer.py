@@ -133,6 +133,30 @@ class _Gemma3SpecialTokens(SpecialTokens, enum.IntEnum):
   BEGIN_OF_TOOL_RESPONSE = 50
 
 
+class _Gemma4SpecialTokens(SpecialTokens, enum.IntEnum):
+  """Special tokens ids."""
+
+  PAD = 0
+  EOS = 1
+  BOS = 2
+  UNK = 3
+  MASK = 4
+  START_OF_TURN = 105  # <|turn>
+  END_OF_TURN = 106  # <turn|>
+
+  # Multimodal tokens (Gemma4 only)
+  IMAGE_PLACEHOLDER = 258880  # <|image|>
+  START_OF_IMAGE = 255999  # <|image>
+  END_OF_IMAGE = 258882  # <image|>
+
+  AUDIO_PLACEHOLDER = 258881  # <|audio|>
+  START_OF_AUDIO = 256000  # <|audio> (BOA)
+  END_OF_AUDIO = 258883  # <audio|> (EOA)
+
+  # Tool tokens
+  BEGIN_OF_TOOL_RESPONSE = 50
+
+
 @dataclasses.dataclass(frozen=True, kw_only=True)
 class Tokenizer:
   """Base class for tokenizers.
@@ -184,6 +208,8 @@ class Tokenizer:
       return Gemma3Tokenizer()
     elif version == '3n':
       return Gemma3nTokenizer()
+    elif version == 4:
+      return Gemma4Tokenizer()
     else:
       raise ValueError(f'Unsupported tokenizer version: {version}')
 
@@ -214,9 +240,13 @@ class Tokenizer:
       The list of token ids.
     """
     if isinstance(text, str):
+      if self.FORMAT_TO_CONVERT:
+        text = self.FORMAT_TO_CONVERT.from_gemma4(text)
       token_ids = self._sp.EncodeAsIds(text)
     else:
       text = [t.replace(' ', _WHITESPACE_CHAR) for t in text]
+      if self.FORMAT_TO_CONVERT:
+        text = [self.FORMAT_TO_CONVERT.from_gemma4(t) for t in text]
       token_ids = [self._sp.PieceToId(t) for t in text]
       if self.special_tokens.UNK in token_ids:
         index = token_ids.index(self.special_tokens.UNK)
@@ -245,6 +275,8 @@ class Tokenizer:
       else:
         raise ValueError(f'Array must be 0 or 1 dimensional, got {ids.shape}.')
     text = self._sp.DecodeIds(ids)
+    if self.FORMAT_TO_CONVERT:
+      text = self.FORMAT_TO_CONVERT.to_gemma4(text)
     return text
 
   def split(self, text: str) -> list[str]:
@@ -439,6 +471,19 @@ class Gemma3nTokenizer(Tokenizer):
   )
 
   VERSION = '3n'
+
+
+@dataclasses.dataclass(frozen=True)
+class Gemma4Tokenizer(Tokenizer):
+  """Tokenizer for Gemma 4."""
+
+  path: epath.PathLike = (
+      'gs://gemma-data/tokenizers/tokenizer_gemma4.model'
+  )
+
+  special_tokens = _Gemma4SpecialTokens
+
+  VERSION = 4
 
 
 def _real_whitespaces(text: str) -> str:

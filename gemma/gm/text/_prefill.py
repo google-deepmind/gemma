@@ -59,6 +59,10 @@ def prefill(
     pad_length: None | int | tuple[int, ...] = None,
     rng: PRNGKey,
     sharding: kd.sharding.ShardingTree | None,
+    vision_input=None,
+    audio=None,
+    audio_lengths=None,
+    audio_soft_token_counts=None,
 ) -> _sampler_loop.SamplingState:
   """Pre-fill the KV cache and initial model input.
 
@@ -75,6 +79,10 @@ def prefill(
     pad_length: The pad length for the prompt.
     rng: The random number generator.
     sharding: The sharding tree.
+    vision_input: PreprocessedVisionInput or None.
+    audio: Audio input data or None.
+    audio_lengths: Lengths of audio inputs or None.
+    audio_soft_token_counts: Soft token counts for audio or None.
 
   Returns:
     The initial state for the sampling loop.
@@ -104,17 +112,31 @@ def prefill(
       cache=full_cache,
       prev_turns=prev_turns,
       pad_lengths=pad_length,
+      vision_input=vision_input,
   )
 
-  out = model.apply(
-      {"params": params},
-      tokens=prefill_input.tokens,
-      images=prefill_input.images,
-      cache=prefill_input.cache.cache,
-      positions=prefill_input.positions,
-      attention_mask=prefill_input.attention_mask,
-      return_last_only=True,
+  images_for_model = (
+      vision_input if vision_input is not None else prefill_input.images
   )
+  has_multimodal = images_for_model is not None or audio is not None
+
+  kwargs = {
+      'tokens': prefill_input.tokens,
+      'images': images_for_model,
+      'cache': prefill_input.cache.cache,
+      'positions': None if has_multimodal else prefill_input.positions,
+      'attention_mask': (
+          None if has_multimodal else prefill_input.attention_mask
+      ),
+      'return_last_only': True,
+  }
+  if audio is not None:
+    kwargs.update({
+        'audio': audio,
+        'audio_lengths': audio_lengths,
+        'audio_soft_token_counts': audio_soft_token_counts,
+    })
+  out = model.apply({'params': params}, **kwargs)
 
   # TODO(epot): Could check whether the cache is full.
 
@@ -283,6 +305,7 @@ def _make_prefill_input(
     cache: _cache_helper.Cache,
     prev_turns: _turn_utils.PrevTurns,
     pad_lengths: tuple[int, ...],
+    vision_input=None,  # pylint: disable=unused-argument
 ) -> PrefillInput:
   """Make the transformer inputs for the prefill stage."""
   # Supports:

@@ -24,6 +24,7 @@ with _epy.lazy_api_imports(globals()):
   from gemma.gm.text._tokenizer import Gemma2Tokenizer
   from gemma.gm.text._tokenizer import Gemma3Tokenizer
   from gemma.gm.text._tokenizer import Gemma3nTokenizer
+  from gemma.gm.text._tokenizer import Gemma4Tokenizer
   from gemma.gm.text._tokenizer import Tokenizer
   from gemma.gm.text._tokenizer import SpecialTokens
 
