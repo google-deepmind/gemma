@@ -484,6 +484,7 @@ class Gemma4Tokenizer(Tokenizer):
   special_tokens = _Gemma4SpecialTokens
 
   VERSION = 4
+  FORMAT: ClassVar[dialog.Format] = dialog.Format.GEMMA4
 
 
 def _real_whitespaces(text: str) -> str:

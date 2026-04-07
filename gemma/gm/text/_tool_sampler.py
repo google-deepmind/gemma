@@ -22,8 +22,11 @@ import dialog
 from gemma.gm.text import _chat_sampler
 from gemma.gm.text import _sampling
 from gemma.gm.tools import _manager as _manager_lib
+from kauldron import kd
 from kauldron.ktyping import UInt8  # pylint: disable=g-multiple-import,g-importing-member
 from kauldron.typing import PRNGKeyLike  # pylint: disable=g-multiple-import,g-importing-member
+import numpy as np
+from PIL import Image
 
 
 @dataclasses.dataclass(frozen=True, kw_only=True, eq=False)
@@ -52,23 +55,27 @@ class ToolSampler(_chat_sampler.ChatSampler):
       self,
       prompt: str | dialog.Conversation,
       *,
-      images: UInt8['N? H W C'] | None = None,
+      images: list[np.ndarray | Image.Image] | UInt8['N? H W C'] | None = None,
+      audio: list[np.ndarray] | None = None,
+      audio_lengths: list[int] | None = None,
       sampling: _sampling.SamplingMethod | None = None,
       rng: PRNGKeyLike | None = None,
       max_new_tokens: int | None = None,
       multi_turn: bool | None = None,
       print_stream: bool | dialog.Stream | None = None,
       is_legacy_tool_answer: bool = False,
+      sharding: kd.sharding.ShardingTree | None = None,
   ) -> str:
-    # pylint: disable=g-docstring-quotes
     """Sampler which supports tool use.
 
     Args:
       prompt: Prompt to sample from. Can be a single string or a list of
         strings.
-      images: Images for the prompt. The position where the image should be
-        inserted in the prompt is determined by the `<start_of_image>` token in
-        the prompt.
+      images: Images for the prompt. For Gemma 4: list of raw numpy arrays or
+        PIL Images (variable aspect ratio). For Gemma 2/3: a batched uint8
+        array.
+      audio: List of audio arrays (Gemma 4 only).
+      audio_lengths: List of audio lengths (Gemma 4 only).
       sampling: Sampling method to use. If given, will override the default
         sampling method.
       rng: Seed to use for the sampling method. If `None`, a random seed is
@@ -84,6 +91,7 @@ class ToolSampler(_chat_sampler.ChatSampler):
       is_legacy_tool_answer: When `True`, indicates that the model has emitted
         `<eos>` rather than `<|tool_response>`, thus this needs to be corrected.
         (this is an internal variable that should never be explictly set).
+      sharding: Sharding tree (Gemma 4 only).
 
     Returns:
       The sampled output.

@@ -42,7 +42,7 @@ from PIL import Image
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
 class Gemma4Sampler:
-  """Sampler for Gemma4 with variable-aspect-ratio image support.
+  """Stateless sampler for Gemma4 with variable-aspect-ratio image support.
 
   This sampler handles preprocessing of variable-size images internally,
   expanding each `<|image|>` token to the correct number of placeholder

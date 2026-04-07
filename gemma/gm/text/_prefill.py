@@ -119,14 +119,21 @@ def prefill(
       vision_input if vision_input is not None else prefill_input.images
   )
   has_multimodal = images_for_model is not None or audio is not None
+  is_first_turn = not prev_turns
 
   kwargs = {
       'tokens': prefill_input.tokens,
       'images': images_for_model,
       'cache': prefill_input.cache.cache,
-      'positions': None if has_multimodal else prefill_input.positions,
+      'positions': (
+          None
+          if (has_multimodal and is_first_turn)
+          else prefill_input.positions
+      ),
       'attention_mask': (
-          None if has_multimodal else prefill_input.attention_mask
+          None
+          if (has_multimodal and is_first_turn)
+          else prefill_input.attention_mask
       ),
       'return_last_only': True,
   }
