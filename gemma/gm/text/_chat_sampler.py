@@ -272,9 +272,9 @@ def _remove_eos_token(
   return dataclasses.replace(
       state,
       step=state.step - 1,
-      # done is True and last_token is EOS => False
+      # done is True and last_token is EOS => False (un-done it)
       # Otherwise, keep the same.
-      done=state.done ^ (state.last_token == tokenizer.special_tokens.EOS),
+      done=state.done & ~(state.last_token == tokenizer.special_tokens.EOS),
       last_token_pos=state.last_token_pos - 1,
       cache=cache_info.cache,
   )
