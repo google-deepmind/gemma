@@ -1,9 +1,10 @@
 # Checkpoints
 
-## KaggleHub
+## Kaggle Hub
 
-Gemma models are available on KaggleHub for various formats (Jax, PyTorch,...):
+Gemma models are available on Kaggle Hub for various formats:
 
+*   [Gemma 4](https://www.kaggle.com/models/google/gemma-4/)
 *   [Gemma 3](https://www.kaggle.com/models/google/gemma-3/)
 *   [Gemma 2](https://www.kaggle.com/models/google/gemma-2/)
 *   [Gemma 1](https://www.kaggle.com/models/google/gemma/)
@@ -11,7 +12,8 @@ Gemma models are available on KaggleHub for various formats (Jax, PyTorch,...):
 To manually download the model:
 
 *   Select one of the **Flax** model variations
-*   Click the ⤓ button to download the model archive, then extract it locally
+*   Click the "Download" button to download the model archive
+*   Extract the model files from the archive
 
 The archive contains both the model weights and the tokenizer, like:
 
@@ -29,6 +31,12 @@ kagglehub.login()
 
 weights_dir = kagglehub.model_download(f'google/gemma-3/flax/gemma3-4b-it')
 ```
+
+### v4
+
+NOTE: Gemma 4 Flax checkpoints will be updated on Kaggle when possible.
+
+<section class="zippy" markdown="1">
 
 ### v3
 
@@ -59,6 +67,10 @@ weights_dir = kagglehub.model_download(f'google/gemma-3/flax/gemma3-4b-it')
 | 27B  | Instruction | Y         | `google/gemma-3/flax/gemma3-27b-it-int4` |
 :      : Tuned (IT)  :           :                                          :
 
+</section>
+
+<section class="zippy" markdown="1">
+
 ### v2
 
 Size | Variant                | Name
@@ -69,3 +81,5 @@ Size | Variant                | Name
 2.6B | Instruction Tuned (IT) | `google/gemma-2/flax/gemma2-2b-it`
 9B   | Instruction Tuned (IT) | `google/gemma-2/flax/gemma2-9b-it`
 27B  | Instruction Tuned (IT) | `google/gemma-2/flax/gemma2-27b-it`
+
+</section>
