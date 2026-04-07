@@ -269,7 +269,7 @@ class Attention(nn.Module):
       attn_mask *= sliding_mask
     elif self.attn_type != AttentionType.GLOBAL:
       raise ValueError(
-          'Attn_type must be either AttentionType.GLOBAL or'
+          'Attn_type must be either AttentionType.LOCAL_SLIDING or'
           f' AttentionType.GLOBAL not {self.attn_type}'
       )
 
