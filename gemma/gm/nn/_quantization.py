@@ -22,6 +22,7 @@ from flax import linen as nn
 from flax.linen import dtypes as flax_dtypes
 from gemma import peft
 from gemma.gm.nn import _layers
+from gemma.gm.utils import _dtype_params
 from gemma.peft import _quantization
 import jax
 from jax import numpy as jnp
@@ -250,12 +251,13 @@ class _IntEinsum(nn.Module):
   @nn.compact
   def __call__(self, eqn: str, x: jax.Array) -> jax.Array:
     eqn = self.process_einsum_str(eqn)
-    kernel = self.param(
-        'kernel',
-        nn.initializers.ones_init(),
-        self.shape,
-        self.dtype,
-    ).astype(x.dtype)
+    with _dtype_params.initialize_param_with_dtype(None):
+      kernel = self.param(
+          'kernel',
+          nn.initializers.ones_init(),
+          self.shape,
+          self.dtype,
+      ).astype(x.dtype)
     scale = self.param(
         'scale',
         nn.initializers.ones_init(),
