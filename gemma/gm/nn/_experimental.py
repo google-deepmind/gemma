@@ -24,7 +24,7 @@ class Gemma3_500m(_transformer.Transformer):  # pylint: disable=invalid-name
 
   config: _config.TransformerConfig = _config.TransformerConfig(
       final_logit_softcap=None,
-      num_embed=262144,
+      vocab_size=262144,
       embed_dim=896,
       hidden_dim=4 * 896,
       num_heads=4,

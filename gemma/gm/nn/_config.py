@@ -59,7 +59,7 @@ class QueryPreAttentionNormalisation(enum.Enum):
 class TransformerConfig:
   """Configuration for the gemma transformer."""
 
-  num_embed: int  # TODO(epot): Rename to `vocab_size` for consistency.
+  vocab_size: int
   embed_dim: int
   hidden_dim: int
   num_heads: int

@@ -50,7 +50,7 @@ class Gemma2_2B(_transformer.Transformer):  # pylint: disable=invalid-name
   """Gemma2 transformer architecture."""
 
   config: _config.TransformerConfig = _config.TransformerConfig(
-      num_embed=256128,
+      vocab_size=256128,
       embed_dim=2304,
       hidden_dim=9216,
       num_heads=8,
@@ -79,7 +79,7 @@ class Gemma2_9B(_transformer.Transformer):  # pylint: disable=invalid-name
   """Gemma2 transformer architecture."""
 
   config: _config.TransformerConfig = _config.TransformerConfig(
-      num_embed=256128,
+      vocab_size=256128,
       embed_dim=3584,
       hidden_dim=14336,
       num_heads=16,
@@ -109,7 +109,7 @@ class Gemma2_27B(_transformer.Transformer):  # pylint: disable=invalid-name
   """Gemma2 transformer architecture."""
 
   config: _config.TransformerConfig = _config.TransformerConfig(
-      num_embed=256128,
+      vocab_size=256128,
       embed_dim=4608,
       hidden_dim=36864,
       num_heads=32,
@@ -140,7 +140,7 @@ class Gemma3_270M(_transformer.Transformer):  # pylint: disable=invalid-name
 
   config: _config.TransformerConfig = _config.TransformerConfig(
       final_logit_softcap=None,
-      num_embed=262144,
+      vocab_size=262144,
       embed_dim=640,
       hidden_dim=2048,
       num_heads=4,
@@ -171,7 +171,7 @@ class Gemma3_1B(_transformer.Transformer):  # pylint: disable=invalid-name
 
   config: _config.TransformerConfig = _config.TransformerConfig(
       final_logit_softcap=None,
-      num_embed=262144,
+      vocab_size=262144,
       embed_dim=1152,
       hidden_dim=6 * 1152,
       num_heads=4,
@@ -223,7 +223,7 @@ class Gemma3_4B(_Gemma3Base):  # pylint: disable=invalid-name
 
   config: _config.TransformerConfig = _config.TransformerConfig(
       final_logit_softcap=None,
-      num_embed=262_144,
+      vocab_size=262_144,
       embed_dim=2560,
       hidden_dim=2560 * 8 // 2,
       num_heads=8,
@@ -256,7 +256,7 @@ class Gemma3_12B(_Gemma3Base):  # pylint: disable=invalid-name
 
   config: _config.TransformerConfig = _config.TransformerConfig(
       final_logit_softcap=None,
-      num_embed=262144,
+      vocab_size=262144,
       embed_dim=30 * 128,
       hidden_dim=8 * 30 * 128 // 2,
       num_heads=16,
@@ -288,7 +288,7 @@ class Gemma3_27B(_Gemma3Base):  # pylint: disable=invalid-name
 
   config: _config.TransformerConfig = _config.TransformerConfig(
       final_logit_softcap=None,
-      num_embed=262144,
+      vocab_size=262144,
       embed_dim=5376,
       hidden_dim=5376 * 8 // 2,
       num_heads=32,
