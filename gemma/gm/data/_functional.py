@@ -135,6 +135,8 @@ def make_seq2seq_fields(
     The input, target and mask, all of length `prompt_len + response_len - 1`.
   """
   # Concatenate the prompt and response tokens.
+  if len(prompt) == 0 :
+    raise ValueError("prompt must be a non-empty sequence of token ids")
   sequence = np.concatenate([prompt, response])
 
   # Create the loss mask.
