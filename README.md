@@ -86,8 +86,10 @@ To download the model weights. See
 
 ### System Requirements
 
-Gemma can run on a CPU, GPU and TPU. For GPU, we recommend 8GB+ RAM on GPU for
-The 2B checkpoint and 24GB+ RAM on GPU are used for the 7B checkpoint.
+Gemma can run on a CPU, GPU and TPU. For GPU, we recommend 8GB+ VRAM for the 2B
+checkpoint and 24GB+ VRAM for the 7B checkpoint. For reference, GPUs with 8GB+
+VRAM include models like the NVIDIA RTX 3060, while models with 24GB+ VRAM
+include the NVIDIA RTX 4090 and AMD Radeon RX 7900 XTX.
 
 ### Contributing
 
