@@ -32,11 +32,11 @@ def test_split_params():
           },
       },
       'other': 0,
-      # Nested branches are fully removed from the lora tree.
+      # Nested branches are fully removed from the peft tree.
       'b': {'f': {'a': {}}},
   }
 
-  original, lora = peft.split_params(params)
+  original, peft_params = peft.split_params(params)
   assert original == {
       'dense': {
           'kernel': 0,
@@ -46,7 +46,7 @@ def test_split_params():
       'other': 0,
       'b': {'f': {'a': {}}},
   }
-  assert lora == {
+  assert peft_params == {
       'dense': {
           'lora': {
               'a': 0,
@@ -61,4 +61,31 @@ def test_split_params():
       },
   }
 
-  assert peft.merge_params(original, lora) == params
+  assert peft.merge_params(original, peft_params) == params
+
+
+def test_split_params_with_prefix():
+  params = {
+      'dense': {
+          'kernel': 0,
+          'bias': 1,
+      },
+      'prefix_k_0': 0,
+      'prefix_v_0': 1,
+      'other': 0,
+  }
+
+  original, prefix = peft.split_params(params)
+  assert original == {
+      'dense': {
+          'kernel': 0,
+          'bias': 1,
+      },
+      'other': 0,
+  }
+  assert prefix == {
+      'prefix_k_0': 0,
+      'prefix_v_0': 1,
+  }
+
+  assert peft.merge_params(original, prefix) == params
