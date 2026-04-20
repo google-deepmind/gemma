@@ -116,3 +116,41 @@ class TopPSampling(SamplingMethod):
 
     return jax.random.categorical(rng, logits, axis=-1)
 
+
+@dataclasses.dataclass(frozen=True, kw_only=True)
+class MinPSampling(SamplingMethod):
+  """Min-p sampling.
+
+  Min-p sampling keeps all tokens whose probability is at least
+  `min_p` times the probability of the most likely token. Unlike top-p
+  which uses an absolute cumulative threshold, min-p adapts the number
+  of candidate tokens based on model confidence: when the model is
+  confident (one token dominates), fewer alternatives are kept; when
+  uncertain, more tokens remain in the candidate set.
+
+  Reference: https://arxiv.org/abs/2407.01082
+  """
+
+  min_p: float = 0.1
+  temperature: float = 1.0
+
+  @typechecked
+  def get_next_tokens(self, logits: Float['... V'], rng: PRNGKey) -> Int['...']:
+    # temperature scaling
+    logits = logits / self.temperature
+
+    if self.min_p > 0.0:
+      probs = jax.nn.softmax(logits, axis=-1)
+
+      # Compute the threshold: min_p * max probability in each batch.
+      max_prob = jnp.max(probs, axis=-1, keepdims=True)
+      threshold = self.min_p * max_prob
+
+      # Mask out tokens below the threshold.
+      logits = jnp.where(
+          probs < threshold,
+          jnp.finfo(logits.dtype).min,
+          logits,
+      )
+
+    return jax.random.categorical(rng, logits, axis=-1)
