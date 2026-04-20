@@ -1,0 +1,48 @@
+# Pre-commit hooks configuration
+# See https://pre-commit.com for more information
+# See https://pre-commit.com/hooks.html for more hooks
+
+default_language_version:
+  python: python3
+
+repos:
+  # Standard pre-commit hooks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-json
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: mixed-line-ending
+        args: ['--fix=lf']
+      - id: debug-statements
+
+  # Python code formatting with pyink (Google's Python formatter)
+  - repo: https://github.com/google/pyink
+    rev: '23.10.0'
+    hooks:
+      - id: pyink
+        args:
+          - --line-length=80
+          - --pyink-indentation=2
+          - --pyink-use-majority-quotes
+
+  # Python linting with pylint
+  - repo: https://github.com/PyCQA/pylint
+    rev: v3.0.3
+    hooks:
+      - id: pylint
+        args:
+          - --rcfile=.pylintrc
+        additional_dependencies:
+          - jax
+          - jaxlib
+          - flax
+          - numpy
