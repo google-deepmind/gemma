@@ -75,13 +75,24 @@ def get_config():
       },
   )
 
-
 def _make_dataset(training: bool) -> kd.data.Pipeline:
   # Dict key names from the dataset
   _INPUT_FIELD = "sentence"  # pylint: disable=invalid-name
   _LABEL_FIELD = "label"  # pylint: disable=invalid-name
 
   tokenizer = gm.text.Gemma3Tokenizer()
+
+  #Compute label token Ids dynamically
+  def _get_single_token_id(text: str) -> int:
+    ids = tokenizer.encode(text, add_bos=False, add_eos=False)
+    if len(ids) != 1:
+      raise ValueError(
+          f"Label '{text}' must map to exactly one token, but got {ids}."
+      )
+    return ids[0]
+
+  no_token_id = _get_single_token_id("No")
+  yes_token_id = _get_single_token_id("Yes")
 
   return kd.data.py.Tfds(
       name="glue/cola",
@@ -96,7 +107,7 @@ def _make_dataset(training: bool) -> kd.data.Pipeline:
           gm.data.FormatText(
               key=_INPUT_FIELD,
               template="""<start_of_turn>user
-              Please classify whether the following sentence is grammaticaly correct, please answer only with Yes or No.
+              Please classify whether the following sentence is grammatically correct, please answer only with Yes or No.
               Sentence: {text}<end_of_turn>
               <start_of_turn>model""",
           ),
@@ -112,14 +123,10 @@ def _make_dataset(training: bool) -> kd.data.Pipeline:
           # Process the label
           gm.data.MapInts(
               key=_LABEL_FIELD,
-              # Rather than predicting the token 0 and 1, we are using the
-              # token 1294 and 3553 which respectivelly correspond to "No" and
-              # "Yes". We do this because those token already contain semantic
-              # information, so even zero-shot prediction without any
-              # finetuning has better than random performances.
+              # My change
               old_to_new={
-                  0: 1294,  # Token -> "No"
-                  1: 3553,  # Token -> "Yes"
+                  0: no_token_id,   # Token -> "No"
+                  1: yes_token_id,  # Token -> "Yes"
               },
           ),
           kd.data.Rearrange(
