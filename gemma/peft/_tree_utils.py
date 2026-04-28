@@ -23,11 +23,11 @@ _ParamsDict = dict[str, Any]
 
 class SplittedParams(NamedTuple):
   original: _ParamsDict
-  lora: _ParamsDict
+  peft: _ParamsDict
 
 
 def split_params(params: _ParamsDict) -> SplittedParams:
-  """Split a nested tree into 2 trees, one with and without 'lora' branches.
+  """Split a nested tree into 2 trees, one with and without 'peft' branches.
 
   Example:
 
@@ -45,7 +45,7 @@ def split_params(params: _ParamsDict) -> SplittedParams:
   }
 
 
-  original, lora = peft.split_params(params)
+  original, peft = peft.split_params(params)
 
   assert original == {
       'dense': {
@@ -54,7 +54,7 @@ def split_params(params: _ParamsDict) -> SplittedParams:
       },
       'other': other,
   }
-  assert lora == {
+  assert peft == {
       'dense': {
           'lora': {
               'a': a,
@@ -65,30 +65,33 @@ def split_params(params: _ParamsDict) -> SplittedParams:
   ```
 
   Args:
-    params: A nested dictionary representing the input tree containing 'lora'
-      branches.
+    params: A nested dictionary representing the input tree containing `peft
+      branches (e.g. 'lora', 'prefix').
 
   Returns:
-    A named tuple: `(original, lora)`
+    A named tuple: `(original, peft)`
   """
+  node_name_prefixes = ('lora', 'prefix')
   original_tree = {}
-  lora_tree = {}
+  peft_tree = {}
 
-  def _split_recursive(input_subtree, original_subtree, lora_subtree):
+  def _split_recursive(input_subtree, original_subtree, peft_subtree):
     for key, value in input_subtree.items():
       if isinstance(value, dict):
-        if key == 'lora':
-          lora_subtree[key] = value
+        if key.startswith(node_name_prefixes):
+          peft_subtree[key] = value
         else:
           original_subtree[key] = {}
-          lora_subtree[key] = {}
-          _split_recursive(value, original_subtree[key], lora_subtree[key])
-      elif key != 'lora':
+          peft_subtree[key] = {}
+          _split_recursive(value, original_subtree[key], peft_subtree[key])
+      elif key.startswith(node_name_prefixes):
+        peft_subtree[key] = value
+      else:
         original_subtree[key] = value
 
-  _split_recursive(params, original_tree, lora_tree)
+  _split_recursive(params, original_tree, peft_tree)
 
-  # Remove empty dicts in lora_tree
+  # Remove empty dicts in peft_tree
   def _remove_empty_dicts(tree):
     if not isinstance(tree, dict):
       return tree
@@ -103,38 +106,38 @@ def split_params(params: _ParamsDict) -> SplittedParams:
         new_tree[key] = value
     return new_tree
 
-  lora_tree = _remove_empty_dicts(lora_tree)
+  peft_tree = _remove_empty_dicts(peft_tree)
 
-  return SplittedParams(original_tree, lora_tree)
+  return SplittedParams(original_tree, peft_tree)
 
 
-def merge_params(original: _ParamsDict, lora: _ParamsDict) -> _ParamsDict:
+def merge_params(original: _ParamsDict, peft: _ParamsDict) -> _ParamsDict:
   """Inverse of `split_params`.
 
   Args:
-    original: The original tree without the 'lora' branches.
-    lora: The tree containing the 'lora' branches.
+    original: The original tree without the 'peft' branches.
+    peft: The tree containing the 'peft' branches.
 
   Returns:
     The merged tree.
   """
 
-  def _merge_recursive(original_subtree, lora_subtree):
+  def _merge_recursive(original_subtree, peft_subtree):
     new_tree = {}
 
     for key, value in original_subtree.items():
-      if isinstance(value, dict) and key in lora_subtree:
-        new_tree[key] = _merge_recursive(value, lora_subtree[key])
+      if isinstance(value, dict) and key in peft_subtree:
+        new_tree[key] = _merge_recursive(value, peft_subtree[key])
       else:
         new_tree[key] = value
 
     # Add the branches not present in the original tree
-    for k in sorted(set(lora_subtree) - set(original_subtree)):
-      new_tree[k] = lora_subtree[k]
+    for k in sorted(set(peft_subtree) - set(original_subtree)):
+      new_tree[k] = peft_subtree[k]
 
     return new_tree
 
-  return _merge_recursive(original, lora)
+  return _merge_recursive(original, peft)
 
 
 def fuse_params():
