@@ -421,6 +421,7 @@ class Transformer(nn.Module):
       attention_mask=None,
       positions=None,
       audio_soft_token_counts=None,
+      ignore_ple_tokens: bool = False,
   ) -> _Inputs:
     """Encode the text tokens, eventually including the vision embeddings."""
     if images is not None or audio is not None:
@@ -467,7 +468,9 @@ class Transformer(nn.Module):
         )
 
       if self.config.per_layer_input_dim:
-        per_layer_inputs = self.embedder.encode_per_layer_input(x, tokens)
+        per_layer_inputs = self.embedder.encode_per_layer_input(
+            x, tokens, ignore_ple_tokens=ignore_ple_tokens
+        )
       else:
         per_layer_inputs = None
 
@@ -501,7 +504,7 @@ class Transformer(nn.Module):
 
     if self.config.per_layer_input_dim:
       per_layer_inputs = self.embedder.encode_per_layer_input(
-          x, inputs.tokens_with_mm
+          x, inputs.tokens_with_mm, ignore_ple_tokens=ignore_ple_tokens
       )
     else:
       per_layer_inputs = None

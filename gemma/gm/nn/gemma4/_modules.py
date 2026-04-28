@@ -166,13 +166,20 @@ class Embedder(nn.Module):
     x = self.audio_soft_embedding_norm(x)
     return x
 
-  def encode_per_layer_input(self, x: jax.Array, t: jax.Array) -> jax.Array:
+  def encode_per_layer_input(
+      self,
+      x: jax.Array,
+      t: jax.Array,
+      ignore_ple_tokens: bool = False,
+  ) -> jax.Array:
     """Encodes the input tokens.
 
     Args:
       x: Input shape [seq_len, embed_dim] or [batch_size, seq_len, embed_dim].
       t: Input tokens of shape [seq_len] or [batch_size, seq_len], where each
         token is an integer in [0, vocab_size).
+      ignore_ple_tokens: If True, the tokens are not used to compute the per
+        layer input embeddings.
 
     Returns:
       Encoded input of shape [seq_len, num_layers, per_layer_input_dim] or
@@ -184,6 +191,8 @@ class Embedder(nn.Module):
     )
     x = self.per_layer_model_projection('...td,dnp->...tnp', x)
     x = self.per_layer_projection_norm(x)
+    if ignore_ple_tokens:
+      return x
     y = self.per_layer_input_embedding_table[(t,)]
     y *= jnp.sqrt(self.per_layer_input_dim).astype(y.dtype)
     return (x + y) * jax.lax.rsqrt(2.0).astype(x.dtype)
