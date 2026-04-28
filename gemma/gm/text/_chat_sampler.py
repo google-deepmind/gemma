@@ -218,6 +218,46 @@ class ChatSampler:
         'Use `sampler` instead.'
     )
 
+  def _sample(
+      self,
+      prompt_text: str,
+      *,
+      images,
+      audio,
+      audio_lengths,
+      sampling,
+      max_new_tokens,
+      rng,
+      last_state,
+      stream,
+      sharding,
+  ):
+    """Dispatches to the correct underlying sampler."""
+    if self._is_gemma4:
+      return self.gemma4_sampler.sample(
+          prompt_text,
+          images=images,
+          audio=audio,
+          audio_lengths=audio_lengths,
+          sampling=sampling,
+          max_new_tokens=max_new_tokens,
+          rng=rng,
+          return_state=True,
+          last_state=last_state,
+          sharding=sharding,
+      )
+    else:
+      return self.sampler.sample(  # pytype: disable=wrong-arg-types
+          prompt_text,
+          images=images,
+          sampling=sampling,
+          max_new_tokens=max_new_tokens,
+          rng=rng,
+          return_state=True,
+          last_state=last_state,
+          stream=bool(stream),
+      )
+
   def chat(
       self,
       prompt: str | dialog.Conversation,
@@ -338,30 +378,18 @@ class ChatSampler:
     )
 
     # --- Dispatch to the correct sampler ---
-    if self._is_gemma4:
-      out = self.gemma4_sampler.sample(
-          prompt_text,
-          images=images,
-          audio=audio,
-          audio_lengths=audio_lengths,
-          sampling=sampling,
-          max_new_tokens=max_new_tokens,
-          rng=rng,
-          return_state=True,
-          last_state=last_state,
-          sharding=sharding,
-      )
-    else:
-      out = self.sampler.sample(  # pytype: disable=wrong-arg-types
-          prompt_text,
-          images=images,
-          sampling=sampling,
-          max_new_tokens=max_new_tokens,
-          rng=rng,
-          return_state=True,
-          last_state=last_state,
-          stream=bool(stream),
-      )
+    out = self._sample(
+        prompt_text,
+        images=images,
+        audio=audio,
+        audio_lengths=audio_lengths,
+        sampling=sampling,
+        max_new_tokens=max_new_tokens,
+        rng=rng,
+        last_state=last_state,
+        stream=stream,
+        sharding=sharding,
+    )
 
     # In streaming mode, the output is an iterator, yielding tokens one at a
     # time.
