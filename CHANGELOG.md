@@ -23,9 +23,14 @@ To release a new version (e.g. from `1.0.0` -> `2.0.0`):
 
 ## [Unreleased]
 
+## [4.0.0] - 2026-04-17
+
+* Add Gemma 4.
+
 ## [1.0.0] - 2022-01-01
 
 * Initial release
 
-[Unreleased]: https://github.com/google-deepmind/gemma/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/google-deepmind/gemma/compare/v4.0.0...HEAD
+[4.0.0]: https://github.com/google-deepmind/gemma/compare/v0.1.0...v4.0.0
 [1.0.0]: https://github.com/google-deepmind/gemma/releases/tag/v0.1.0
