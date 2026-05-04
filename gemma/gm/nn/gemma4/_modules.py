@@ -321,7 +321,7 @@ class Attention(nn.Module):
       # Reshape matrices to enable einsums over groups.
       b, t, kg, h = query_proj.shape
       query_proj = query_proj.reshape(
-          (b, t, self.num_kv_heads, int(kg / self.num_kv_heads), h)
+          (b, t, self.num_kv_heads, kg // self.num_kv_heads, h)
       )
       logits = jnp.einsum('BTKGH,BSKH->BTKGS', query_proj, key_proj)
       b, t, k, g, s = logits.shape
@@ -360,7 +360,7 @@ class Attention(nn.Module):
       # Reshape matrices to enable einsums over groups.
       b, t, kg, h = probs.shape
       probs = probs.reshape(
-          (b, t, self.num_kv_heads, int(kg / self.num_kv_heads), h)
+          (b, t, self.num_kv_heads, kg // self.num_kv_heads, h)
       )
       encoded = jnp.einsum('BTKGS,BSKH->BTKGH', probs, value_proj)
       b, t, k, g, h = encoded.shape
