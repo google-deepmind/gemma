@@ -159,3 +159,110 @@ def test_full_attention_mask():
       ],
   )
 
+
+def test_local_window_compaction_uses_valid_tokens_and_positions():
+  batch_size = 2
+  window = 4
+  prefill_len = 8
+  persistent_layer = {
+      'k': jnp.zeros((batch_size, window, 1, 1), dtype=jnp.float32),
+      'v': jnp.zeros((batch_size, window, 1, 1), dtype=jnp.float32),
+      'positions': jnp.full((batch_size, window), -(10**9), dtype=jnp.int32),
+      'logical_index': jnp.full((batch_size, window), -1, dtype=jnp.int32),
+      'valid': jnp.zeros((batch_size, window), dtype=jnp.bool_),
+      'end_index': jnp.zeros((batch_size,), dtype=jnp.int32),
+  }
+  values = jnp.broadcast_to(
+      jnp.arange(prefill_len, dtype=jnp.float32)[None, :, None, None],
+      (batch_size, prefill_len, 1, 1),
+  )
+  prefill_layer = {
+      'k': values,
+      'v': values + 100,
+      # Row 1 models a short padded prompt sharing a long bucket with row 0:
+      # only logical slots 0, 1, 2 are real, and their positions are still
+      # live local context.
+      'positions': jnp.asarray(
+          [
+              [0, 1, 2, 3, 4, 5, 6, 7],
+              [0, 1, 2, 2, 2, 2, 2, 2],
+          ],
+          dtype=jnp.int32,
+      ),
+      'end_index': jnp.asarray([prefill_len, prefill_len], dtype=jnp.int32),
+  }
+  logical_valid_mask = jnp.asarray(
+      [
+          [1, 1, 1, 1, 1, 1, 1, 1],
+          [1, 1, 1, 0, 0, 0, 0, 0],
+      ],
+      dtype=jnp.bool_,
+  )
+
+  compact = _prefill._compact_local_window_layer(
+      persistent_layer=persistent_layer,
+      prefill_layer=prefill_layer,
+      logical_valid_mask=logical_valid_mask,
+  )
+
+  np.testing.assert_array_equal(
+      compact['logical_index'],
+      [
+          [4, 5, 6, 7],
+          [0, 1, 2, -1],
+      ],
+  )
+  np.testing.assert_array_equal(
+      compact['positions'],
+      [
+          [4, 5, 6, 7],
+          [0, 1, 2, -(10**9)],
+      ],
+  )
+  np.testing.assert_array_equal(
+      compact['valid'],
+      [
+          [1, 1, 1, 1],
+          [1, 1, 1, 0],
+      ],
+  )
+  np.testing.assert_array_equal(
+      compact['k'][..., 0, 0],
+      [
+          [4, 5, 6, 7],
+          [0, 1, 2, 0],
+      ],
+  )
+
+
+def test_local_window_prefill_scratch_restages_previous_cache():
+  persistent_layer = {
+      'k': jnp.asarray([[[[10]], [[11]], [[12]], [[13]]]], dtype=jnp.float32),
+      'v': jnp.asarray([[[[20]], [[21]], [[22]], [[23]]]], dtype=jnp.float32),
+      'positions': jnp.asarray([[2, 3, -(10**9), 1]], dtype=jnp.int32),
+      'logical_index': jnp.asarray([[6, 7, -1, 5]], dtype=jnp.int32),
+      'valid': jnp.asarray([[1, 1, 0, 1]], dtype=jnp.bool_),
+      'end_index': jnp.asarray([8], dtype=jnp.int32),
+  }
+
+  scratch = _prefill._make_local_window_prefill_scratch_layer(
+      persistent_layer=persistent_layer,
+      prefill_cache_length=10,
+  )
+
+  assert 'logical_index' not in scratch
+  assert 'valid' not in scratch
+  np.testing.assert_array_equal(scratch['end_index'], [8])
+  np.testing.assert_array_equal(
+      scratch['k'][0, :, 0, 0],
+      [0, 0, 0, 0, 0, 13, 10, 11, 0, 0],
+  )
+  np.testing.assert_array_equal(
+      scratch['v'][0, :, 0, 0],
+      [0, 0, 0, 0, 0, 23, 20, 21, 0, 0],
+  )
+  np.testing.assert_array_equal(
+      scratch['positions'][0],
+      [-(10**9), -(10**9), -(10**9), -(10**9), -(10**9),
+       1, 2, 3, -(10**9), -(10**9)],
+  )

@@ -30,6 +30,7 @@ from gemma.gm.text import _sampler_loop
 from gemma.gm.text import _sampling
 from gemma.gm.text import _tokenizer
 from gemma.gm.typing import _common
+from gemma.gm.utils import _cache_helper
 from gemma.gm.utils import _types
 from gemma.gm.vision import _token_utils
 import jax
@@ -81,6 +82,18 @@ class Gemma4Sampler:
   pooling_kernel_size: int = 3
   audio_sample_rate: int = 16000
   audio_seq_length: int = 750
+  # KV cache allocation policy. LEGACY = full cache_length on every layer
+  # (default, backwards-compatible). LOCAL_WINDOW = ring-buffered local
+  # layers, full global, with mask gather via logical_index. The env var
+  # `GEMMA_KV_CACHE_MODE=local_window` overrides per call site at __post_init__.
+  kv_cache_mode: _cache_helper.KVCacheMode = dataclasses.field(
+      default_factory=lambda: _cache_helper.KVCacheMode.from_env()
+  )
+  # Prefill strategy. LEGACY_SCRATCH is correctness-first and currently the
+  # only implemented mode. Override with GEMMA_KV_PREFILL_MODE.
+  kv_prefill_mode: _cache_helper.KVPrefillMode = dataclasses.field(
+      default_factory=lambda: _cache_helper.KVPrefillMode.from_env()
+  )
 
   def __post_init__(self):
     if self.tokenizer is None:
@@ -217,6 +230,8 @@ class Gemma4Sampler:
         audio=audio,
         audio_lengths=audio_lengths,
         audio_soft_token_counts=tuple(audio_soft_token_counts),
+        kv_cache_mode=self.kv_cache_mode,
+        kv_prefill_mode=self.kv_prefill_mode,
     )
 
     if max_new_tokens and max_new_tokens > self.max_out_length:

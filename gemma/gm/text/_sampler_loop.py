@@ -161,13 +161,18 @@ class SamplerLoop:
       # Keep going while we have not reached the maximum number of tokens, and
       # at least one of the samples is not done.
 
+      # Use the LOGICAL cache length (the sampler's static `cache_length`),
+      # not any layer's physical shape. With LOCAL_WINDOW caches, layer 0 is
+      # window-sized (e.g. 512), but generation should continue until the
+      # GLOBAL cache fills.
+      cache_full = state.used_cache_length >= self.cache_length - 1
       return (
           # We predicted too many tokens.
           (state.step < max_new_tokens)
           # All batch have yield the `<end_of_turn>` token.
           & ~jnp.all(state.done)
-          # End if the cache is full.
-          & ~state.cache_info.is_full
+          # End if the logical cache is full.
+          & ~cache_full
       )
 
     state = jax.lax.while_loop(cond_fn, step_fn, state)
@@ -207,8 +212,9 @@ class SamplerLoop:
     """Streaming sampling function."""
     # Sample autoregressively.
     for _ in range(max_new_tokens):
-      # Exit if the cache is full.
-      if jnp.all(state.done) or state.cache_info.is_full:
+      # Exit if the logical cache is full.
+      cache_full = state.used_cache_length >= self.cache_length - 1
+      if jnp.all(state.done) or cache_full:
         break
 
       state = self._sample_step(

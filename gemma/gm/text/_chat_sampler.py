@@ -30,6 +30,7 @@ from gemma.gm.text import _sampling
 from gemma.gm.text import _template
 from gemma.gm.text import _tokenizer
 from gemma.gm.typing import _common
+from gemma.gm.utils import _cache_helper
 # from gemma.gm.vision import _token_utils
 from kauldron import kd
 from kauldron.ktyping import UInt8  # pylint: disable=g-multiple-import,g-importing-member
@@ -134,6 +135,18 @@ class ChatSampler:
   pooling_kernel_size: int = 3
   audio_sample_rate: int = 16000
   audio_seq_length: int = 750
+  # KV cache allocation policy. Forwarded to Gemma4Sampler. See
+  # _cache_helper.KVCacheMode for the modes; LEGACY is the default and
+  # backwards-compatible. Override per session via the env var
+  # GEMMA_KV_CACHE_MODE=local_window.
+  kv_cache_mode: _cache_helper.KVCacheMode = dataclasses.field(
+      default_factory=lambda: _cache_helper.KVCacheMode.from_env()
+  )
+  # Forwarded to Gemma4Sampler. Override per session via
+  # GEMMA_KV_PREFILL_MODE=legacy_scratch.
+  kv_prefill_mode: _cache_helper.KVPrefillMode = dataclasses.field(
+      default_factory=lambda: _cache_helper.KVPrefillMode.from_env()
+  )
 
   # Internal variables, but exposed for power users.
 
@@ -182,6 +195,8 @@ class ChatSampler:
           pooling_kernel_size=self.pooling_kernel_size,
           audio_sample_rate=self.audio_sample_rate,
           audio_seq_length=self.audio_seq_length,
+          kv_cache_mode=self.kv_cache_mode,
+          kv_prefill_mode=self.kv_prefill_mode,
       )
     else:
       return _sampler.Sampler(

@@ -63,6 +63,12 @@ def prefill(
     audio=None,
     audio_lengths=None,
     audio_soft_token_counts=None,
+    kv_cache_mode: _cache_helper.KVCacheMode = (
+        _cache_helper.KVCacheMode.LEGACY
+    ),
+    kv_prefill_mode: _cache_helper.KVPrefillMode = (
+        _cache_helper.KVPrefillMode.LEGACY_SCRATCH
+    ),
 ) -> _sampler_loop.SamplingState:
   """Pre-fill the KV cache and initial model input.
 
@@ -83,6 +89,8 @@ def prefill(
     audio: Audio input data or None.
     audio_lengths: Lengths of audio inputs or None.
     audio_soft_token_counts: Soft token counts for audio or None.
+    kv_cache_mode: KV cache allocation/storage policy.
+    kv_prefill_mode: KV cache prefill strategy.
 
   Returns:
     The initial state for the sampling loop.
@@ -90,6 +98,12 @@ def prefill(
 
   if isinstance(pad_length, int):
     pad_length = (pad_length,)
+
+  if kv_prefill_mode != _cache_helper.KVPrefillMode.LEGACY_SCRATCH:
+    raise NotImplementedError(
+        f'Unsupported kv_prefill_mode={kv_prefill_mode!r}. Only '
+        'LEGACY_SCRATCH is implemented.'
+    )
 
   # Wrap the last state to simplify the logic of adding the previous turns to
   # the prefill.
@@ -105,15 +119,40 @@ def prefill(
       params=params,
       cache_length=cache_length,
       sharding=sharding,
+      kv_cache_mode=kv_cache_mode,
   )
 
-  prefill_input = _make_prefill_input(
-      input=input,
-      cache=full_cache,
-      prev_turns=prev_turns,
-      pad_lengths=pad_length,
-      vision_input=vision_input,
+  # LOCAL_WINDOW correctness: the persistent local cache is a ring buffer of
+  # `sliding_window_size` slots, but prefill must compute attention over the
+  # full prompt without mod-wrap (otherwise an early prompt token's KV gets
+  # overwritten before later tokens attend to it). We therefore allocate a
+  # full-size SCRATCH cache for local layers during prefill, run prefill
+  # normally (legacy semantics inside Attention.__call__ because the scratch
+  # carries no `logical_index` metadata), then compact each row's last valid
+  # local-window tokens back into the persistent ring buffer.
+  using_local_window = (
+      kv_cache_mode == _cache_helper.KVCacheMode.LOCAL_WINDOW
+      and any(_cache_helper.is_local_window_layer(d)
+              for d in full_cache.cache.values())
   )
+
+  if using_local_window:
+    prefill_input = _make_prefill_input_local_window(
+        input=input,
+        cache=full_cache,
+        prev_turns=prev_turns,
+        pad_lengths=pad_length,
+        model=model,
+        vision_input=vision_input,
+    )
+  else:
+    prefill_input = _make_prefill_input(
+        input=input,
+        cache=full_cache,
+        prev_turns=prev_turns,
+        pad_lengths=pad_length,
+        vision_input=vision_input,
+    )
 
   images_for_model = (
       vision_input if vision_input is not None else prefill_input.images
@@ -148,10 +187,18 @@ def prefill(
   # TODO(epot): Could check whether the cache is full.
 
   # Write the new cache back to the full cache.
-  cache = _merge_cache(
-      full_cache=full_cache,
-      prefill_cache=out.cache,
-  )
+  if using_local_window:
+    cache = _merge_cache_local_window(
+        full_cache=full_cache,
+        prefill_cache=out.cache,
+        logical_valid_mask=prefill_input.attention_mask[:, -1, :],
+        model=model,
+    )
+  else:
+    cache = _merge_cache(
+        full_cache=full_cache,
+        prefill_cache=out.cache,
+    )
   del out
 
   # Set the end index (which indicates the last kv cache index used).
@@ -232,6 +279,7 @@ def prefill(
       new_used_cache_length=new_used_cache_length,
       prev_turns=prev_turns,
       cache=cache,
+      cache_length=cache_length,
       rng=rng,
   )
 
@@ -243,6 +291,7 @@ def _make_init_state(
     new_used_cache_length: int,
     prev_turns: _turn_utils.PrevTurns,
     cache: _cache_helper.Cache,
+    cache_length: int,
     rng: PRNGKey,
 ) -> _sampler_loop.SamplingState:
   """Initial state for the sampling loop."""
@@ -254,7 +303,7 @@ def _make_init_state(
   full_attention_mask = _make_full_attention_mask(
       input=input,
       prev_turns=prev_turns,
-      cache_length=cache.total_cache_length,
+      cache_length=cache_length,
   )
 
   return _sampler_loop.SamplingState(
@@ -288,16 +337,24 @@ def _get_or_init_cache(
     params: _common.Params,
     cache_length: int,
     sharding: kd.sharding.ShardingTree | None,
+    kv_cache_mode: _cache_helper.KVCacheMode = (
+        _cache_helper.KVCacheMode.LEGACY
+    ),
 ) -> _cache_helper.Cache:
   """Initialize or reuse the cache."""
 
   if not prev_turns:
-    cache = model.init_cache(
-        batch_size=inputs.batch_size,
-        dtype=_dtype(params),
-        cache_length=cache_length,
-        sharding=sharding,
-    )
+    init_kwargs = {
+        'batch_size': inputs.batch_size,
+        'dtype': _dtype(params),
+        'cache_length': cache_length,
+        'sharding': sharding,
+    }
+    # Only forward kv_cache_mode if the model accepts it (Gemma 4 path).
+    # Older transformer .init_cache signatures will reject the kwarg.
+    if kv_cache_mode != _cache_helper.KVCacheMode.LEGACY:
+      init_kwargs['kv_cache_mode'] = kv_cache_mode
+    cache = model.init_cache(**init_kwargs)
   else:
     # TODO(epot): Should check shape is compatible with `cache_length`.
     cache = prev_turns.cache
@@ -364,6 +421,234 @@ def _merge_cache(
   return full_cache.at[:, : prefill_cache.total_cache_length].set_kv(
       prefill_cache
   )
+
+
+def _make_prefill_input_local_window(
+    input: _types.Input,  # pylint: disable=redefined-builtin
+    cache: _cache_helper.Cache,
+    prev_turns: _turn_utils.PrevTurns,
+    pad_lengths: tuple[int, ...],
+    model: _transformer_like.TransformerLike,
+    vision_input=None,  # pylint: disable=unused-argument
+) -> PrefillInput:
+  """Make the transformer inputs for the prefill stage in LOCAL_WINDOW mode.
+
+  Local-sliding layers in the persistent cache are window-sized ring buffers,
+  but prefill needs a contiguous, non-wrapping cache so that the prompt's
+  attention math is correct when prompt_length > sliding_window_size. We
+  allocate fresh full-size scratch K/V for local layers; global layers are
+  sliced from the persistent cache as in the LEGACY path. Metadata fields
+  (`logical_index`, `valid`) are NOT included in the scratch. That is
+  deliberate, so `Attention.__call__` takes the legacy code path during
+  prefill.
+  """
+  token_length_padded = _pad_to_bucket(input.length_with_mm, pad_lengths)
+  input = input.pad(length_with_mm=token_length_padded)
+
+  prefill_cache_length = prev_turns.used_cache_length + token_length_padded
+  prefill_cache_length = _pad_to_bucket(prefill_cache_length, pad_lengths)
+
+  scratch: _config.Cache = {}
+  config = model.config
+  for i, _ in enumerate(config.attention_types):
+    layer_name = f'layer_{i}'
+    persistent_layer = cache.cache[layer_name]
+    if _cache_helper.is_local_window_layer(persistent_layer):
+      # Fresh full-size scratch for this local layer (legacy shape, no
+      # metadata, so Attention.__call__ takes the legacy code path). Previous
+      # local-window turns are re-expanded into their logical scratch slots
+      # before the new prompt is appended.
+      scratch[layer_name] = _make_local_window_prefill_scratch_layer(
+          persistent_layer=persistent_layer,
+          prefill_cache_length=prefill_cache_length,
+      )
+    else:
+      # Global / legacy: slice the persistent cache prefix as in the
+      # LEGACY path. Slicing returns views; downstream merge writes back.
+      scratch[layer_name] = {
+          'k': persistent_layer['k'][:, :prefill_cache_length],
+          'v': persistent_layer['v'][:, :prefill_cache_length],
+          'positions': persistent_layer['positions'][:, :prefill_cache_length],
+          'end_index': persistent_layer['end_index'],
+      }
+
+  return PrefillInput(
+      tokens=input.text,
+      images=input.images,
+      positions=input.positions + prev_turns.last_token_pos[..., None],
+      attention_mask=prev_turns.make_prefill_attention_mask(
+          next_turn_attention_mask=input.attention_mask,
+          prefill_cache_length=prefill_cache_length,
+      ),
+      cache=_cache_helper.Cache(scratch),
+  )
+
+
+def _make_local_window_prefill_scratch_layer(
+    *,
+    persistent_layer: dict,
+    prefill_cache_length: int,
+) -> dict:
+  """Re-expand a local-window layer into a full logical prefill scratch."""
+  b, _, num_kv_heads, head_dim = persistent_layer['k'].shape
+  scratch = {
+      'k': jnp.zeros(
+          (b, prefill_cache_length, num_kv_heads, head_dim),
+          dtype=persistent_layer['k'].dtype,
+      ),
+      'v': jnp.zeros(
+          (b, prefill_cache_length, num_kv_heads, head_dim),
+          dtype=persistent_layer['v'].dtype,
+      ),
+      'positions': jnp.full(
+          (b, prefill_cache_length), -(10**9), dtype=jnp.int32
+      ),
+      'end_index': persistent_layer['end_index'],
+  }
+
+  logical_index = persistent_layer['logical_index']
+  valid = persistent_layer['valid'] & (logical_index >= 0)
+  valid = valid & (logical_index < prefill_cache_length)
+  scatter_index = jnp.where(valid, logical_index, prefill_cache_length)
+  batch_indices = jnp.arange(b)[:, None]
+
+  scratch['k'] = scratch['k'].at[batch_indices, scatter_index].set(
+      persistent_layer['k'], mode='drop'
+  )
+  scratch['v'] = scratch['v'].at[batch_indices, scatter_index].set(
+      persistent_layer['v'], mode='drop'
+  )
+  scratch['positions'] = scratch['positions'].at[
+      batch_indices, scatter_index
+  ].set(persistent_layer['positions'], mode='drop')
+  return scratch
+
+
+def _merge_cache_local_window(
+    *,
+    full_cache: _cache_helper.Cache,
+    prefill_cache: _config.Cache,
+    logical_valid_mask: jax.Array,
+    model: _transformer_like.TransformerLike,
+) -> _cache_helper.Cache:
+  """Merge a LOCAL_WINDOW prefill back into the persistent cache.
+
+  - Global layers: copy the prefill prefix into the persistent prefix (the
+    LEGACY merge path).
+  - Local layers: compact the last W valid logical slots for each batch row
+    into the persistent W-slot ring buffer, placing each token at
+    `absolute_position % W`. Also writes the new `logical_index` and `valid`
+    metadata.
+  """
+  config = model.config
+  full_dict = full_cache.cache
+  new_dict: _config.Cache = {}
+
+  for i, _ in enumerate(config.attention_types):
+    layer_name = f'layer_{i}'
+    persistent_layer = full_dict[layer_name]
+    prefill_layer = prefill_cache[layer_name]
+
+    if _cache_helper.is_local_window_layer(persistent_layer):
+      new_dict[layer_name] = _compact_local_window_layer(
+          persistent_layer=persistent_layer,
+          prefill_layer=prefill_layer,
+          logical_valid_mask=logical_valid_mask,
+      )
+    else:
+      # Global: standard prefix write (matches existing _set_cache).
+      p_len = prefill_layer['k'].shape[1]
+      new_dict[layer_name] = {
+          'k': persistent_layer['k'].at[:, :p_len].set(prefill_layer['k']),
+          'v': persistent_layer['v'].at[:, :p_len].set(prefill_layer['v']),
+          'positions': persistent_layer['positions'].at[:, :p_len].set(
+              prefill_layer['positions']
+          ),
+          'end_index': prefill_layer['end_index'],
+      }
+
+  return _cache_helper.Cache(new_dict)
+
+
+def _compact_local_window_layer(
+    *,
+    persistent_layer: dict,
+    prefill_layer: dict,
+    logical_valid_mask: jax.Array,
+):
+  """Compact a full-size prefill scratch into a window-sized ring buffer.
+
+  After prefill, `prefill_layer` is shape [B, P, num_kv_heads, head_dim] with
+  P = prefill_cache_length (the prompt bucket length, may be < or > W).
+  `persistent_layer` is shape [B, W, ...] with W = sliding_window_size.
+
+  We keep the last W valid logical slots per batch row, then place each token
+  at slot (absolute_position % W). Logical indices are stored only as metadata
+  for mapping the sampler's full logical attention mask. This distinction is
+  important for padded batches: a short row should retain its live local
+  context even when another row forced a much longer padded logical timeline.
+  """
+  W = persistent_layer['k'].shape[1]      # static
+  P = prefill_layer['k'].shape[1]         # static
+  B = persistent_layer['k'].shape[0]      # static
+
+  logical_valid_mask = logical_valid_mask[:, :P]
+  logical_indices = jnp.arange(P, dtype=jnp.int32)[None, :]
+
+  # Select the last W valid logical slots for each batch row. The rank-based
+  # selection avoids treating padding slots as local-cache residents.
+  valid_rank = jnp.cumsum(logical_valid_mask.astype(jnp.int32), axis=-1)
+  num_valid = valid_rank[:, -1]
+  first_kept_rank = jnp.maximum(0, num_valid - W)
+  keep = logical_valid_mask & (valid_rank > first_kept_rank[:, None])
+  selected_rank = jnp.clip(valid_rank - first_kept_rank[:, None] - 1, 0, W - 1)
+
+  batch_indices_p = jnp.arange(B)[:, None]
+  selected_logical = jnp.full((B, W), -1, dtype=jnp.int32)
+  selected_logical = selected_logical.at[
+      batch_indices_p, selected_rank
+  ].max(jnp.where(keep, logical_indices, -1))
+  selected_valid = selected_logical >= 0
+  safe_selected_logical = jnp.clip(selected_logical, 0, P - 1)
+
+  selected_k = jnp.take_along_axis(
+      prefill_layer['k'], safe_selected_logical[:, :, None, None], axis=1
+  )
+  selected_v = jnp.take_along_axis(
+      prefill_layer['v'], safe_selected_logical[:, :, None, None], axis=1
+  )
+  selected_pos = jnp.take_along_axis(
+      prefill_layer['positions'], safe_selected_logical, axis=1
+  ).astype(jnp.int32)
+
+  dst_phys = selected_pos % W
+  slots = jnp.arange(W, dtype=jnp.int32)
+  matches = (dst_phys[:, :, None] == slots[None, None, :])
+  matches = matches & selected_valid[:, :, None]
+  source_for_slot = jnp.argmax(matches, axis=1)
+  slot_valid = jnp.any(matches, axis=1)
+
+  out_k = jnp.take_along_axis(
+      selected_k, source_for_slot[:, :, None, None], axis=1
+  )
+  out_v = jnp.take_along_axis(
+      selected_v, source_for_slot[:, :, None, None], axis=1
+  )
+  out_pos = jnp.take_along_axis(selected_pos, source_for_slot, axis=1)
+  out_logical = jnp.take_along_axis(
+      selected_logical, source_for_slot, axis=1
+  )
+
+  return {
+      'k': jnp.where(slot_valid[:, :, None, None], out_k,
+                     jnp.zeros_like(out_k)),
+      'v': jnp.where(slot_valid[:, :, None, None], out_v,
+                     jnp.zeros_like(out_v)),
+      'positions': jnp.where(slot_valid, out_pos, -(10**9)),
+      'logical_index': jnp.where(slot_valid, out_logical, -1),
+      'valid': slot_valid,
+      'end_index': prefill_layer['end_index'],
+  }
 
 
 def _make_full_attention_mask(

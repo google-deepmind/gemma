@@ -30,6 +30,7 @@ from gemma.gm.nn.gemma4 import _modules
 from gemma.gm.nn.gemma4.audio import _model as gemma4_audio_model
 from gemma.gm.nn.gemma4.vision import _encoder as gemma4_vision
 from gemma.gm.utils import _attention_mask
+from gemma.gm.utils import _cache_helper
 from gemma.gm.utils import _dtype_params
 from gemma.gm.utils import _jax_utils
 from gemma.gm.utils import _types
@@ -394,6 +395,7 @@ class Transformer(nn.Module):
           'dtype',
           'cache_length',
           'sharding',
+          'kv_cache_mode',
       ),
   )
   def init_cache(
@@ -403,11 +405,15 @@ class Transformer(nn.Module):
       dtype: jnp.dtype[Any],
       cache_length: int,
       sharding: kd.sharding.ShardingTree | None = None,
+      kv_cache_mode: _cache_helper.KVCacheMode = (
+          _cache_helper.KVCacheMode.LEGACY
+      ),
   ) -> _config.Cache:
     cache = self.config.init_cache(
         batch_size=batch_size,
         dtype=dtype,
         cache_length=cache_length,
+        kv_cache_mode=kv_cache_mode,
     )
     return kd.sharding.with_sharding_constraint(cache, sharding)
 

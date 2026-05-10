@@ -22,6 +22,7 @@ from gemma.gm.nn.gemma4 import _modules
 from gemma.gm.nn.gemma4.audio import _modules as gemma4_audio
 from gemma.gm.nn.gemma4.vision import _encoder as gemma4_vision
 from gemma.gm.text import _tokenizer
+from gemma.gm.utils import _cache_helper
 from gemma.gm.utils import _types
 import jax.numpy as jnp
 
@@ -160,13 +161,44 @@ class TransformerConfig:
       dtype: jnp.dtype = jnp.bfloat16,
       *,
       cache_length: int,
+      kv_cache_mode: _cache_helper.KVCacheMode = (
+          _cache_helper.KVCacheMode.LEGACY
+      ),
   ) -> Cache:
-    """Initializes a new Transformer cache."""
+    """Initializes a new Transformer cache.
+
+    Args:
+      batch_size: cache batch size.
+      dtype: dtype for K/V buffers.
+      cache_length: full logical cache length (used for global layers; also
+        the upper bound for local-window layers).
+      kv_cache_mode: KV cache allocation policy.
+        - LEGACY: every layer gets `[B, cache_length, ...]` (default).
+        - LOCAL_WINDOW: LOCAL_SLIDING layers are sized to
+          `min(cache_length, sliding_window_size)` slots and carry ring-buffer
+          metadata (`logical_index`, `valid`); GLOBAL layers stay at
+          `cache_length`. Saves a large fraction of HBM at long context.
+    """
     if cache_length is None:
       raise ValueError(
           'Missing `cache_length=` kwarg when calling `init_cache()`.'
       )
     cache: Cache = {}
+
+    use_local_window = (
+        kv_cache_mode == _cache_helper.KVCacheMode.LOCAL_WINDOW
+        and self.sliding_window_size is not None
+    )
+    # Per the design review: persistent local cache is exactly the sliding
+    # window size, NOT window+1. The sliding mask is strict-bounded
+    # (cache_position > pos - W and cache_position < pos + W), so for causal
+    # decode the cache must hold the current token plus the previous W-1, i.e.
+    # W slots total.
+    local_window_size = (
+        min(cache_length, self.sliding_window_size)
+        if use_local_window
+        else cache_length
+    )
 
     for i, attn_type in enumerate(self.attention_types):
       if (
@@ -182,6 +214,23 @@ class TransformerConfig:
             batch_size,
             dtype,
         )
+      elif attn_type == _modules.AttentionType.LOCAL_SLIDING:
+        if use_local_window:
+          cache[f'layer_{i}'] = _modules.Attention.init_local_window_cache(
+              local_window_size,
+              self.num_kv_heads,
+              self.head_dim,
+              batch_size,
+              dtype,
+          )
+        else:
+          cache[f'layer_{i}'] = _modules.Attention.init_cache(
+              cache_length,
+              self.num_kv_heads,
+              self.head_dim,
+              batch_size,
+              dtype,
+          )
       else:
         cache[f'layer_{i}'] = _modules.Attention.init_cache(
             cache_length,

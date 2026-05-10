@@ -292,16 +292,39 @@ class Attention(nn.Module):
           rope_proportion=self.rope_proportion,
       )
 
-    # Cache is left aligned.
+    # Cache is left aligned (legacy) or ring-buffered (LOCAL_WINDOW).
     # Save the KV values to the cache.
+    cache_logical_index = None
+    cache_valid = None
     if kv_shared_cache is not None:
       cache_positions = kv_shared_cache.get('positions')
+      # If the donor layer is a LOCAL_WINDOW cache, borrow its ring-buffer
+      # metadata so this receiver's attention call applies the same mask
+      # gather (otherwise key_proj would be [B, W, ...] while attn_mask is
+      # [B, T, cache_length_logical], causing a shape mismatch).
+      if 'logical_index' in kv_shared_cache:
+        cache_logical_index = kv_shared_cache['logical_index']
+      if 'valid' in kv_shared_cache:
+        cache_valid = kv_shared_cache['valid']
     elif cache is not None:
       end_index = cache['end_index']
       cache_size = cache['v'].shape[1]
       seq_len = x.shape[1]
-      # [batch_size, seq_len]
-      indices = (end_index[:, None] + jnp.arange(seq_len)[None, :]) % cache_size
+      is_local_window_cache = 'logical_index' in cache and 'valid' in cache
+      # [batch_size, seq_len] - logical cache indices used by the sampler's
+      # full attention mask.
+      logical_indices = (
+          end_index[:, None] + jnp.arange(seq_len)[None, :]
+      ).astype(jnp.int32)
+      if is_local_window_cache:
+        # LOCAL_WINDOW eviction follows RoPE/sliding positions, not the padded
+        # logical cache timeline. This matters for batches where one example is
+        # short and another example forces a much larger padded prefill length:
+        # the short example's local context should not be evicted by padding.
+        indices = segment_pos.astype(jnp.int32) % cache_size
+      else:
+        # Legacy/full caches are addressed by logical cache index.
+        indices = logical_indices % cache_size
       batch_indices = jnp.arange(x.shape[0])[:, None]
 
       # [batch_size, cache_size, num_heads, key_size]
@@ -314,6 +337,33 @@ class Attention(nn.Module):
       cache_positions = (
           cache['positions'].at[batch_indices, indices].set(segment_pos)
       )
+
+      # LOCAL_WINDOW ring-buffer metadata maintenance. The logical index is
+      # only used to map the sampler's full logical mask onto physical local
+      # slots. If the current logical write is masked out (the first decode
+      # step for a padded row recomputes the last real prompt token at a
+      # padded logical slot), keep the previous metadata while still allowing
+      # the equivalent K/V value to refresh the slot.
+      if is_local_window_cache:
+        logical_len = attn_mask.shape[-1]
+        safe_logical_indices = jnp.clip(logical_indices, 0, logical_len - 1)
+        logical_write_valid = jnp.take_along_axis(
+            attn_mask, safe_logical_indices[..., None], axis=-1
+        )[..., 0]
+        old_logical_index = cache['logical_index'][batch_indices, indices]
+        old_valid = cache['valid'][batch_indices, indices]
+        cache_logical_index = (
+            cache['logical_index']
+            .at[batch_indices, indices]
+            .set(jnp.where(
+                logical_write_valid, logical_indices, old_logical_index
+            ))
+        )
+        cache_valid = (
+            cache['valid']
+            .at[batch_indices, indices]
+            .set(jnp.where(logical_write_valid, True, old_valid))
+        )
     else:
       cache_positions = None
 
@@ -345,6 +395,24 @@ class Attention(nn.Module):
           cache_positions=cache_positions,
           sliding_window_size=self.sliding_window_size,
       )
+      # LOCAL_WINDOW: the logical attn_mask is keyed by logical position
+      # (slot s <-> token s). Once the local cache is a ring buffer of size W,
+      # physical slot s no longer maps to logical token s. We gather the
+      # logical mask onto the physical slot layout via `logical_index`, and
+      # AND with `valid` to drop unwritten slots. This is a no-op for LEGACY
+      # caches because their `cache_size == attn_mask.shape[-1]`.
+      if cache_logical_index is not None and cache_valid is not None:
+        logical_len = attn_mask.shape[-1]
+        # Clip to keep gather indices in-bounds (slots whose logical_index
+        # is -1 are the unwritten ones; the `valid` mask zeroes them out
+        # below). We use a take_along_axis because the logical-index pattern
+        # is per-batch.
+        safe_index = jnp.clip(cache_logical_index, 0, logical_len - 1)
+        # [B, 1, cache_size] broadcasts against [B, seq_len, logical_len].
+        attn_mask = jnp.take_along_axis(
+            attn_mask, safe_index[:, None, :], axis=-1,
+        )
+        attn_mask = attn_mask & cache_valid[:, None, :]
       # [batch_size, seq_len, cache_size]
       attn_mask *= sliding_mask
 
@@ -391,6 +459,13 @@ class Attention(nn.Module):
       ), 'cache_positions should not be None when cache is not None'
       # [batch_size, cache_size]
       new_cache['positions'] = cache_positions
+      # LOCAL_WINDOW ring-buffer metadata (only present for local layers in
+      # local_window mode). Forwarded so the next step's attention call sees
+      # the up-to-date logical-index / valid maps.
+      if cache_logical_index is not None:
+        new_cache['logical_index'] = cache_logical_index
+      if cache_valid is not None:
+        new_cache['valid'] = cache_valid
 
     return new_cache, attn_output
 
@@ -414,6 +489,50 @@ class Attention(nn.Module):
         'end_index': jnp.zeros((batch_size,), dtype=jnp.int32),
         # Save the positions for the sliding window attention.
         'positions': jnp.zeros((batch_size, cache_size), dtype=jnp.int32),
+    }
+
+  @classmethod
+  def init_local_window_cache(
+      cls,
+      window_size: int,
+      num_heads: int,
+      head_dim: int,
+      batch_size: int,
+      dtype: jnp.dtype = jnp.bfloat16,
+  ) -> LayerCache:
+    """Initialize a ring-buffer cache for a LOCAL_SLIDING attention layer.
+
+    Differs from `init_cache` in two ways:
+    1. Seq dim is `window_size` (e.g. 512 or 1024), not the global
+       `cache_length`. This is the dominant memory win.
+    2. Carries two extra metadata fields, `logical_index` and `valid`, that
+       let `Attention.__call__` map the logical full attention mask onto the
+       physical ring-buffer slot layout. Without these, after the ring wraps,
+       there is no way to know whether physical slot s holds a non-padding
+       token, because the slot index no longer matches the logical position.
+    """
+    del cls  # not used
+    return {
+        'v': jnp.zeros(
+            (batch_size, window_size, num_heads, head_dim), dtype=dtype
+        ),
+        'k': jnp.zeros(
+            (batch_size, window_size, num_heads, head_dim), dtype=dtype
+        ),
+        'end_index': jnp.zeros((batch_size,), dtype=jnp.int32),
+        # RoPE / sliding-mask positions; large negative sentinel so any
+        # unwritten slot is always outside the sliding window.
+        'positions': jnp.full(
+            (batch_size, window_size), -(10**9), dtype=jnp.int32
+        ),
+        # The logical (pre-modulo) token index stored at this physical slot.
+        # Used at attention time to gather the logical attn_mask onto the
+        # physical slot layout. -1 = uninitialized.
+        'logical_index': jnp.full(
+            (batch_size, window_size), -1, dtype=jnp.int32
+        ),
+        # Whether this physical slot has been written with real KV.
+        'valid': jnp.zeros((batch_size, window_size), dtype=jnp.bool_),
     }
 
 
