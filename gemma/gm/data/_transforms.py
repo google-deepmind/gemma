@@ -1,4 +1,4 @@
-# Copyright 2025 DeepMind Technologies Limited.
+# Copyright 2026 DeepMind Technologies Limited.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@ from gemma.gm.data import _functional
 from gemma.gm.text import _tokenizer
 from grain import python as grain
 from kauldron import kd
-from kauldron.typing import Array  # pylint: disable=g-multiple-import,g-importing-member
+from kauldron.ktyping import Array  # pylint: disable=g-multiple-import,g-importing-member
 
 
 @dataclasses.dataclass(kw_only=True, frozen=True)

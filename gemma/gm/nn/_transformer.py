@@ -1,4 +1,4 @@
-# Copyright 2025 DeepMind Technologies Limited.
+# Copyright 2026 DeepMind Technologies Limited.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,15 +27,15 @@ from flax import linen as nn
 from gemma.gm.nn import _config
 from gemma.gm.nn import _layers
 from gemma.gm.nn import _modules
+from gemma.gm.nn.vision import _vision as gemma_vision
 from gemma.gm.utils import _dtype_params
 from gemma.gm.utils import _jax_utils
 from gemma.gm.utils import _types
 from gemma.gm.vision import _token_utils
-from gemma.multimodal import vision as gemma_vision
 import jax.numpy as jnp
 from kauldron import kd
 from kauldron import kontext
-from kauldron.typing import Bool, Float, Int, UInt8, typechecked  # pylint: disable=g-multiple-import,g-importing-member
+from kauldron.ktyping import Bool, Float, Int, UInt8, typechecked  # pylint: disable=g-multiple-import,g-importing-member
 
 _PADDING_ID = 0
 
@@ -92,6 +92,7 @@ class Transformer(nn.Module):
       Otherwise, return all logits. Default to `False`
     dtype: The parameter dtype. Default to `jnp.bfloat16`.
   """
+
   _: dataclasses.KW_ONLY
 
   return_last_only: bool | None = None

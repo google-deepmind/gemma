@@ -1,4 +1,4 @@
-# Copyright 2025 DeepMind Technologies Limited.
+# Copyright 2026 DeepMind Technologies Limited.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,10 +25,10 @@ import einops
 from etils import epy
 import flax
 from flax import linen as nn
-from gemma.multimodal import vision_utils
+from gemma.gm.nn.vision import _vision_utils
 import jax
 from jax import numpy as jnp
-from kauldron.typing import Bool, Float, Int, typechecked  # pylint: disable=g-multiple-import,g-importing-member
+from kauldron.ktyping import Bool, Float, Int, typechecked  # pylint: disable=g-multiple-import,g-importing-member
 
 with epy.lazy_imports():
   # TODO(epot): Refactor to move everything inside gemma/gm/
@@ -234,8 +234,8 @@ class VisionExit(nn.Module):
 class SigLiPFromPatches(nn.Module):
   """SigLIP vision encoder forward pass from PatchifiedMedia."""
 
-  siglip_encoder: vision_utils.ViTModel = dataclasses.field(
-      default_factory=vision_utils.ViTModel
+  siglip_encoder: _vision_utils.ViTModel = dataclasses.field(
+      default_factory=_vision_utils.ViTModel
   )
   siglip_exit: VisionExit = dataclasses.field(default_factory=VisionExit)
   num_mm_tokens_per_image_prepool: int = 4096

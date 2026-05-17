@@ -1,4 +1,4 @@
-# Copyright 2025 DeepMind Technologies Limited.
+# Copyright 2026 DeepMind Technologies Limited.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@ from gemma.gm.ckpts import _paths
 from gemma.gm.nn import _config
 from gemma.gm.nn import _modules
 from gemma.gm.nn import _transformer
-from gemma.multimodal import vision as gemma_vision
+from gemma.gm.nn.vision import _vision as gemma_vision
 
 _NUM_LAYERS_GEMMA_2B = 18
 _NUM_LAYERS_GEMMA_7B = 28

@@ -1,4 +1,4 @@
-# Copyright 2025 DeepMind Technologies Limited.
+# Copyright 2026 DeepMind Technologies Limited.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -46,7 +46,7 @@ else:
 
 # TODO(epot): Should be part of core Kauldron
 @dataclasses.dataclass(frozen=True)
-class LoadCheckpoint(kd.ckpts.AbstractPartialLoader):
+class LoadCheckpoint(kd.ckpts.InitTransform):
   """Loads weights from a Gemma checkpoint.
 
   Note: The checpoint only contains the Gemma transformer weights, not the
@@ -297,15 +297,28 @@ def load_params(
         lambda x: x.astype(np.float32),
         output.tree['embedder']['audio_input_embedding'],
     )
+    if 'audio_input_projection' in tree.get('embedder', {}):
+      tree['embedder']['audio_input_projection'] = jax.tree.map(
+          lambda x: x.astype(np.float32),
+          output.tree['embedder']['audio_input_projection'],
+      )
+    if 'audio_soft_embedding_norm' in tree.get('embedder', {}):
+      tree['embedder']['audio_soft_embedding_norm'] = jax.tree.map(
+          lambda x: x.astype(np.float32),
+          output.tree['embedder']['audio_soft_embedding_norm'],
+      )
   if output.has_mm_params:
-    tree['embedder']['mm_input_projection'] = jax.tree.map(
-        lambda x: x.astype(np.float32),
-        output.tree['embedder']['mm_input_projection'],
-    )
-    tree['embedder']['mm_soft_embedding_norm'] = jax.tree.map(
-        lambda x: x.astype(np.float32),
-        output.tree['embedder']['mm_soft_embedding_norm'],
-    )
+    embedder = tree.get('embedder', {})
+    if 'mm_input_projection' in embedder:
+      tree['embedder']['mm_input_projection'] = jax.tree.map(
+          lambda x: x.astype(np.float32),
+          output.tree['embedder']['mm_input_projection'],
+      )
+    if 'mm_soft_embedding_norm' in embedder:
+      tree['embedder']['mm_soft_embedding_norm'] = jax.tree.map(
+          lambda x: x.astype(np.float32),
+          output.tree['embedder']['mm_soft_embedding_norm'],
+      )
   return tree
 
 
@@ -383,8 +396,9 @@ def _remove_mm_params(params):
   # load those extra params in the first place.
 
   del params['vision_encoder']
-  del params['embedder']['mm_input_projection']
-  del params['embedder']['mm_soft_embedding_norm']
+  for k in ('mm_input_projection', 'mm_soft_embedding_norm'):
+    if k in params.get('embedder', {}):
+      del params['embedder'][k]
   return params
 
 
@@ -393,13 +407,10 @@ def _add_skip_mm_params(params: Params, metadata: _CheckpointTree) -> Params:
   params = etree.copy(params)
   params_with_mm = metadata.nested_tree
 
-  # Params should not be restored in the first place.
   params['vision_encoder'] = params_with_mm['vision_encoder']
-  for k in (
-      'mm_input_projection',
-      'mm_soft_embedding_norm',
-  ):
-    params['embedder'][k] = params_with_mm['embedder'][k]
+  for k in ('mm_input_projection', 'mm_soft_embedding_norm'):
+    if k in params_with_mm.get('embedder', {}):
+      params['embedder'][k] = params_with_mm['embedder'][k]
 
   return params
 

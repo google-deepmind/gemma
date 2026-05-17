@@ -1,4 +1,4 @@
-# Copyright 2025 DeepMind Technologies Limited.
+# Copyright 2026 DeepMind Technologies Limited.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -38,6 +38,14 @@ with _epy.lazy_api_imports(globals()):
   from gemma.gm.nn.gemma3n._gemma3n import Gemma3n_E4B
 
   # ****************************************************************************
+  # Gemma 4
+  # ****************************************************************************
+  from gemma.gm.nn.gemma4._gemma4 import Gemma4_E2B
+  from gemma.gm.nn.gemma4._gemma4 import Gemma4_E4B
+  from gemma.gm.nn.gemma4._gemma4 import Gemma4_31B
+  from gemma.gm.nn.gemma4._gemma4 import Gemma4_26B_A4B
+
+  # ****************************************************************************
   # Wrapper (LoRA, quantization, DPO,...)
   # ****************************************************************************
   from gemma.gm.nn._lora import LoRA
@@ -69,4 +77,4 @@ with _epy.lazy_api_imports(globals()):
 
   from gemma.gm.nn import config
 
-  from gemma.multimodal.vision import SigLiPFromPatches
+  from gemma.gm.nn.vision._vision import SigLiPFromPatches

@@ -35,9 +35,9 @@ Gemma:
 ```python
 from gemma import gm
 
-# Model and parameters
-model = gm.nn.Gemma3_4B()
-params = gm.ckpts.load_params(gm.ckpts.CheckpointPath.GEMMA3_4B_IT)
+# Model and parameters (Gemma 4)
+model = gm.nn.Gemma4_E4B()
+params = gm.ckpts.load_params(gm.ckpts.CheckpointPath.GEMMA4_E4B_IT)
 
 # Example of multi-turn conversation
 sampler = gm.text.ChatSampler(
@@ -46,16 +46,18 @@ sampler = gm.text.ChatSampler(
     multi_turn=True,
 )
 
-prompt = """Which of the two images do you prefer?
+prompt = """Which of the 2 images do you prefer ?
 
-Image 1: <start_of_image>
-Image 2: <start_of_image>
+Image 1: <|image|>
+Image 2: <|image|>
 
 Write your answer as a poem."""
 out0 = sampler.chat(prompt, images=[image1, image2])
 
 out1 = sampler.chat('What about the other image ?')
 ```
+
+The same `ChatSampler` API works with all Gemma versions (2, 3, 3n, 4).
 
 Our documentation contains various Colabs and tutorials, including:
 
@@ -76,6 +78,7 @@ contain additional scripts to fine-tune and sample with Gemma.
   * [Gemma 1](https://goo.gle/GemmaReport)
   * [Gemma 2](https://goo.gle/gemma2report)
   * [Gemma 3](https://storage.googleapis.com/deepmind-media/gemma/Gemma3Report.pdf)
+  * Gemma 4 (Coming soon)
 * Other Gemma implementations and doc on the
   [Gemma ecosystem](https://ai.google.dev/gemma/docs)
 

@@ -1,4 +1,4 @@
-# Copyright 2025 DeepMind Technologies Limited.
+# Copyright 2026 DeepMind Technologies Limited.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -91,7 +91,7 @@ class SamplerEvaluator(kd.evals.EvaluatorBase):
     # TODO(epot): Better sharding, a few options:
     #  1. Allow to customize the sharding to process examples
     #  2. Or auto-detect the sharding to set to `FIRST_DIM` when possible.
-    #  3. Re-use sharding from `trainer.sharding.ds`
+    #  3. Re-use sharding from `trainer.sharding.batch`
     if self.ds.batch_size is None:
       sharding = kd.sharding.REPLICATED
     else:

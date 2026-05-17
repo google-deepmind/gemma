@@ -1,4 +1,4 @@
-# Copyright 2025 DeepMind Technologies Limited.
+# Copyright 2026 DeepMind Technologies Limited.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@ from flax import linen as nn
 from gemma.research.t5gemma import modules
 import jax.numpy as jnp
 from kauldron import kontext
-from kauldron.typing import Array, typechecked  # pylint: disable=g-multiple-import,g-importing-member
+from kauldron.ktyping import Array, typechecked  # pylint: disable=g-multiple-import,g-importing-member
 
 
 _PADDING_ID = 0

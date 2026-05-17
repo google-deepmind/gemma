@@ -1,4 +1,4 @@
-# Copyright 2025 DeepMind Technologies Limited.
+# Copyright 2026 DeepMind Technologies Limited.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@ from gemma.gm.nn import _layers
 import jax
 import jax.numpy as jnp
 from kauldron import kd
-from kauldron.typing import Bool, Int  # pylint: disable=g-multiple-import,g-importing-member
+from kauldron.ktyping import Bool, Int  # pylint: disable=g-multiple-import,g-importing-member
 
 K_MASK = -2.3819763e38  # Set to a large negative number.
 DEFAULT_ROPE_BASE_FREQUENCY = 10_000
@@ -53,8 +53,8 @@ def create_sliding_mask(
 
 
 class AttentionType(enum.Enum):
-  GLOBAL = 1
-  LOCAL_SLIDING = 2
+  GLOBAL = enum.auto()
+  LOCAL_SLIDING = enum.auto()
 
 
 class Embedder(nn.Module):
@@ -267,6 +267,11 @@ class Attention(nn.Module):
       )
       # [batch_size, seq_len, cache_size]
       attn_mask *= sliding_mask
+    elif self.attn_type != AttentionType.GLOBAL:
+      raise ValueError(
+          'Attn_type must be either AttentionType.GLOBAL or'
+          f' AttentionType.GLOBAL not {self.attn_type}'
+      )
 
     # [batch_size, seq_len, num_heads, cache_size]
     padded_logits = jnp.where((jnp.expand_dims(attn_mask, -2)), logits, K_MASK)

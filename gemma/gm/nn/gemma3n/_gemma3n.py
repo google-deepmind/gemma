@@ -1,4 +1,4 @@
-# Copyright 2025 DeepMind Technologies Limited.
+# Copyright 2026 DeepMind Technologies Limited.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@ import dataclasses
 from gemma.gm.nn.gemma3n import _config
 from gemma.gm.nn.gemma3n import _modules
 from gemma.gm.nn.gemma3n import _transformer
-from gemma.multimodal import vision as gemma_vision
+from gemma.gm.nn.vision import _vision as gemma_vision
 
 _HIDDEN_DIM_E4B = 2048 * 8
 _NUM_LAYERS_GEMMA3N_MODEL_E4B = 35
