@@ -22,6 +22,9 @@ To release a new version (e.g. from `1.0.0` -> `2.0.0`):
 -->
 
 ## [Unreleased]
+## [4.0.1] - 2026-05-20
+
+- Fix `dialog` dependency requirement to be `>= 1.1.0`.
 
 ## [4.0.0] - 2026-04-17
 
