@@ -33,7 +33,7 @@ keywords = []
 # Installed locally with `pip install -e .`
 dependencies = [
     "absl-py",
-    "dialog",
+    "dialog>=1.1",
     "etils[edc,enp,epath,epy,etree]",
     "einops",
     "grain ; sys_platform != 'win32'",
