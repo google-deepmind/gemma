@@ -676,7 +676,7 @@ class Block(nn.Module):
 
     # MoE branch (mlp in checkpoint)
     moe_in = self.pre_ffw_norm(attn_output)
-    moe_out = self.mlp(moe_in)
+    moe_out = self.mlp(moe_in, unnormalized_x=attn_output)  # pytype: disable=wrong-keyword-args
     if self.post_ffw1_norm is not None:
       moe_out = self.post_ffw1_norm(moe_out)
 
