@@ -366,11 +366,13 @@ class Transformer(nn.Module):
         kv_shared_cache = None
       # Select the appropriate attention mask for this layer type.
       attn_mask = inputs.attention_mask
+      skip_sliding_mask = False
       if (
           inputs.sliding_attention_mask is not None
           and block.attn_type == _modules.AttentionType.LOCAL_SLIDING
       ):
         attn_mask = inputs.sliding_attention_mask
+        skip_sliding_mask = True
       layer_cache, x = block(
           x,
           inputs.positions,
@@ -380,6 +382,7 @@ class Transformer(nn.Module):
           if self.config.per_layer_input_dim
           else None,
           kv_shared_cache=kv_shared_cache,
+          skip_sliding_mask=skip_sliding_mask,
       )
       new_cache[layer_name] = layer_cache  # pytype: disable=container-type-mismatch
 
