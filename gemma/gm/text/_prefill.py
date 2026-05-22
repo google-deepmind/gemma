@@ -1,4 +1,4 @@
-# Copyright 2025 DeepMind Technologies Limited.
+# Copyright 2026 DeepMind Technologies Limited.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -29,7 +29,7 @@ from gemma.gm.utils import _types
 import jax
 from jax import numpy as jnp
 from kauldron import kd
-from kauldron.typing import Bool, Int, PRNGKey, UInt8  # pylint: disable=g-multiple-import,g-importing-member
+from kauldron.ktyping import Bool, Int, PRNGKey, UInt8  # pylint: disable=g-multiple-import,g-importing-member
 
 _PADDING_ID = 0
 
@@ -59,6 +59,10 @@ def prefill(
     pad_length: None | int | tuple[int, ...] = None,
     rng: PRNGKey,
     sharding: kd.sharding.ShardingTree | None,
+    vision_input=None,
+    audio=None,
+    audio_lengths=None,
+    audio_soft_token_counts=None,
 ) -> _sampler_loop.SamplingState:
   """Pre-fill the KV cache and initial model input.
 
@@ -75,6 +79,10 @@ def prefill(
     pad_length: The pad length for the prompt.
     rng: The random number generator.
     sharding: The sharding tree.
+    vision_input: PreprocessedVisionInput or None.
+    audio: Audio input data or None.
+    audio_lengths: Lengths of audio inputs or None.
+    audio_soft_token_counts: Soft token counts for audio or None.
 
   Returns:
     The initial state for the sampling loop.
@@ -104,19 +112,38 @@ def prefill(
       cache=full_cache,
       prev_turns=prev_turns,
       pad_lengths=pad_length,
+      vision_input=vision_input,
   )
 
-  # Call the model to fill up the cache.
-  out = model.apply(
-      {'params': params},
-      tokens=prefill_input.tokens,
-      images=prefill_input.images,
-      # Slice the cache to the prompt length, to avoid shape missmatch error.
-      cache=prefill_input.cache.cache,
-      positions=prefill_input.positions,
-      attention_mask=prefill_input.attention_mask,
-      return_last_only=True,
+  images_for_model = (
+      vision_input if vision_input is not None else prefill_input.images
   )
+  has_multimodal = images_for_model is not None or audio is not None
+  is_first_turn = not prev_turns
+
+  kwargs = {
+      'tokens': prefill_input.tokens,
+      'images': images_for_model,
+      'cache': prefill_input.cache.cache,
+      'positions': (
+          None
+          if (has_multimodal and is_first_turn)
+          else prefill_input.positions
+      ),
+      'attention_mask': (
+          None
+          if (has_multimodal and is_first_turn)
+          else prefill_input.attention_mask
+      ),
+      'return_last_only': True,
+  }
+  if audio is not None:
+    kwargs.update({
+        'audio': audio,
+        'audio_lengths': audio_lengths,
+        'audio_soft_token_counts': audio_soft_token_counts,
+    })
+  out = model.apply({'params': params}, **kwargs)
 
   # TODO(epot): Could check whether the cache is full.
 
@@ -190,9 +217,12 @@ def prefill(
   # A cleaner implementation could be to have a per-batch cache index, to
   # remove padding. But I leave this to my future self (or to future Gemini).
 
-  new_used_cache_length = (
-      prev_turns.used_cache_length + input.length_with_mm - 1
-  )
+  if hasattr(model, 'keep_last_prefill_kv') and model.keep_last_prefill_kv:
+    new_used_cache_length = prev_turns.used_cache_length + input.length_with_mm
+  else:
+    new_used_cache_length = (
+        prev_turns.used_cache_length + input.length_with_mm - 1
+    )
   cache = cache.set_end_index(new_used_cache_length)
 
   # TODO(epot): The first token was predicted, so could use this, but would
@@ -285,6 +315,7 @@ def _make_prefill_input(
     cache: _cache_helper.Cache,
     prev_turns: _turn_utils.PrevTurns,
     pad_lengths: tuple[int, ...],
+    vision_input=None,  # pylint: disable=unused-argument
 ) -> PrefillInput:
   """Make the transformer inputs for the prefill stage."""
   # Supports:
@@ -297,9 +328,7 @@ def _make_prefill_input(
   token_length_padded = _pad_to_bucket(input.length_with_mm, pad_lengths)
   input = input.pad(length_with_mm=token_length_padded)
 
-  # Cache length is equal to the pad token length + the previous turns.
   prefill_cache_length = prev_turns.used_cache_length + token_length_padded
-  # Pad the cache length, to avoid unecessary re-compilations.
   prefill_cache_length = _pad_to_bucket(prefill_cache_length, pad_lengths)
   cache = cache[:, :prefill_cache_length]
 

@@ -1,4 +1,4 @@
-# Copyright 2025 DeepMind Technologies Limited.
+# Copyright 2026 DeepMind Technologies Limited.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,8 +17,10 @@
 import dataclasses
 import textwrap
 
-# from kauldron.typing import UInt8  # pylint: disable=g-multiple-import,g-importing-member
+# from kauldron.ktyping import UInt8  # pylint: disable=g-multiple-import,g-importing-member
 
+# DEPRECATED: Should not be used anymore!!!! Instead, use:
+# `dialog.Conversation(dialog.User()).as_text(format='gemma3')`
 # Note: The template end by `\n` !
 PROMPT = """\
 <start_of_turn>user
@@ -37,21 +39,22 @@ class Turn:
   def __repr__(self):
     # Prettier display for multi-line strings.
     if '\n' in self.text:
-      text = textwrap.indent(self.text, prefix='    ')
-      text = f'"""\n{text}\n"""'
+      text = f'"""{self.text}"""'
+      text = textwrap.indent(text, prefix='    ')
+      text = f'\n{text}\n'
     else:
       text = repr(self.text)
 
-    return f'<{type(self).__name__}({text})>'
+    return f'{type(self).__name__}({text})'
 
 
 @dataclasses.dataclass(frozen=True, repr=False)
-class ModelTurn(Turn):
-  """Model turn."""
-
-
-@dataclasses.dataclass(frozen=True, repr=False)
-class UserTurn(Turn):
-  """User turn."""
+class Prompt(Turn):
+  """Prompt provided to the model (user or tool response)."""
 
   # images: UInt8["N? H W C"] | None = None
+
+
+@dataclasses.dataclass(frozen=True, repr=False)
+class Response(Turn):
+  """Generated response from the model."""

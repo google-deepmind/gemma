@@ -1,4 +1,4 @@
-# Copyright 2025 DeepMind Technologies Limited.
+# Copyright 2026 DeepMind Technologies Limited.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@ from kauldron import kd
 
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
-class AnchoredPolicyLoader(kd.ckpts.AbstractPartialLoader):
+class AnchoredPolicyLoader(kd.ckpts.InitTransform):
   """Loader for `gm.nn.AnchoredPolicy` models.
 
   Loaded load policy and anchor separately by providing
@@ -33,8 +33,8 @@ class AnchoredPolicyLoader(kd.ckpts.AbstractPartialLoader):
   modifying the rest of the state.
   """
 
-  policy: kd.ckpts.AbstractPartialLoader
-  anchor: kd.ckpts.AbstractPartialLoader | None = None
+  policy: kd.ckpts.InitTransform
+  anchor: kd.ckpts.InitTransform | None = None
 
   def transform(self, state: kd.train.TrainState) -> kd.train.TrainState:
     if set(state.params.keys()) != {'policy', 'anchor'}:

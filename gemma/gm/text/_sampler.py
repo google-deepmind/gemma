@@ -1,4 +1,4 @@
-# Copyright 2025 DeepMind Technologies Limited.
+# Copyright 2026 DeepMind Technologies Limited.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ import random as py_random
 import typing
 from typing import Literal
 
+import dialog
 from etils import enp
 from gemma.gm.data import _functional
 from gemma.gm.nn import _transformer_like
@@ -33,7 +34,8 @@ from gemma.gm.utils import _types
 import jax
 import jax.numpy as jnp
 from kauldron import kd
-from kauldron.typing import Array, Float, Int, PRNGKey, PRNGKeyLike, UInt8  # pylint: disable=g-multiple-import,g-importing-member
+from kauldron.ktyping import Array, Float, PRNGKey, Int, UInt8  # pylint: disable=g-multiple-import,g-importing-member
+from kauldron.typing import PRNGKeyLike  # pylint: disable=g-multiple-import,g-importing-member
 import numpy as np
 
 
@@ -42,6 +44,14 @@ import numpy as np
 #   so the same data pipeline can be used for both training and sampling.
 # * Mode which queue the prompts and compute them asynchronously ?
 # * Mode which yields tokens as they get predicted ?
+
+type _Prompt = (
+    # Prompts can be:
+    str
+    | Sequence[str]
+    | dialog.Conversation
+    | Sequence[dialog.Conversation]
+)
 
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
@@ -158,7 +168,7 @@ class Sampler:
   @typing.overload
   def sample(
       self,
-      prompt: str,
+      prompt: str | dialog.Conversation,
       *,
       images: UInt8['N? H W C'] | None = ...,
       max_new_tokens: int | None = ...,
@@ -175,7 +185,7 @@ class Sampler:
   @typing.overload
   def sample(
       self,
-      prompt: Sequence[str],
+      prompt: Sequence[str | dialog.Conversation],
       *,
       images: Sequence[UInt8['N H W C']] | None = ...,
       max_new_tokens: int | None = ...,
@@ -193,7 +203,7 @@ class Sampler:
   @typing.overload
   def sample(
       self,
-      prompt: str | Sequence[str],
+      prompt: _Prompt,
       *,
       images: UInt8['B? N? H W C'] | None = ...,
       max_new_tokens: int | None = ...,
@@ -258,8 +268,8 @@ class Sampler:
     ```
 
     Args:
-      prompt: Prompt to sample from. Can be a single string or a list of
-        strings.
+      prompt: Prompt(s) to sample from. Can be a single string or
+        `dialog.Conversation` or a list of those.
       images: Images for the prompt. The position where the image should be
         inserted in the prompt is determined by the `<start_of_image>` token in
         the prompt.
@@ -285,6 +295,8 @@ class Sampler:
       The sampled output.
     '''
 
+    # TODO(epot): Supports list[dialog.Conversation] | dialog.Conversation
+
     # pylint: enable=g-docstring-quotes
     sampling = sampling or self.sampling
 
@@ -292,11 +304,6 @@ class Sampler:
     rng = _normalize_rng(rng)
 
     has_batch_dim = _get_has_batch_dim(prompt)
-    if stream and has_batch_dim:
-      raise ValueError(
-          'Streaming is not supported for batched prompts. Let us know if you'
-          ' need this feature.'
-      )
 
     # Normalize the text, images. Tokenize, shard,...
     inputs = self._get_inputs(
@@ -335,19 +342,7 @@ class Sampler:
 
     # TODO(epot): Donate the `init_state`, `last_state`
 
-    sampler = _sampler_loop.SamplerLoop(
-        # Static attributes. Changing those will trigger a recompilation.
-        model=self.model,
-        end_tokens=(
-            self.tokenizer.special_tokens.EOS,
-            self.tokenizer.special_tokens.END_OF_TURN,
-            *self._normalized_stop_tokens,
-        ),
-        forbidden_tokens=self._normalized_forbidden_tokens,
-        sampling=sampling,
-        cache_length=self.cache_length,
-        special_tokens=self.tokenizer.special_tokens,
-    )
+    sampler = self._initialize_sampler_loop(sampling)
 
     # TODO(epot): Use `jnp.cond` to detect when the cache is full (or use
     # rolling-cache). Also do add a check that the cache wasn't filled up
@@ -365,6 +360,7 @@ class Sampler:
       return self._stream_decode_state(  # pytype: disable=bad-return-type
           state,
           return_state=return_state,
+          has_batch_dim=has_batch_dim,
       )
     else:
       return self._decode_state(  # pytype: disable=bad-return-type
@@ -373,6 +369,23 @@ class Sampler:
           has_batch_dim=has_batch_dim,
           return_state=return_state,
       )
+
+  def _initialize_sampler_loop(self, sampling) -> _sampler_loop.SamplerLoop:
+    """Initializes the sampler loop."""
+    return _sampler_loop.SamplerLoop(
+        # Static attributes. Changing those will trigger a recompilation.
+        model=self.model,
+        end_tokens=(
+            self.tokenizer.special_tokens.EOS,
+            self.tokenizer.special_tokens.END_OF_TURN,
+            self.tokenizer.special_tokens.BEGIN_OF_TOOL_RESPONSE,
+            *self._normalized_stop_tokens,
+        ),
+        forbidden_tokens=self._normalized_forbidden_tokens,
+        sampling=sampling,
+        cache_length=self.cache_length,
+        special_tokens=self.tokenizer.special_tokens,
+    )
 
   def _get_inputs(
       self,
@@ -404,13 +417,13 @@ class Sampler:
 
   def _tokenize_prompts(
       self,
-      prompt: str | Sequence[str],
+      prompt: _Prompt,
       *,
       add_bos: bool,
       pad_length: int | None = None,
   ) -> Float['B L']:
     """Encode the prompts."""
-    prompt = _normalize_prompt(prompt)
+    prompt = _normalize_prompt(prompt, format=self.tokenizer.FORMAT)
     tokens = [self.tokenizer.encode(p, add_bos=add_bos) for p in prompt]
 
     # Notice that if pad_length exceeds the maximum length of the prompts,
@@ -452,6 +465,12 @@ class Sampler:
     if not has_batch_dim:
       (predicted_texts,) = predicted_texts
 
+    if state.cache_info.is_full.item():
+      kd.utils.status.log(
+          'Cache is full! Try increasing `Sampler.cache_length`. Current:'
+          f' {self.cache_length}'
+      )
+
     # Returns either text or detailed output.
     if return_state:
       return SamplerOutput(
@@ -466,12 +485,13 @@ class Sampler:
       state_iter: Iterator[_sampler_loop.SamplingState],
       *,
       return_state: bool,
+      has_batch_dim: bool,
   ):
     for i, state in enumerate(state_iter):
       yield self._decode_state(
           state,
           predicted_tokens=state.predicted_tokens[..., i],
-          has_batch_dim=False,
+          has_batch_dim=has_batch_dim,
           return_state=return_state,
       )
 
@@ -494,9 +514,9 @@ class Sampler:
       return tuple(_normalize_token(self.tokenizer, t) for t in tokens)
 
 
-def _get_has_batch_dim(prompt: str | Sequence[str]) -> bool:
+def _get_has_batch_dim(prompt: _Prompt) -> bool:
   """Returns whether the prompt batched or not."""
-  if isinstance(prompt, str):
+  if isinstance(prompt, str | dialog.Conversation):
     return False
   elif _is_str_array(prompt):  # Scalar str array.
     assert isinstance(prompt, np.ndarray)
@@ -505,16 +525,22 @@ def _get_has_batch_dim(prompt: str | Sequence[str]) -> bool:
     return True
 
 
-def _normalize_prompt(prompt: str | Sequence[str]) -> list[str]:
+def _normalize_prompt(prompt: _Prompt, format: dialog.Format) -> list[str]:  # pylint: disable=redefined-builtin
   """Normalize the inputs."""
   if _is_str_array(prompt):  # Supports batched input array
     assert isinstance(prompt, np.ndarray)
     prompt = prompt.tolist()
 
-  if isinstance(prompt, str):
+  if isinstance(prompt, str | dialog.Conversation):
     prompt = [prompt]
   else:
     prompt = list(prompt)
+
+  # Normalize the prompt to strings.
+  prompt = [
+      c.as_text(format=format) if isinstance(c, dialog.Conversation) else c
+      for c in prompt
+  ]
 
   return prompt
 

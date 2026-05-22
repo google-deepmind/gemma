@@ -1,4 +1,4 @@
-# Copyright 2025 DeepMind Technologies Limited.
+# Copyright 2026 DeepMind Technologies Limited.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
 from etils import enp
 import flax
 import jax
-from kauldron.typing import Array, Bool, Int, PyTree  # pylint: disable=g-multiple-import,g-importing-member
+from kauldron.ktyping import Array, Bool, Int, PyTree  # pylint: disable=g-multiple-import,g-importing-member
 import numpy as np
 
 

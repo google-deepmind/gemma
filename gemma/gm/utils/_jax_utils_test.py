@@ -1,4 +1,4 @@
-# Copyright 2025 DeepMind Technologies Limited.
+# Copyright 2026 DeepMind Technologies Limited.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,15 +17,17 @@ from typing import Optional
 from gemma.gm.utils import _jax_utils
 import jax.numpy as jnp
 from kauldron import kd
+import pytest
 
 
-def test_flatten_batch_dim():
+@pytest.mark.parametrize('kt', [kd.typing, kd.ktyping])
+def test_flatten_batch_dim(kt):
 
   @_jax_utils.flatten_unflatten_batch_dim()
   def f(
-      arr0: kd.typing.Float['*b h n'],
-      arr1: kd.typing.Float['*b'],
-      arr_multi: kd.typing.Float['*b n'] | kd.typing.Float['*b n w'],
+      arr0: kt.Float['*b h n'],
+      arr1: kt.Float['*b'],
+      arr_multi: kt.Float['*b n'] | kt.Float['*b n w'],
       arr2: Optional[kd.typing.Float['*b h']] = None,
       arr3: None | kd.typing.Float['*b h'] = None,
       *,

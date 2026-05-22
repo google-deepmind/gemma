@@ -1,4 +1,4 @@
-# Copyright 2025 DeepMind Technologies Limited.
+# Copyright 2026 DeepMind Technologies Limited.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,7 +20,9 @@ import jax
 import jax.numpy as jnp
 from kauldron import kd
 from kauldron import kontext
-from kauldron.typing import Bool, Dim, Float, Int, Schedule, typechecked  # pylint: disable=g-multiple-import,g-importing-member
+import kauldron.ktyping as kt
+from kauldron.ktyping import Bool, Float, Int, typechecked  # pylint: disable=g-multiple-import,g-importing-member
+from kauldron.typing import Schedule  # pylint: disable=g-multiple-import,g-importing-member
 
 
 @dataclasses.dataclass(frozen=True, kw_only=True)

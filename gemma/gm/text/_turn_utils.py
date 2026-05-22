@@ -1,4 +1,4 @@
-# Copyright 2025 DeepMind Technologies Limited.
+# Copyright 2026 DeepMind Technologies Limited.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@ from gemma.gm.data import _functional
 from gemma.gm.nn import _config
 from gemma.gm.text import _sampler_loop
 import jax.numpy as jnp
-from kauldron.typing import Bool, Int, typechecked  # pylint: disable=g-multiple-import,g-importing-member
+from kauldron.ktyping import Bool, Int, typechecked  # pylint: disable=g-multiple-import,g-importing-member
 
 
 @flax.struct.dataclass(kw_only=True)

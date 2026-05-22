@@ -1,4 +1,4 @@
-# Copyright 2025 DeepMind Technologies Limited.
+# Copyright 2026 DeepMind Technologies Limited.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@ from etils import epy
 import flax
 from gemma.gm.nn import _config
 import jax.numpy as jnp
-from kauldron.typing import Bool, Int  # pylint: disable=g-multiple-import
+from kauldron.ktyping import Bool, Int  # pylint: disable=g-multiple-import
 
 _Slice = slice | int
 _GetItem = _Slice | tuple[_Slice, ...]

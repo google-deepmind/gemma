@@ -1,4 +1,4 @@
-# Copyright 2025 DeepMind Technologies Limited.
+# Copyright 2026 DeepMind Technologies Limited.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ import functools
 import typing
 from typing import ClassVar
 
+import dialog
 import einops
 from etils import enp
 from etils import epath
@@ -68,8 +69,16 @@ class SpecialTokens(enum.IntEnum, metaclass=_DisplayEnumType):
   START_OF_TURN: ClassVar[int]  # <start_of_turn>
   END_OF_TURN: ClassVar[int]  # <end_of_turn>
 
+  IMAGE_PLACEHOLDER: ClassVar[int]  # '<start_of_image>'
   START_OF_IMAGE: ClassVar[int]  # '<start_of_image>'
   END_OF_IMAGE: ClassVar[int]  # '<end_of_image>'
+
+  AUDIO_PLACEHOLDER: ClassVar[int]  # '<|audio|>'
+  START_OF_AUDIO: ClassVar[int]  # '<|audio>'
+  END_OF_AUDIO: ClassVar[int]  # '<audio|>'
+
+  BEGIN_OF_TOOL_RESPONSE: ClassVar[int]  # '<begin_of_tool_response>'
+  END_OF_TOOL_RESPONSE: ClassVar[int]  # '<end_of_tool_response>'
 
 
 class _Gemma2SpecialTokens(SpecialTokens, enum.IntEnum):
@@ -116,8 +125,36 @@ class _Gemma3SpecialTokens(SpecialTokens, enum.IntEnum):
   END_OF_TURN = 106  # <end_of_turn>
 
   # Multimodal tokens (Gemma3 only)
+  IMAGE_PLACEHOLDER = 255999  # <start_of_image>
   START_OF_IMAGE = 255999  # '<start_of_image>'
   END_OF_IMAGE = 256000  # <end_of_image>
+
+  # Tool tokens
+  BEGIN_OF_TOOL_RESPONSE = 50
+
+
+class _Gemma4SpecialTokens(SpecialTokens, enum.IntEnum):
+  """Special tokens ids."""
+
+  PAD = 0
+  EOS = 1
+  BOS = 2
+  UNK = 3
+  MASK = 4
+  START_OF_TURN = 105  # <|turn>
+  END_OF_TURN = 106  # <turn|>
+
+  # Multimodal tokens (Gemma4 only)
+  IMAGE_PLACEHOLDER = 258880  # <|image|>
+  START_OF_IMAGE = 255999  # <|image>
+  END_OF_IMAGE = 258882  # <image|>
+
+  AUDIO_PLACEHOLDER = 258881  # <|audio|>
+  START_OF_AUDIO = 256000  # <|audio> (BOA)
+  END_OF_AUDIO = 258883  # <audio|> (EOA)
+
+  # Tool tokens
+  BEGIN_OF_TOOL_RESPONSE = 50
 
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
@@ -145,6 +182,9 @@ class Tokenizer:
       (0-98) to the token string. (`e.g. `{0: '<start_of_audio>'}`)
     VERSION: The Gemma version of the tokenizer (2, 3).
     FORBIDDEN_TOKENS: Default forbidden tokens.
+    FORMAT: The dialog format to use for the tokenizer (gemma3, ...).
+    FORMAT_TO_CONVERT: When the tokenizer use a different token names than the
+      default.
   """
 
   path: epath.PathLike
@@ -152,6 +192,9 @@ class Tokenizer:
 
   VERSION: ClassVar[int | str] = 0
   FORBIDDEN_TOKENS: ClassVar[tuple[int, ...]] = ()  # pylint: disable=g-missing-from-attributes
+
+  FORMAT: ClassVar[dialog.Format] = dialog.Format.GEMMA3
+  FORMAT_TO_CONVERT: ClassVar[dialog.Format | None] = None
 
   def __post_init__(self):
     immutabledict.freeze_dict_attrs(self, ['custom_tokens'])
@@ -165,6 +208,8 @@ class Tokenizer:
       return Gemma3Tokenizer()
     elif version == '3n':
       return Gemma3nTokenizer()
+    elif version == 4:
+      return Gemma4Tokenizer()
     else:
       raise ValueError(f'Unsupported tokenizer version: {version}')
 
@@ -195,11 +240,14 @@ class Tokenizer:
       The list of token ids.
     """
     if isinstance(text, str):
+      if self.FORMAT_TO_CONVERT:
+        text = self.FORMAT_TO_CONVERT.from_gemma4(text)
       token_ids = self._sp.EncodeAsIds(text)
     else:
-      token_ids = [
-          self._sp.PieceToId(t.replace(' ', _WHITESPACE_CHAR)) for t in text
-      ]
+      text = [t.replace(' ', _WHITESPACE_CHAR) for t in text]
+      if self.FORMAT_TO_CONVERT:
+        text = [self.FORMAT_TO_CONVERT.from_gemma4(t) for t in text]
+      token_ids = [self._sp.PieceToId(t) for t in text]
       if self.special_tokens.UNK in token_ids:
         index = token_ids.index(self.special_tokens.UNK)
         raise ValueError(
@@ -214,6 +262,8 @@ class Tokenizer:
     return token_ids
 
   def decode(self, ids: int | list[int] | enp.typing.Array) -> str:
+    """Decode a token id(s) into a text."""
+
     if isinstance(ids, int):
       ids = [ids]
     elif enp.lazy.is_array(ids):  # Supports decoding from jnp, np arrays
@@ -224,7 +274,10 @@ class Tokenizer:
         ids = ids.tolist()
       else:
         raise ValueError(f'Array must be 0 or 1 dimensional, got {ids.shape}.')
-    return self._sp.DecodeIds(ids)
+    text = self._sp.DecodeIds(ids)
+    if self.FORMAT_TO_CONVERT:
+      text = self.FORMAT_TO_CONVERT.to_gemma4(text)
+    return text
 
   def split(self, text: str) -> list[str]:
     """Split a text into pieces."""
@@ -418,6 +471,20 @@ class Gemma3nTokenizer(Tokenizer):
   )
 
   VERSION = '3n'
+
+
+@dataclasses.dataclass(frozen=True)
+class Gemma4Tokenizer(Tokenizer):
+  """Tokenizer for Gemma 4."""
+
+  path: epath.PathLike = (
+      'gs://gemma-data/tokenizers/tokenizer_gemma4.model'
+  )
+
+  special_tokens = _Gemma4SpecialTokens
+
+  VERSION = 4
+  FORMAT: ClassVar[dialog.Format] = dialog.Format.GEMMA4
 
 
 def _real_whitespaces(text: str) -> str:

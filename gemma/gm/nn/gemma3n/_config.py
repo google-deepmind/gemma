@@ -1,4 +1,4 @@
-# Copyright 2025 DeepMind Technologies Limited.
+# Copyright 2026 DeepMind Technologies Limited.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,9 +20,9 @@ import enum
 import functools
 
 from gemma.gm.nn.gemma3n import _modules
+from gemma.gm.nn.vision import _vision as gemma_vision
 from gemma.gm.text import _tokenizer
 from gemma.gm.utils import _types
-from gemma.multimodal import vision as gemma_vision
 import jax.numpy as jnp
 
 Cache = dict[str, _modules.LayerCache]

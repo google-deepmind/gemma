@@ -1,4 +1,4 @@
-# Copyright 2025 DeepMind Technologies Limited.
+# Copyright 2026 DeepMind Technologies Limited.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ from etils import epy
 import jax
 import jaxtyping
 from kauldron import kontext
+from kauldron.ktyping import array_type_meta as atm
 
 _FnT = TypeVar('_FnT', bound=Callable[..., Any])
 
@@ -207,36 +208,37 @@ def _get_non_batch_dim_size(ann: TypeAlias) -> int | None:
       return next(iter(non_batch_dim_size))
     else:
       return None
-  elif _is_jaxtyping(ann):  # Leaf
+  elif _is_ktyping(ann):  # Leaf (ktyping)
+    return _non_batch_dim_from_ktyping(ann)  # pytype: disable=wrong-arg-types
+  elif _is_jaxtyping(ann):  # Leaf (Backward compatibility)
     return _non_batch_dim_from_jaxtyping(ann)  # pytype: disable=wrong-arg-types
   else:
     return None
 
 
+def _is_ktyping(ann: TypeAlias) -> bool:
+  """Returns `True` if the annotation is a ktyping array type."""
+  return atm.is_array_type(ann)
+
+
 def _is_jaxtyping(ann: TypeAlias) -> bool:
-  """Returns `True` is the annotation is a `jaxtyping.Array['...']`."""
+  """Returns `True` if the annotation is a jaxtyping array type."""
   return (
       isinstance(ann, type)
       and jaxtyping._array_types.AbstractArray in ann.__bases__  # pylint: disable=protected-access
   )
 
 
+def _non_batch_dim_from_ktyping(
+    ann: atm.ArrayTypeMeta,
+) -> int:
+  """Returns the number of non-batch dims from a ktyping annotation."""
+  assert isinstance(ann.shape_spec, str)
+  return len(ann.shape_spec.split()) - 1
+
+
 def _non_batch_dim_from_jaxtyping(
     ann: jaxtyping._array_types.AbstractArray,
 ) -> int:
-  """Returns the number of non-batch dim.
-
-  Example:
-
-  * `Array['*b']` -> 0
-  * `Array['*b n']` -> 1
-  * `Array['*b n l']` -> 2
-
-  Args:
-    ann: The `jaxtyping.Array['...']` annotation
-
-  Returns:
-    The number of non-batch dim.
-  """
-  # Could do a more fancy parsing, but should be good enough for this use case.
+  """Returns the number of non-batch dims from a jaxtyping annotation."""
   return len(ann.dim_str.split()) - 1
