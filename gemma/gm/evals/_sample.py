@@ -28,7 +28,6 @@ from gemma.gm.text import _sampler
 import jax
 from kauldron import kd
 from kauldron.utils import config_util
-from kauldron.utils import immutabledict
 from kauldron.utils import utils
 
 
@@ -77,10 +76,6 @@ class SamplerEvaluator(kd.evals.EvaluatorBase):
   summaries: Mapping[str, kd.metrics.Metric] = dataclasses.field(
       default_factory=dict
   )
-
-  def __post_init__(self):
-    super().__post_init__()
-    immutabledict.freeze_dict_attrs(self, ['losses', 'metrics', 'summaries'])
 
   def evaluate(self, state: kd.train.TrainState, step: int) -> Any:
     """Run this evaluator then write and optionally return the results."""
