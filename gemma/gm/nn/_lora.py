@@ -62,14 +62,30 @@ class LoRA(nn.Module):
   @nn.compact
   def __call__(self, *args, **kwargs):
     """Calls the model."""
+    with self._lora_interceptor():
+      return self.model(*args, **kwargs)
+
+  def _lora_interceptor(self):
+    """Returns the LoRA ModuleInterceptor context manager."""
     replace_module_fn = functools.partial(
         _replace_by_lora,
         rank=self.rank,
         dtype=self.dtype,
         verbose=self.verbose,
     )
-    with peft.ModuleInterceptor(replace_module_fn):
-      return self.model(*args, **kwargs)
+    return peft.ModuleInterceptor(replace_module_fn)
+
+  @nn.compact
+  def encoder_call(self, *args, **kwargs):
+    """Calls the model's encoder_call with LoRA adapters active."""
+    with self._lora_interceptor():
+      return self.model.encoder_call(*args, **kwargs)
+
+  @nn.compact
+  def init_cache(self, *args, **kwargs):
+    """Calls the model's init_cache with LoRA adapters active."""
+    with self._lora_interceptor():
+      return self.model.init_cache(*args, **kwargs)
 
   def __kontext_keys__(self) -> dict[str, str]:
     """Kauldron keys when calling `kontext.get_from_keys_obj`."""
