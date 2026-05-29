@@ -546,7 +546,8 @@ class Transformer(nn.Module):
     n_images = len(vision_input.soft_token_counts)
     patches = vision_input.patches
     positions_xy = vision_input.positions_xy
-    max_patches = patches.shape[1] // n_images
+    B = patches.shape[0]
+    max_patches = patches.shape[1] // (n_images // B)
 
     patches = jnp.reshape(patches, (n_images, max_patches, patches.shape[2]))
     positions_xy = jnp.reshape(
@@ -567,9 +568,19 @@ class Transformer(nn.Module):
         real_tokens = embeddings[i][:expected_count]
       per_image_tokens.append(real_tokens)
 
-    all_tokens = jnp.concatenate(per_image_tokens, axis=0)
-    all_tokens = self.embedder.encode_vision(all_tokens[None, None, :, :])
-    all_tokens = all_tokens[:, 0, :, :]
+    # Group per_image_tokens by batch element B to preserve the batch dimension
+    B = patches.shape[0]
+    n_images_per_example = n_images // B
+    batched_tokens = []
+    for b in range(B):
+      idx_start = b * n_images_per_example
+      idx_end = idx_start + n_images_per_example
+      example_tokens = jnp.concatenate(per_image_tokens[idx_start:idx_end], axis=0)
+      batched_tokens.append(example_tokens)
+    all_tokens = jnp.stack(batched_tokens, axis=0) # Shape [B, total_tokens_per_example, dim]
+
+    # Project vision embeddings, preserving the batch dimension B
+    all_tokens = self.embedder.encode_vision(all_tokens)
     return all_tokens
 
   def _encode_audio(self, audio, audio_lengths, audio_soft_token_counts):

@@ -271,8 +271,19 @@ def load_params(
   # To supports different checkpoint structures, the original params have to
   # be remapped into the checkpoint structure.
   output_with_skip = metadata.make_tree_for_params(params)
-  restore_fn = functools.partial(ckpt.restore, path)
-  output = _partial_restore(restore_fn, output_with_skip)
+  def restore_fn(tree):
+    return ckpt.restore(path, tree)
+
+  # Restore EVERYTHING from checkpoint using metadata.tree as target
+  restored_tree = _partial_restore(restore_fn, metadata.tree)
+
+  def update_tree(target, source):
+    if isinstance(target, dict) and isinstance(source, dict):
+      return {k: update_tree(target.get(k), source[k]) if k in source else v for k, v in target.items()}
+    return source
+
+  # Copy restored values into output_with_skip
+  output = update_tree(output_with_skip, restored_tree)
 
   # TODO(epot): Better API. Currently this do not quantize the weights, but
   # just refactor the params to the QAT structure.
