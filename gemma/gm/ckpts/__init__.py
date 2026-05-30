@@ -22,3 +22,4 @@ from gemma.gm.ckpts._checkpoint import save_params
 from gemma.gm.ckpts._lora import SkipLoRA
 from gemma.gm.ckpts._paths import CheckpointPath
 from gemma.gm.ckpts._policy import AnchoredPolicyLoader
+SkipPeft = SkipLoRA  # Alias for SkipLoRA with a more generic name.
