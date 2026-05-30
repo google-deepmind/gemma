@@ -48,10 +48,18 @@ with konfig.imports():
 
 def get_config():
   """Get the default hyperparameter configuration."""
+  #centralized config
+  batch_size = 16
+  max_length = 512
   return kd.train.Trainer(
       seed=42,
       # Dataset
-      train_ds=_make_dataset(training=True),
+      train_ds=_make_dataset(
+        training=True,
+        batch_size=batch_size,
+        max_length=max_length
+      ),
+
       # Model definition
       model=gm.nn.AnchoredPolicy(
           policy=gm.nn.Gemma3_4B(tokens="batch.tokens", text_only=True),
@@ -86,19 +94,24 @@ def get_config():
   )
 
 
-def _make_dataset(training: bool) -> kd.data.Pipeline:
-  # TODO(epot): !!!!
-  max_length = 512
-  batch_size = 16
+def _make_dataset(
+    *,
+    training: bool,
+    batch_size: int,
+    max_length: int,
+    sampling: bool = False
+  ) -> kd.data.Pipeline:
+
 
   tokenizer = gm.text.Gemma3Tokenizer()
 
   return kd.data.py.HuggingFace(
       path="argilla/distilabel-math-preference-dpo",
-      split="train",
+      split="train" if training else "test",
       shuffle=True if training else False,
       num_epochs=None if training else 1,
-      batch_size=batch_size,
+      batch_size=None if sampling else batch_size,
+
       transforms=[
           # Only keep the fields we need.
           kd.data.Elements(
@@ -115,7 +128,6 @@ def _make_dataset(training: bool) -> kd.data.Pipeline:
               tokenizer=tokenizer,
               # Padding parameters
               max_length=max_length,
-              # TODO(epot): Run stats (how many examples are we dropping?)
               truncate=True,
           ),
       ],
