@@ -65,7 +65,7 @@ def _get_gemma3n_config(
 ) -> _config.TransformerConfig:
   return _config.TransformerConfig(
       final_logit_softcap=None,
-      num_embed=262_144,
+      vocab_size=262_144,
       embed_dim=2048,
       hidden_dim=hidden_dim,
       num_heads=8,

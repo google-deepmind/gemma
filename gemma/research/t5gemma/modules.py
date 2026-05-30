@@ -502,7 +502,7 @@ class TransformerConfig:
   """Configuration for the gemma transformer."""
 
   num_layers: int
-  num_embed: int
+  vocab_size: int
   embed_dim: int
   hidden_dim: int
   num_heads: int
@@ -585,7 +585,7 @@ class Transformer(nn.Module):
 
   def setup(self):
     self.embedder = Embedder(
-        vocab_size=self.config.num_embed,
+        vocab_size=self.config.vocab_size,
         embed_dim=self.config.embed_dim
     )
 
