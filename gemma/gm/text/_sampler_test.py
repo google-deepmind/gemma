@@ -145,3 +145,27 @@ def test_chat_sampler_non_gemma4_dispatch():
     assert isinstance(output, str)
   # Verify sampler.sample was called (not gemma4_sampler.sample).
   mock_sample.assert_called_once()
+
+
+def test_normalize_token_error_message_contains_token_value():
+  tokenizer = gm.testing.DummyTokenizer()
+  multi_token_str = 'hello world'
+  try:
+    _sampler._normalize_token(tokenizer, multi_token_str)
+    raise AssertionError('Expected ValueError was not raised.')
+  except ValueError as e:
+    error_msg = str(e)
+    assert multi_token_str in error_msg
+    assert '{token!r}' not in error_msg
+
+
+def test_normalize_token_valid_single_token():
+  tokenizer = gm.testing.DummyTokenizer()
+  result = _sampler._normalize_token(tokenizer, 'hello')
+  assert result == 5
+
+
+def test_normalize_token_passthrough_int():
+  tokenizer = gm.testing.DummyTokenizer()
+  result = _sampler._normalize_token(tokenizer, 42)
+  assert result == 42
