@@ -72,16 +72,18 @@ def _mock_flax_module_param() -> None:
       self: nn.Module,
       name: str,
       init_fn,  # : Callable[..., Any],
-      shape: tuple[int, ...],
-      dtype: _DType | None = None,
+      *init_args,
       **kwargs,
   ):
     if _should_replace_dtype(module=self, stack=_dtypes_stack):
-      del dtype  # The dtype is overwritten by the contextmanager
       state = _dtypes_stack.stack[-1]
-      return param(self, name, init_fn, shape, **kwargs, dtype=state.dtype)
+      if len(init_args) >= 2:
+        init_args = (init_args[0], state.dtype) + init_args[2:]
+      if 'dtype' in kwargs or len(init_args) < 2:
+        kwargs['dtype'] = state.dtype
+      return param(self, name, init_fn, *init_args, **kwargs)
     else:
-      return param(self, name, init_fn, shape, dtype, **kwargs)
+      return param(self, name, init_fn, *init_args, **kwargs)
 
   nn.Module.param = decorated
 

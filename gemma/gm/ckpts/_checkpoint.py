@@ -227,9 +227,7 @@ def load_params(
   if sharding is not None and params is not None:
     raise ValueError('`sharding` and `params` are mutually exclusive.')
 
-  ckpt = ocp.StandardCheckpointer()
-
-  metadata, path = _get_metadata_and_path(ckpt, path)
+  metadata, path, ckpt = _get_metadata_and_path(path)
 
   metadata = _CheckpointTree.shape_dtype_struct_like(tree=metadata)
 
@@ -488,13 +486,19 @@ def _release_memory(x):
 
 
 def _get_metadata_and_path(
-    ckpt: ocp.StandardCheckpointer,
     path: epath.PathLike,
 ):
   """Returns the metadata of the checkpoint."""
   path = epath.Path(path)
 
+  ckpt = ocp.StandardCheckpointer()
   metadata = ckpt.metadata(path)
+
+  if metadata.item_metadata is None:
+    pytree_ckpt = ocp.PyTreeCheckpointer()
+    pytree_metadata = pytree_ckpt.metadata(path)
+    if pytree_metadata.item_metadata is not None:
+      return pytree_metadata.item_metadata.tree, path, pytree_ckpt
 
   # Kauldron checkpoints structure is different, so the params are contained
   # in a sub-directory
@@ -509,7 +513,7 @@ def _get_metadata_and_path(
     raise ValueError(f'No item metadata found in {path}')
 
   metadata = metadata.item_metadata.tree  # Normalize metadata
-  return metadata, path
+  return metadata, path, ckpt
 
 
 def _as_shape_dtype_struct(tree):
