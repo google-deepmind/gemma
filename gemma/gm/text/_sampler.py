@@ -330,6 +330,7 @@ class Sampler:
         # the output buffer. However in the sampling loop, users can choose
         # to only decode a subset by setting a smaller `max_new_tokens`.
         max_out_length=self.max_out_length,
+        top_k_logits=self.top_k_logits,
     )
 
     # Max out length is static, while max_new_tokens is dynamic.
