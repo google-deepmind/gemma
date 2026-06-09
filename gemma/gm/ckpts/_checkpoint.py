@@ -182,6 +182,7 @@ def save_params(
     path: epath.PathLike,
     *,
     wait_until_finished: bool = False,
+    save_concurrent_gb: int | None = None,
 ) -> None:
   """Save the params to a checkpoint.
 
@@ -190,8 +191,9 @@ def save_params(
     path: The directory to which save the checkpoint.
     wait_until_finished: If True, waits for the checkpoint save to complete
       before returning.
+    save_concurrent_gb: Max concurrent GB allowed to be writing to disk.
   """
-  ckpt = ocp.StandardCheckpointer()
+  ckpt = ocp.StandardCheckpointer(save_concurrent_gb=save_concurrent_gb)
   ckpt.save(path, params)
   if wait_until_finished:
     ckpt.wait_until_finished()
@@ -205,6 +207,7 @@ def load_params(
     text_only: bool = False,
     sharding: kd.sharding.ShardingTree | None = None,
     quantize: bool = False,
+    restore_concurrent_gb: int | None = None,
 ) -> Params:
   """Restore the params from a checkpoint.
 
@@ -220,6 +223,7 @@ def load_params(
       is mutually exclusive with `params`.
     quantize: If `True`, the params will be mapped to enable quantization aware
       training.
+    restore_concurrent_gb: Max concurrent GB allowed to be restored.
 
   Returns:
     The restored params.
@@ -227,7 +231,7 @@ def load_params(
   if sharding is not None and params is not None:
     raise ValueError('`sharding` and `params` are mutually exclusive.')
 
-  ckpt = ocp.StandardCheckpointer()
+  ckpt = ocp.StandardCheckpointer(restore_concurrent_gb=restore_concurrent_gb)
 
   metadata, path = _get_metadata_and_path(ckpt, path)
 
