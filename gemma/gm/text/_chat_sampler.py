@@ -256,6 +256,7 @@ class ChatSampler:
           return_state=True,
           last_state=last_state,
           stream=bool(stream),
+          sharding=sharding,
       )
 
   def chat(
