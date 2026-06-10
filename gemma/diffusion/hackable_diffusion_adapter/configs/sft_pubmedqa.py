@@ -40,7 +40,7 @@ with konfig.imports():
   from gemma.diffusion.hackable_diffusion_adapter import safe_writer
 # pylint: enable=g-import-not-at-top
 
-CHECKPOINT_PATH = _paths.DIFFUSIONGEMMA_A26B_A4B_IT
+CHECKPOINT_PATH = _paths.CheckpointPath.DIFFUSIONGEMMA_26B_A4B_IT
 
 # Paths to the converted PubMedQA JSONL files.
 PUBMEDQA_TRAIN_PATH = "gemma/diffusion/hackable_diffusion_adapter/data/pubmedqa/pubmedqa_train.jsonl"
