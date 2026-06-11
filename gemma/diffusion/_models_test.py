@@ -24,8 +24,8 @@ import jax.numpy as jnp
 class DiffusionGemmaTest(absltest.TestCase):
 
   def test_can_instantiate_from_default_config(self):
-    """Tests that DiffusionGemma_A26B_A4B can be instantiated without any args."""
-    model = _models.DiffusionGemma_A26B_A4B()
+    """Tests that DiffusionGemma_26B_A4B can be instantiated without any args."""
+    model = _models.DiffusionGemma_26B_A4B()
     self.assertIsNotNone(model)
 
   def test_multiple_token_generation(self):
@@ -47,7 +47,7 @@ class DiffusionGemmaTest(absltest.TestCase):
         global_rope_proportion=1.0,
     )
 
-    model = _models.DiffusionGemma_A26B_A4B(
+    model = _models.DiffusionGemma_26B_A4B(
         config=small_config,
         self_conditioning_config=_transformer.SelfConditioningConfig(
             features=small_config.embed_dim,

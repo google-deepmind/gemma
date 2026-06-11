@@ -21,7 +21,7 @@ from etils import epy as _epy
 
 with _epy.lazy_api_imports(globals()):
   # Models
-  from gemma.diffusion._models import DiffusionGemma_A26B_A4B
+  from gemma.diffusion._models import DiffusionGemma_26B_A4B
 
   # Checkpoint paths
   from gemma.diffusion._paths import CheckpointPath

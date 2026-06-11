@@ -140,7 +140,7 @@ def get_config():
   )
 
   base_network = hd_gemma_network.WrappedDiffusionGemmaNetwork(
-      gemma_model=_models.DiffusionGemma_A26B_A4B(),
+      gemma_model=_models.DiffusionGemma_26B_A4B(),
   )
   if use_lora:
     gemma_network = lora.LoRA(

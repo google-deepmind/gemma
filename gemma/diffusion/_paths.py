@@ -20,6 +20,6 @@ import enum
 class CheckpointPath(enum.StrEnum):
   """Hardcoded paths to DiffusionGemma checkpoints."""
 
-  DIFFUSIONGEMMA_A26B_A4B_IT = (
+  DIFFUSIONGEMMA_26B_A4B_IT = (
      'gs://gemma-data/checkpoints/diffusiongemma-26B-A4B-it'
   )

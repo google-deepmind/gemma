@@ -18,10 +18,10 @@ from gemma.diffusion import _transformer as _diffusion_transformer
 from gemma.gm.nn.gemma4 import _gemma4
 
 
-class DiffusionGemma_A26B_A4B(  # pylint: disable=invalid-name
+class DiffusionGemma_26B_A4B(  # pylint: disable=invalid-name
     _gemma4.Gemma4_26B_A4B, _diffusion_transformer.DiffusionMixin
 ):
-  """DiffusionGemma A26B_A4B model."""
+  """DiffusionGemma 26B_A4B model."""
 
   self_conditioning_config: (
       _diffusion_transformer.SelfConditioningConfig | None

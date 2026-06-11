@@ -50,7 +50,7 @@ class InterfacesTest(absltest.TestCase):
     Relying on default values for instantiation ensures that the user is not
     overwhelmed with too many required arguments.
     """
-    model = _models.DiffusionGemma_A26B_A4B(
+    model = _models.DiffusionGemma_26B_A4B(
         config=_SMALL_CONFIG,
         self_conditioning_config=_SMALL_SC_CONFIG,
     )
@@ -98,7 +98,7 @@ class InterfacesTest(absltest.TestCase):
   def test_chat_sampler_instantiation_overrides(self):
     """Tests that ChatSampler can be instantiated with optional args."""
 
-    model = _models.DiffusionGemma_A26B_A4B(
+    model = _models.DiffusionGemma_26B_A4B(
         config=_SMALL_CONFIG,
         self_conditioning_config=_SMALL_SC_CONFIG,
     )

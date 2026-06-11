@@ -42,7 +42,6 @@ import numpy as np
 import optax
 
 
-
 def _make_small_config():
   """Create a tiny TransformerConfig for testing."""
   return _config.TransformerConfig(
@@ -64,7 +63,7 @@ def _make_small_config():
 def _make_gemma_network():
   """Create a WrappedDiffusionGemmaNetwork with a tiny Gemma model."""
   small_config = _make_small_config()
-  gemma_model = _models.DiffusionGemma_A26B_A4B(
+  gemma_model = _models.DiffusionGemma_26B_A4B(
       config=small_config,
       self_conditioning_config=diffusion_transformer.SelfConditioningConfig(
           features=small_config.embed_dim,

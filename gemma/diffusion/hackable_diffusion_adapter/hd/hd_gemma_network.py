@@ -37,7 +37,7 @@ TargetInfoTree = hd_typing.TargetInfoTree
 
 BaseDiffusionNetwork = diffusion_network.BaseDiffusionNetwork
 
-DiffusionGemmaModel = gemma_diffusion.DiffusionGemma_A26B_A4B
+DiffusionGemmaModel = gemma_diffusion.DiffusionGemma_26B_A4B
 
 
 # pytype: disable=bad-return-type

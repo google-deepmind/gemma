@@ -208,7 +208,7 @@ class SamplerTest(parameterized.TestCase):
     vocab_size = _SMALL_CONFIG.num_embed
     embed_dim = _SMALL_CONFIG.embed_dim
 
-    model = _models.DiffusionGemma_A26B_A4B(
+    model = _models.DiffusionGemma_26B_A4B(
         config=_SMALL_CONFIG,
         self_conditioning_config=_SMALL_SC_CONFIG,
     )
@@ -292,7 +292,7 @@ class SamplerTest(parameterized.TestCase):
     vocab_size = _SMALL_CONFIG.num_embed
     embed_dim = _SMALL_CONFIG.embed_dim
 
-    model = _models.DiffusionGemma_A26B_A4B(
+    model = _models.DiffusionGemma_26B_A4B(
         config=_SMALL_CONFIG,
         self_conditioning_config=_SMALL_SC_CONFIG,
     )
@@ -360,7 +360,7 @@ class SamplerTest(parameterized.TestCase):
     cache_length = 16
     vocab_size = _SMALL_CONFIG.num_embed
 
-    model = _models.DiffusionGemma_A26B_A4B(
+    model = _models.DiffusionGemma_26B_A4B(
         config=_SMALL_CONFIG,
         self_conditioning_config=_SMALL_SC_CONFIG,
     )
@@ -644,7 +644,7 @@ class SamplerTest(parameterized.TestCase):
     vocab_size = _SMALL_CONFIG.num_embed
     embed_dim = _SMALL_CONFIG.embed_dim
 
-    model = _models.DiffusionGemma_A26B_A4B(
+    model = _models.DiffusionGemma_26B_A4B(
         config=_SMALL_CONFIG,
         self_conditioning_config=_SMALL_SC_CONFIG,
     )
@@ -736,7 +736,7 @@ class SamplerTest(parameterized.TestCase):
     vocab_size = _SMALL_CONFIG.num_embed
     embed_dim = _SMALL_CONFIG.embed_dim
 
-    model = _models.DiffusionGemma_A26B_A4B(
+    model = _models.DiffusionGemma_26B_A4B(
         config=_SMALL_CONFIG,
         self_conditioning_config=_SMALL_SC_CONFIG,
     )
@@ -786,7 +786,7 @@ class SamplerTest(parameterized.TestCase):
     vocab_size = _SMALL_CONFIG.num_embed
     embed_dim = _SMALL_CONFIG.embed_dim
 
-    class _DiffusionGemmaTransformer(_models.DiffusionGemma_A26B_A4B):
+    class _DiffusionGemmaTransformer(_models.DiffusionGemma_26B_A4B):
       INFO = _gemma4_transformer.ModelInfo(tokenizer_version=4)
 
     model = _DiffusionGemmaTransformer(
@@ -877,7 +877,7 @@ class SamplerTest(parameterized.TestCase):
     vocab_size = _SMALL_CONFIG.num_embed
     embed_dim = _SMALL_CONFIG.embed_dim
 
-    model = _models.DiffusionGemma_A26B_A4B(
+    model = _models.DiffusionGemma_26B_A4B(
         config=_SMALL_CONFIG,
         self_conditioning_config=_SMALL_SC_CONFIG,
     )
@@ -966,7 +966,7 @@ class SamplerTest(parameterized.TestCase):
     vocab_size = _SMALL_CONFIG.num_embed
     embed_dim = _SMALL_CONFIG.embed_dim
 
-    model = _models.DiffusionGemma_A26B_A4B(
+    model = _models.DiffusionGemma_26B_A4B(
         config=_SMALL_CONFIG,
         self_conditioning_config=_SMALL_SC_CONFIG,
     )
@@ -1048,7 +1048,7 @@ class SamplerTest(parameterized.TestCase):
     vocab_size = _SMALL_CONFIG.num_embed
     embed_dim = _SMALL_CONFIG.embed_dim
 
-    model = _models.DiffusionGemma_A26B_A4B(
+    model = _models.DiffusionGemma_26B_A4B(
         config=_SMALL_CONFIG,
         self_conditioning_config=_SMALL_SC_CONFIG,
     )
