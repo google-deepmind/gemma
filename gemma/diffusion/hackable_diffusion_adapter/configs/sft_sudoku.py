@@ -16,6 +16,7 @@
 
 Flat configuration that contains all setup (model, LoRA,
 optimizer, checkpointer, dataset pipeline, and evaluation).
+
 """
 
 from gemma.diffusion.hackable_diffusion_adapter.eval import ar_eval
