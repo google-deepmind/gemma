@@ -30,8 +30,8 @@ from etils import epy
 from gemma.gm.utils import _file_cache
 import jax
 import jax.numpy as jnp
-from kauldron.utils import immutabledict
 import numpy as np
+
 
 from sentencepiece import sentencepiece_model_pb2
 import sentencepiece as spm
@@ -195,9 +195,6 @@ class Tokenizer:
 
   FORMAT: ClassVar[dialog.Format] = dialog.Format.GEMMA3
   FORMAT_TO_CONVERT: ClassVar[dialog.Format | None] = None
-
-  def __post_init__(self):
-    immutabledict.freeze_dict_attrs(self, ['custom_tokens'])
 
   @classmethod
   def from_version(cls, version: int | str) -> Tokenizer:
