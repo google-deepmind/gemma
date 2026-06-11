@@ -15,7 +15,7 @@
 """Text diffusion SFT config — PubMedQA long-answer (detailed explanation).
 
 Flat configuration that contains all setup (model, LoRA, optimizer,
-checkpointer, dataset pipeline, and evaluation).
+checkpointer, dataset pipeline, and evaluation ).
 """
 
 import dataclasses
