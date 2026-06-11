@@ -14,8 +14,8 @@
 
 """Text diffusion SFT config — Sudoku dataset.
 
-Flat configuration that contains all setup (model, LoRA, optimizer,
-checkpointer, dataset pipeline, and evaluation).
+Flat configuration that contains all setup (model, LoRA,
+optimizer, checkpointer, dataset pipeline, and evaluation).
 """
 
 from gemma.diffusion.hackable_diffusion_adapter.eval import ar_eval
