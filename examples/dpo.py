@@ -17,23 +17,6 @@ r"""DPO Example.
 DPO works by running two answers (one prefered and one rejected) into both
 the reference model and the model to finetune. Then the DPO loss is used to
 increase the likelihood of generating the preferred answer.
-
-Implementation wise, this is done by:
-
-* Wrapping the model inside a `gm.nn.AnchoredPolicy` (which runs both the
-  model and the reference frozen model)
-* Using the `gm.ckpts.AnchoredPolicyLoader` to restore the weights, so the
-  weights are correctly mapped to inside `gm.nn.AnchoredPolicy`.
-
-
-Train locally with:
-
-```sh
-python -m kauldron.main \
-    --cfg=examples/dpo.py \
-    --cfg.workdir=/tmp/kauldron_oss/workdir
-```
-
 """
 
 from kauldron import konfig
@@ -50,19 +33,15 @@ def get_config():
   """Get the default hyperparameter configuration."""
   return kd.train.Trainer(
       seed=42,
-      # Dataset
       train_ds=_make_dataset(training=True),
-      # Model definition
       model=gm.nn.AnchoredPolicy(
           policy=gm.nn.Gemma3_4B(tokens="batch.tokens", text_only=True),
       ),
-      # Load the weights from the pretrained checkpoint
       init_transform=gm.ckpts.AnchoredPolicyLoader(
           policy=gm.ckpts.LoadCheckpoint(
               path=gm.ckpts.CheckpointPath.GEMMA3_4B_IT,
           ),
       ),
-      # Training
       num_train_steps=10_000,
       train_losses={
           "dpo": gm.losses.DpoLoss(
@@ -73,38 +52,26 @@ def get_config():
           ),
       },
       optimizer=optax.adafactor(learning_rate=1e-4),
-      checkpointer=kd.ckpts.Checkpointer(
-          save_interval_steps=500,
-      ),
-      # Evaluation
-      evals={
-          # "test": kd.evals.Evaluator(
-          #     run=kd.evals.EveryNSteps(1000),
-          #     ds=_make_dataset(training=False),
-          # ),
-      },
+      checkpointer=kd.ckpts.Checkpointer(save_interval_steps=500),
   )
 
 
 def _make_dataset(training: bool) -> kd.data.Pipeline:
-  # TODO(epot): !!!!
   max_length = 512
   batch_size = 16
 
   tokenizer = gm.text.Gemma3Tokenizer()
 
-  return kd.data.py.HuggingFace(
+  pipeline = kd.data.py.HuggingFace(
       path="argilla/distilabel-math-preference-dpo",
       split="train",
       shuffle=True if training else False,
       num_epochs=None if training else 1,
       batch_size=batch_size,
       transforms=[
-          # Only keep the fields we need.
           kd.data.Elements(
               keep=["instruction", "chosen_response", "rejected_response"]
           ),
-          # Create the model inputs and loss mask.
           gm.data.ContrastiveTask(
               in_prompt="instruction",
               in_chosen="chosen_response",
@@ -113,10 +80,11 @@ def _make_dataset(training: bool) -> kd.data.Pipeline:
               out_targets="targets",
               out_mask="mask",
               tokenizer=tokenizer,
-              # Padding parameters
               max_length=max_length,
-              # TODO(epot): Run stats (how many examples are we dropping?)
               truncate=True,
           ),
       ],
   )
+
+  # Log dataset statistics, including dropped examples due to truncation.
+  return kd.data.WithStats(pipeline, name="dpo_dataset")
