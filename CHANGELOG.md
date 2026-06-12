@@ -22,6 +22,11 @@ To release a new version (e.g. from `1.0.0` -> `2.0.0`):
 -->
 
 ## [Unreleased]
+
+## [4.1.0] - 2026-06-11
+
+- Release Diffusion Gemma
+
 ## [4.0.1] - 2026-05-20
 
 - Fix `dialog` dependency requirement to be `>= 1.1.0`.
@@ -34,6 +39,8 @@ To release a new version (e.g. from `1.0.0` -> `2.0.0`):
 
 * Initial release
 
-[Unreleased]: https://github.com/google-deepmind/gemma/compare/v4.0.0...HEAD
+[Unreleased]: https://github.com/google-deepmind/gemma/compare/v4.1.0...HEAD
+[4.1.0]: https://github.com/google-deepmind/gemma/compare/v4.0.1...v4.1.0
+[4.0.1]: https://github.com/google-deepmind/gemma/compare/v4.0.0...v4.0.1
 [4.0.0]: https://github.com/google-deepmind/gemma/compare/v0.1.0...v4.0.0
 [1.0.0]: https://github.com/google-deepmind/gemma/releases/tag/v0.1.0
