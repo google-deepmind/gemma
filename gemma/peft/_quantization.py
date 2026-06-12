@@ -189,7 +189,7 @@ class SimulateQuantizedEinsum(nn.Module):
         kernel,
         self.method,
         axis_to_reduce=get_axis_to_reduce_from_einsum_str(
-            einsum_str=self.wrapped.name
+            einsum_str=einsum_str
         ),
     )
 
