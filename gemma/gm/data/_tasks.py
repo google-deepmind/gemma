@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import dataclasses
+import warnings
 
 import einops
 from etils.etree import jax as etree  # pylint: disable=g-importing-member
@@ -270,7 +271,32 @@ class ContrastiveTask(grain.MapTransform):
 
 
 def _decode_bytes(element):
+  """Decode bytes to string, handling invalid UTF-8 gracefully.
+  
+  Some datasets (e.g., TFDS) return bytes instead of str. This function
+  decodes bytes to UTF-8 strings, replacing invalid UTF-8 sequences with
+  the Unicode replacement character (U+FFFD) rather than crashing.
+  
+  Args:
+    element: Either bytes to decode or a non-bytes value to return as-is.
+    
+  Returns:
+    Decoded string if element is bytes, otherwise the element unchanged.
+  """
   if isinstance(element, bytes):
-    return element.decode("utf-8")
+    try:
+      return element.decode("utf-8")
+    except UnicodeDecodeError as e:
+      # Replace invalid UTF-8 sequences with the Unicode replacement character.
+      # This is safer than 'ignore' as it preserves data flow while marking
+      # corrupted bytes, and is better than crashing the entire pipeline.
+      warnings.warn(
+          f"Encountered invalid UTF-8 byte sequence at position {e.start}-{e.end}: "
+          f"{e.object[e.start:e.end]!r}. Replacing with Unicode replacement "
+          "character (U+FFFD).",
+          UnicodeWarning,
+          stacklevel=2,
+      )
+      return element.decode("utf-8", errors="replace")
   else:
     return element
