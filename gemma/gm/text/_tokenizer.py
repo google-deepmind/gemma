@@ -483,6 +483,22 @@ class Gemma4Tokenizer(Tokenizer):
 
   special_tokens = _Gemma4SpecialTokens
 
+  # Tokens which are forbidden to be generated in the sampler. Mirrors
+  # `Gemma3Tokenizer` / `Gemma3nTokenizer` but covers both the image and audio
+  # multimodal placeholders, since Gemma 4 uses distinct ids for each
+  # placeholder/start/end token (Gemma 3 reuses `IMAGE_PLACEHOLDER ==
+  # START_OF_IMAGE == 255999`, so listing both there is redundant; in Gemma 4
+  # all six ids are distinct, so all six must be forbidden to keep raw
+  # multimodal placeholders out of text-only generation). See #613.
+  FORBIDDEN_TOKENS = (
+      special_tokens.IMAGE_PLACEHOLDER,
+      special_tokens.START_OF_IMAGE,
+      special_tokens.END_OF_IMAGE,
+      special_tokens.AUDIO_PLACEHOLDER,
+      special_tokens.START_OF_AUDIO,
+      special_tokens.END_OF_AUDIO,
+  )
+
   VERSION = 4
   FORMAT: ClassVar[dialog.Format] = dialog.Format.GEMMA4
 
