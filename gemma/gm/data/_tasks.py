@@ -21,12 +21,41 @@ import dataclasses
 import einops
 from etils.etree import jax as etree  # pylint: disable=g-importing-member
 from gemma.gm.data import _functional
-from gemma.gm.text import _template
 from gemma.gm.text import _tokenizer
 from grain import python as grain
 import jax
 from kauldron import kd
 import numpy as np
+
+# Turn tag strings indexed by tokenizer FORMAT.
+# Gemma4 uses '<|turn>' / '<turn|>', all others use '<start_of_turn>' /
+# '<end_of_turn>'. Importing the `dialog` library is intentionally avoided
+# to keep the dep footprint small; the two known format strings are inlined.
+_TURN_TAGS: dict[str, tuple[str, str]] = {}
+
+
+def _get_turn_tags(
+    tokenizer: _tokenizer.Tokenizer,
+) -> tuple[str, str]:
+  """Returns (start_of_turn, end_of_turn) tag strings for *tokenizer*."""
+  fmt = getattr(tokenizer, 'FORMAT', None)
+  # dialog.Format.GEMMA4 has value 'gemma4' (StrEnum).
+  if fmt is not None and str(fmt).lower() == 'gemma4':
+    return ('<|turn>', '<turn|>')
+  # Default: Gemma3 / legacy format.
+  return ('<start_of_turn>', '<end_of_turn>')
+
+
+def _format_prompt(prompt: str, tokenizer: _tokenizer.Tokenizer) -> str:
+  """Formats *prompt* with the correct turn tags for *tokenizer*."""
+  sot, eot = _get_turn_tags(tokenizer)
+  return f'{sot}user\n{prompt}{eot}\n{sot}model\n'
+
+
+def _format_answer(response: str, tokenizer: _tokenizer.Tokenizer) -> str:
+  """Formats *response* with the correct turn tags for *tokenizer*."""
+  _, eot = _get_turn_tags(tokenizer)
+  return f'{response}{eot}'
 
 
 @dataclasses.dataclass(kw_only=True, frozen=True)
@@ -115,10 +144,10 @@ class Seq2SeqTask(grain.MapTransform):
     prompt = _decode_bytes(prompt)
     response = _decode_bytes(response)
 
-    # Format the input to match the expected dialog template.
-    # TODO(epot): Add a `template` protocol to allow customizing this.
-    prompt = _template.PROMPT.format(prompt)
-    response = _template.ANSWER.format(response)
+    # Format the input using tokenizer-aware turn tags.
+    # TODO(epot): Add a `template` protocol for full customization.
+    prompt = _format_prompt(prompt, self.tokenizer)
+    response = _format_answer(response, self.tokenizer)
 
     # For sampling, we don't need to tokenize the input.
     if self.sampling:
@@ -144,8 +173,8 @@ class Seq2SeqTask(grain.MapTransform):
     )
 
     # For shape compatibility with the loss
-    target = einops.rearrange(out.target, "... -> ... 1")
-    target_mask = einops.rearrange(out.target_mask, "... -> ... 1")
+    target = einops.rearrange(out.target, '... -> ... 1')
+    target_mask = einops.rearrange(out.target_mask, '... -> ... 1')
 
     # Add the fields to the output `dict`.
     # Equivalent to `element[self.out_input] = ...`
@@ -219,11 +248,11 @@ class ContrastiveTask(grain.MapTransform):
     chosen = _decode_bytes(chosen)
     rejected = _decode_bytes(rejected)
 
-    # Format the input to match the expected dialog template.
-    # TODO(epot): Move this in a separate FormatDialog transform.
-    prompt = _template.PROMPT.format(prompt)
-    chosen = _template.ANSWER.format(chosen)
-    rejected = _template.ANSWER.format(rejected)
+    # Format the input using tokenizer-aware turn tags.
+    # TODO(epot): Extract into a standalone FormatDialog transform.
+    prompt = _format_prompt(prompt, self.tokenizer)
+    chosen = _format_answer(chosen, self.tokenizer)
+    rejected = _format_answer(rejected, self.tokenizer)
 
     # Tokenize the input and the responses.
     # Note: Input should start with begin-of-sequence token.
@@ -271,6 +300,6 @@ class ContrastiveTask(grain.MapTransform):
 
 def _decode_bytes(element):
   if isinstance(element, bytes):
-    return element.decode("utf-8")
+    return element.decode('utf-8')
   else:
     return element

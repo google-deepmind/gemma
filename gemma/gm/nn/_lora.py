@@ -21,13 +21,26 @@ from absl import logging
 from flax import linen as nn
 from gemma import peft
 from gemma.gm.nn import _layers
+from gemma.gm.nn.gemma3n import _layers as _gemma3n_layers
+from gemma.gm.nn.gemma4 import _layers as _gemma4_layers
 import jax
 import jax.numpy as jnp
 from kauldron import kontext
 import numpy as np
 
 
-_SUPPORTED_MODULES = (nn.Dense, nn.Einsum, nn.DenseGeneral, _layers.Einsum)
+_SUPPORTED_MODULES = (
+    nn.Dense,
+    nn.Einsum,
+    nn.DenseGeneral,
+    _layers.Einsum,
+    _gemma4_layers.Einsum,
+    _gemma4_layers.ClippedEinsum,
+    _gemma3n_layers.Einsum,
+    # NOTE: nano._layers.Einsum is excluded because nano:nano depends on
+    # //third_party/py/gemma/gm, creating a circular BUILD dependency.
+    # To add it, nano._layers needs its own fine-grained BUILD target.
+)
 
 
 class LoRA(nn.Module):
@@ -107,7 +120,7 @@ def _replace_by_lora(
     if debug_str:
       logging.info(debug_str)
 
-  # TODO(epot): Replace by generic LoRA wrapper ?
+# TODO(epot): Replace by generic LoRA wrapper ?
   match module:
     case nn.Dense():
       return peft.LoRADense(rank=rank, dtype=dtype, wrapped=module)
@@ -115,11 +128,11 @@ def _replace_by_lora(
       return peft.LoRAEinsum(rank=rank, dtype=dtype, wrapped=module)
     case nn.DenseGeneral():
       return peft.LoRADenseGeneral(rank=rank, dtype=dtype, wrapped=module)
-    case _layers.Einsum():
-      # This hack is required because the FeedForward layer call two different
-      # Einsum with using `nn.share_scope`, so the two wrappers need a different
-      # name.
-      # This seems to be a bug in flax interceptor.
+    case _ if isinstance(module, _SUPPORTED_MODULES):
+      # All custom Einsum variants (gm.nn, gemma4, gemma3n, nano, etc.)
+      # use `_LoRAEinsum` wrapper. The name hack is required because
+      # FeedForward uses `nn.share_scope` to flatten two Einsum modules
+      # into the same param scope — the two wrappers need distinct names.
       if module.weight_name != 'w':
         name = f'_LoRAEinsum_{module.weight_name}'
       else:
@@ -135,7 +148,7 @@ class _LoRAEinsum(nn.Module):
   _: dataclasses.KW_ONLY
   rank: int
   dtype: np.dtype
-  wrapped: _layers.Einsum
+  wrapped: nn.Module  # Any Einsum variant (gm.nn, gemma4, gemma3n, nano)
 
   # Do not use `nn.share_scope` here as the `wrapped` module inside
   # `FeedForward` already uses `nn.share_scope`, so the two Einsum used in
