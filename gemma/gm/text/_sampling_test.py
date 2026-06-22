@@ -79,3 +79,23 @@ def test_top1_sampling_matches_greedy_sampling():
   tokens_top1 = top1_sampling.get_next_tokens(logits, rng)
   np.testing.assert_array_equal(tokens_greedy, tokens_top1)
 
+
+
+def test_zero_temperature_behavior():
+  rng = jax.random.PRNGKey(0)
+  logits = jax.numpy.array([[10.0, 5.0]])
+  
+  # Test RandomSampling
+  sampler = gm.text.RandomSampling(temperature=0.0)
+  tokens = sampler.get_next_tokens(logits, rng)
+  np.testing.assert_array_equal(tokens, [0])
+
+  # Test TopkSampling
+  sampler = gm.text.TopkSampling(k=5, temperature=0.0)
+  tokens = sampler.get_next_tokens(logits, rng)
+  np.testing.assert_array_equal(tokens, [0])
+
+  # Test TopPSampling
+  sampler = gm.text.TopPSampling(p=0.9, temperature=0.0)
+  tokens = sampler.get_next_tokens(logits, rng)
+  np.testing.assert_array_equal(tokens, [0])
