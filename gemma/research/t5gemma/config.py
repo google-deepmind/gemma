@@ -68,7 +68,7 @@ class GemmaPreset(enum.StrEnum):
     """Simplify the config creation."""
     return TransformerConfig(
         num_layers=num_layers,
-        num_embed=256128,
+        vocab_size=256128,
         embed_dim=embed_dim,
         hidden_dim=hidden_dim,
         num_heads=num_heads,
