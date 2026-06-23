@@ -90,7 +90,7 @@ class ToolSampler(_chat_sampler.ChatSampler):
         Overrites the `multi_turn` attribute.
       is_legacy_tool_answer: When `True`, indicates that the model has emitted
         `<eos>` rather than `<|tool_response>`, thus this needs to be corrected.
-        (this is an internal variable that should never be explictly set).
+        (this is an internal variable that should never be explicitly set).
       sharding: Sharding tree (Gemma 4 only).
 
     Returns:

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Utils for LoRA checkpoint managment."""
+"""Utils for LoRA checkpoint management."""
 
 from __future__ import annotations
 

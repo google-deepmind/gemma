@@ -41,7 +41,7 @@ with epy.lazy_imports():
   import plotly.express as px  # pylint: disable=g-import-not-at-top  # pytype: disable=import-error
 
 
-_WHITESPACE_CHAR = '▁'  # Note this is NOT a undescore (▁ != _)
+_WHITESPACE_CHAR = '▁'  # Note this is NOT a underscore (▁ != _)
 
 
 class _DisplayEnumType(enum.EnumType):

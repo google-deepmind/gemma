@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Utils for LoRA checkpoint managment."""
+"""Utils for LoRA checkpoint management."""
 
 from __future__ import annotations
 
@@ -53,7 +53,7 @@ def convert_to_qat_checkpoint(
       data = quantize_leaf(data, checkpoint_kernel_key)
     # This hack is required because the FeedForward layer call two different
     # Einsum with using `nn.share_scope`, so the two wrappers need a different
-    # name. Weights are not stored under any kernel key and are isntead under
+    # name. Weights are not stored under any kernel key and are instead under
     # the following names.
     if 'gating_einsum' in data or 'linear' in data:
       data = quantize_leaf(data, 'gating_einsum')

@@ -403,8 +403,8 @@ class LocalDotProductAttention(nn.Module):
   the SequenceLayers library. The latter is made for streaming attention and
   requires a specific kind of tensor manipulation. In order to match exactly
   output of the internal implementation of the AudioTokenizer,
-  we perform those manipulation here even though they are not theoritically
-  necessary. This results in a complexified implementation of a theoritically
+  we perform those manipulation here even though they are not theoretically
+  necessary. This results in a complexified implementation of a theoretically
   simple attention mechanism.
   """
 
