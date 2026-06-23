@@ -50,7 +50,7 @@ def check_mask(input_data: Float["L"]) -> tuple[Bool["1"], Int["L"]]:
 
   Returns:
     A boolean indicating whether the mask contains the correct number of blocks
-    and there starting positions (filled with 0 for jit compatiblity).
+    and there starting positions (filled with 0 for jit compatibility).
   """
   is_mask = input_data == TOKEN_PLACEHOLDER
   start_idx = (
@@ -124,7 +124,7 @@ def initialize_vision_tokens(
 ) -> VisionInitEmbeddings:
   """Initializes vision embeddings.
 
-  Vision data intialization wrapper for sampling.
+  Vision data initialization wrapper for sampling.
 
   Example (text only inference):
   ```python
@@ -191,7 +191,7 @@ def initialize_vision_tokens(
     base_mm_tokens = base_mm_tokens.at[:, -1].set(NEW_LINE_TOKEN)
     # then we repeat this tensor for each image in the batch
     mm_tokens = jnp.repeat(base_mm_tokens, patches.shape[1], axis=0)
-    # insert iamges after the first token, which is BOS as expected in gemma v3
+    # insert images after the first token, which is BOS as expected in gemma v3
     token_buffer = jnp.concatenate(
         [token_buffer[:, :1], mm_tokens, token_buffer[:, 1:]], axis=1
     )

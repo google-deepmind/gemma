@@ -49,7 +49,7 @@ else:
 class LoadCheckpoint(kd.ckpts.InitTransform):
   """Loads weights from a Gemma checkpoint.
 
-  Note: The checpoint only contains the Gemma transformer weights, not the
+  Note: The checkpoint only contains the Gemma transformer weights, not the
   step, optimizer state,... Use `kd.ckpts.PartialKauldronLoader` to load
   the state from a Kauldron checkpoint.
 
@@ -292,7 +292,7 @@ def load_params(
   # TODO(epot): Better API. Currently this do not quantize the weights, but
   # just refactor the params to the QAT structure.
   # Eventually quantize the params. Note: It would be better to do this
-  # while the weights are loaded, so restore do not use unecessary memory.
+  # while the weights are loaded, so restore do not use unnecessary memory.
   if quantize:
     output = _quantization.convert_to_qat_checkpoint(output)
 

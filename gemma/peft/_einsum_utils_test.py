@@ -40,7 +40,7 @@ def test_einsum():
       rank=R,
   ) == ('bijk,bjkr,rnm->bimn', (B, J, K, R), (R, N, M))
 
-  # When r is already in use in the letters, another letter is choosen
+  # When r is already in use in the letters, another letter is chosen
   # (here `D`)
   assert _einsum_utils.get_lora_einsum_str_and_shapes(
       einsum_str='...abcABCrR,Rgk->...ABCabcrgk',

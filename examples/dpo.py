@@ -14,7 +14,7 @@
 
 r"""DPO Example.
 
-DPO works by running two answers (one prefered and one rejected) into both
+DPO works by running two answers (one preferred and one rejected) into both
 the reference model and the model to finetune. Then the DPO loss is used to
 increase the likelihood of generating the preferred answer.
 

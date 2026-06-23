@@ -108,7 +108,7 @@ class Gemma3nTransformer(_transformer.Transformer):
   images: kontext.Key | None = None
 
   config: _config.TransformerConfig
-  # Model info to specifiy the tokenizer version and default checkpoint.
+  # Model info to specify the tokenizer version and default checkpoint.
   INFO: ClassVar[ModelInfo] = ModelInfo()
 
   def __post_init__(self):
@@ -217,7 +217,7 @@ class Gemma3nTransformer(_transformer.Transformer):
           'return_hidden_states',
       ),
   )
-  # The function accepts/returns aribtrary batch shape, but inside the
+  # The function accepts/returns arbitrary batch shape, but inside the
   # function, the batch dimension is flattened to a single dimension.
   @_jax_utils.flatten_unflatten_batch_dim()
   @typechecked

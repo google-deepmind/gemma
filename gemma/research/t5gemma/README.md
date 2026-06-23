@@ -2,7 +2,7 @@
 
 T5Gemma (aka encoder-decoder Gemma) was proposed in a
 [research paper](https://arxiv.org/abs/2504.06225) by Google. It is a family of
-encoder-decoder large langauge models, developed by adapting pretrained
+encoder-decoder large language models, developed by adapting pretrained
 decoder-only models into encoder-decoder. T5Gemma includes pretrained and
 instruction-tuned variants. The architecture is based on transformer
 encoder-decoder design following T5, with improvements from Gemma 2: GQA, RoPE,
