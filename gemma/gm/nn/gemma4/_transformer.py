@@ -107,6 +107,64 @@ class _Inputs:
   per_layer_inputs: Float['B L P'] | None = None
 
 
+def compute_valid_audio_soft_token_counts(
+    audio_lengths: Int['B num_clips'], audio_seq_length: int
+) -> Int['B num_clips']:
+  """Compute valid audio soft token counts from raw sample counts."""
+  # frame_length = int(round(16000 * 20.0 / 1000.0)) = 320
+  # hop_length = int(round(16000 * 10.0 / 1000.0)) = 160
+  # frame_size_for_unfold = 321
+  frame_size_for_unfold = 321
+  hop_length = 160
+
+  # Compute mel frames using integer division
+  num_mel_frames = (audio_lengths - frame_size_for_unfold) // hop_length + 1
+  t = num_mel_frames
+  # two 2x downsampling layers
+  for _ in range(2):
+    t_padded = t + 2
+    t = (t_padded - 3) // 2 + 1
+
+  return jnp.minimum(t, audio_seq_length)
+
+
+def mask_padded_audio_tokens(
+    tokens: Int['B L'],
+    inputs_mask: Bool['B L'],
+    valid_counts: Int['B num_clips'],
+    audio_seq_length: int,
+) -> Bool['B L']:
+  """Modify inputs_mask to set padded audio token positions to False."""
+  # audio_mask: [B, L]
+  audio_mask = tokens == _token_utils.AUDIO_SOFT_TOKEN_PLACEHOLDER
+
+  # cumsum: [B, L]
+  cumsum = jnp.cumsum(audio_mask, axis=-1)
+  global_audio_index = (cumsum - 1) * audio_mask
+
+  # clip_idx: [B, L]
+  clip_idx = global_audio_index // audio_seq_length
+  # local_idx: [B, L]
+  local_idx = global_audio_index % audio_seq_length
+
+  # safe_clip_idx: [B, L]
+  safe_clip_idx = jnp.maximum(clip_idx, 0)
+
+  # expanded_valid_counts: [B, L]
+  expanded_valid_counts = jnp.take_along_axis(
+      valid_counts, safe_clip_idx, axis=1
+  )
+
+  # is_valid_audio: [B, L]
+  is_valid_audio = local_idx < expanded_valid_counts
+
+  # padded_audio_mask: [B, L]
+  padded_audio_mask = audio_mask & ~is_valid_audio
+
+  # Modify inputs_mask
+  return inputs_mask & ~padded_audio_mask
+
+
 class Transformer(nn.Module):
   """Base transformer class.
 
@@ -447,6 +505,20 @@ class Transformer(nn.Module):
         )
 
       inputs_mask = tokens != _PADDING_ID
+      if (
+          audio is not None
+          and audio_lengths is not None
+          and audio_soft_token_counts is not None
+      ):
+        valid_counts = compute_valid_audio_soft_token_counts(
+            audio_lengths, audio_soft_token_counts[0]
+        )
+        inputs_mask = mask_padded_audio_tokens(
+            tokens,
+            inputs_mask,
+            valid_counts,
+            audio_soft_token_counts[0],
+        )
       if positions is None:
         positions = _pos_utils.build_positions_from_mask(inputs_mask)
       if attention_mask is None:

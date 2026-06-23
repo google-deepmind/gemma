@@ -21,6 +21,8 @@ import dataclasses
 from gemma.gm.data import _functional
 from gemma.gm.nn import _config
 from gemma.gm.nn import _transformer_like
+from gemma.gm.nn.gemma4._transformer import compute_valid_audio_soft_token_counts
+from gemma.gm.nn.gemma4._transformer import mask_padded_audio_tokens
 from gemma.gm.text import _sampler_loop
 from gemma.gm.text import _turn_utils
 from gemma.gm.typing import _common
@@ -63,6 +65,7 @@ def prefill(
     audio=None,
     audio_lengths=None,
     audio_soft_token_counts=None,
+    audio_seq_length: int | None = None,
 ) -> _sampler_loop.SamplingState:
   """Pre-fill the KV cache and initial model input.
 
@@ -83,6 +86,7 @@ def prefill(
     audio: Audio input data or None.
     audio_lengths: Lengths of audio inputs or None.
     audio_soft_token_counts: Soft token counts for audio or None.
+    audio_seq_length: Max static audio sequence length.
 
   Returns:
     The initial state for the sampling loop.
@@ -223,12 +227,12 @@ def prefill(
     new_used_cache_length = (
         prev_turns.used_cache_length + input.length_with_mm - 1
     )
-  cache = cache.set_end_index(new_used_cache_length)
+  if audio_seq_length is None and audio_lengths is not None:
+    if hasattr(model, 'config') and hasattr(model.config, 'audio_seq_length'):
+      audio_seq_length = model.config.audio_seq_length
+    else:
+      audio_seq_length = 750
 
-  # TODO(epot): The first token was predicted, so could use this, but would
-  # require to duplicate the logic of `_sample_step`, so leave this for later
-  # The `_sample_loop` will re-start from the last prompt token, so use `-1`
-  # as the first token is re-computed.
   return _make_init_state(
       input=input,
       max_out_length=max_out_length,
@@ -236,6 +240,8 @@ def prefill(
       prev_turns=prev_turns,
       cache=cache,
       rng=rng,
+      audio_lengths=audio_lengths,
+      audio_seq_length=audio_seq_length,
   )
 
 
@@ -247,17 +253,36 @@ def _make_init_state(
     prev_turns: _turn_utils.PrevTurns,
     cache: _cache_helper.Cache,
     rng: PRNGKey,
+    audio_lengths: jax.Array | None = None,
+    audio_seq_length: int | None = None,
 ) -> _sampler_loop.SamplingState:
   """Initial state for the sampling loop."""
 
   # The new last token position is shifted by the prompt length (after MM).
   last_token_pos = input.last_token_pos + prev_turns.last_token_pos
+  if audio_lengths is not None and audio_seq_length is not None:
+    valid_counts = compute_valid_audio_soft_token_counts(
+        audio_lengths, audio_seq_length
+    )
+    padded_counts = jnp.sum(audio_seq_length - valid_counts, axis=-1)
+    last_token_pos = last_token_pos - padded_counts
 
   # Pre-compute the full attention mask for the last step.
   full_attention_mask = _make_full_attention_mask(
       input=input,
       prev_turns=prev_turns,
       cache_length=cache.total_cache_length,
+      audio_lengths=audio_lengths,
+      audio_seq_length=audio_seq_length,
+  )
+
+  jax.debug.print(
+      'PREFILL DEBUG: last_token_pos={pos}, new_used_cache_length={cache_len},'
+      ' mask_sum={mask_sum}, tokens_with_mm_len={tokens_len}',
+      pos=last_token_pos,
+      cache_len=new_used_cache_length,
+      mask_sum=full_attention_mask.sum(axis=-1),
+      tokens_len=input.tokens_with_mm.shape[-1],
   )
 
   return _sampler_loop.SamplingState(
@@ -374,6 +399,8 @@ def _make_full_attention_mask(
     input: _types.Input,  # pylint: disable=redefined-builtin
     prev_turns: _turn_utils.PrevTurns,
     cache_length: int,
+    audio_lengths: jax.Array | None = None,
+    audio_seq_length: int | None = None,
 ):
   """Pre-compute the full attention mask for the full `cache_length`.
 
@@ -404,12 +431,25 @@ def _make_full_attention_mask(
     input: The input tokens.
     prev_turns: The previous turns.
     cache_length: The maximum length of the sequence.
+    audio_lengths: Padded audio lengths.
+    audio_seq_length: Max static audio sequence length.
 
   Returns:
     The full attention mask.
   """
   # Mask out the padding tokens.
   full_attention_mask = input.tokens_with_mm != _PADDING_ID
+
+  if audio_lengths is not None and audio_seq_length is not None:
+    valid_counts = compute_valid_audio_soft_token_counts(
+        audio_lengths, audio_seq_length
+    )
+    full_attention_mask = mask_padded_audio_tokens(
+        tokens=input.tokens_with_mm,
+        inputs_mask=full_attention_mask,
+        valid_counts=valid_counts,
+        audio_seq_length=audio_seq_length,
+    )
 
   # Compute the full attention mask across turns.
   if prev_turns:
