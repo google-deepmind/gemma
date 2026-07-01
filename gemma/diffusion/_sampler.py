@@ -354,6 +354,7 @@ class DiffusionSampler(_sampler_loop.SamplerLoop):
       cache: _config.Cache | None,
       params: _common.Params,
       rng: PRNGKey,
+      full_attention_mask: Bool['*B CacheLength'] | None = None,
   ) -> Tokens:
     """Samples a complete denoised canvas from an initial noisy canvas.
 
@@ -367,6 +368,7 @@ class DiffusionSampler(_sampler_loop.SamplerLoop):
       cache: Optional KV cache for the transformer.
       params: The transformer model parameters.
       rng: JAX PRNGKey.
+      full_attention_mask: full attention mask used for previous canvas
 
     Returns:
       The fully denoised token canvas of shape [*B, canvas_length].
@@ -391,6 +393,7 @@ class DiffusionSampler(_sampler_loop.SamplerLoop):
         canvas_length=canvas_length,
         cache_length=cache_length,
         num_valid_tokens=samples_in_cache,
+        full_attention_mask=full_attention_mask,
     )
 
     block_local_mask = _make_block_local_attention_mask(
@@ -510,6 +513,7 @@ class DiffusionSampler(_sampler_loop.SamplerLoop):
         cache=cache,
         params=params,
         rng=sample_rng,
+        full_attention_mask=state.full_attention_mask,
     )
 
     canvas, batch_has_stop_token = _truncate_canvas_at_stop_tokens(
@@ -654,6 +658,7 @@ def _make_global_attention_mask(
     canvas_length: int,
     cache_length: int | None,
     num_valid_tokens: Int['*B'] | None,
+    full_attention_mask: Bool['*B CacheLength'] | None = None,
 ) -> Bool['*B CanvasLength CacheLength']:
   """Create attention mask for the diffusion sampler.
 
@@ -669,6 +674,7 @@ def _make_global_attention_mask(
     cache_length: The length of the cache. If None, no cache is used.
     num_valid_tokens: The number of valid tokens in the cache. Required if
       cache_length is not None.
+    full_attention_mask: The full attention mask for prompt and cache.
 
   Returns:
     The attention mask.
@@ -684,6 +690,8 @@ def _make_global_attention_mask(
 
   total_valid = jnp.minimum(num_valid_tokens + canvas_length, cache_length)
   mask = jnp.arange(cache_length)[None, :] < total_valid[:, None]
+  if full_attention_mask is not None:
+    mask = mask & full_attention_mask
 
   return jnp.broadcast_to(
       mask[:, None, :], (batch_size, canvas_length, cache_length)

@@ -520,6 +520,60 @@ class SamplerTest(parameterized.TestCase):
       with self.subTest(name=name):
         np.testing.assert_array_equal(mask[i], expected)
 
+  def test_make_global_attention_mask_with_full_attention_mask(self):
+    """Tests global attention mask combined with a prompt full_attention_mask."""
+    batch_size = 2
+    canvas_length = 3
+    cache_length = 8
+
+    # 4 valid cache tokens (so total_valid = min(4 + 3, 8) = 7)
+    num_valid_tokens = jnp.array([4, 4], dtype=jnp.int32)
+
+    # Batch 0: has pad at index 2 (so mask is [1, 1, 0, 1, 1, 1, 1, 1])
+    # Batch 1: has pad at index 1 and 3 (so mask is [1, 0, 1, 0, 1, 1, 1, 1])
+    full_attention_mask = jnp.array(
+        [
+            [1, 1, 0, 1, 1, 1, 1, 1],
+            [1, 0, 1, 0, 1, 1, 1, 1],
+        ],
+        dtype=jnp.bool_,
+    )
+
+    mask = _sampler._make_global_attention_mask(
+        batch_size=batch_size,
+        canvas_length=canvas_length,
+        cache_length=cache_length,
+        num_valid_tokens=num_valid_tokens,
+        full_attention_mask=full_attention_mask,
+    )
+
+    # Base mask (without full_attention_mask) for total_valid = 7 would be:
+    # [1, 1, 1, 1, 1, 1, 1, 0] for both batches.
+    # With full_attention_mask, it should be:
+    # Batch 0: [1, 1, 0, 1, 1, 1, 1, 0]
+    # Batch 1: [1, 0, 1, 0, 1, 1, 1, 0]
+
+    expected_batch_0 = jnp.array(
+        [
+            [1, 1, 0, 1, 1, 1, 1, 0],
+            [1, 1, 0, 1, 1, 1, 1, 0],
+            [1, 1, 0, 1, 1, 1, 1, 0],
+        ],
+        dtype=jnp.bool_,
+    )
+
+    expected_batch_1 = jnp.array(
+        [
+            [1, 0, 1, 0, 1, 1, 1, 0],
+            [1, 0, 1, 0, 1, 1, 1, 0],
+            [1, 0, 1, 0, 1, 1, 1, 0],
+        ],
+        dtype=jnp.bool_,
+    )
+
+    np.testing.assert_array_equal(mask[0], expected_batch_0)
+    np.testing.assert_array_equal(mask[1], expected_batch_1)
+
   def test_make_causal_attention_mask_no_cache(self):
     """Tests that the causal mask is lower-triangular when no cache is used.
 
