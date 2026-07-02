@@ -93,7 +93,7 @@ class LoRA(nn.Module):
     #     input='batch.input',  # keys propagated to the `LoRA`
     #   ),
     # )
-    return kontext.get_keypaths(self.model)
+    return kontext.get_keypaths(self.model)  # pyrefly: ignore[bad-return]
 
   def __getattr__(self, name: str) -> Any:
     # Forward attribute accesses to the wrapped model.

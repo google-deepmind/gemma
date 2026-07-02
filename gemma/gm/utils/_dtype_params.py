@@ -101,7 +101,7 @@ def _should_replace_dtype(
 
   # Eventually filter out some modules
   if last_state.exclude is not None:
-    path = '.'.join(module.scope.path)
+    path = '.'.join(module.scope.path)  # pyrefly: ignore[missing-attribute]
     # Hack so matching `xxx` do not match `.xxx_yyy.`
     path = f'.{path}.'
     for p in last_state.exclude:

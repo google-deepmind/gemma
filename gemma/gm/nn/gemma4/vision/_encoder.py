@@ -94,9 +94,9 @@ class VisionEncoder(nn.Module):
   @typechecked
   def __call__(
       self,
-      patches: Float['B L P'],
-      positions_xy: Int['B L 2'],
-  ) -> tuple[tuple[Float['B l D'], Bool['B l'] | None], ...]:
+      patches: Float['B L P'],  # pyrefly: ignore[not-a-type]
+      positions_xy: Int['B L 2'],  # pyrefly: ignore[not-a-type]
+  ) -> tuple[tuple[Float['B l D'], Bool['B l'] | None], ...]:  # pyrefly: ignore[not-a-type]
     input_mask = jnp.logical_not(
         (positions_xy == POSITIONS_PAD_VALUE).all(axis=-1)
     )

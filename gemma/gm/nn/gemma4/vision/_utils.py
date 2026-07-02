@@ -21,11 +21,11 @@ from kauldron.ktyping import Bool, Float, Int, typechecked  # pylint: disable=g-
 
 @typechecked
 def avg_pool_by_positions(
-    x: Float['B L D'],
+    x: Float['B L D'],  # pyrefly: ignore[not-a-type]
     *,
-    positions_xy: Int['B L 2'],
+    positions_xy: Int['B L 2'],  # pyrefly: ignore[not-a-type]
     length: int,
-) -> tuple[Float['B l D'], Bool['B l']]:
+) -> tuple[Float['B l D'], Bool['B l']]:  # pyrefly: ignore[not-a-type]
   """2D spatial pooling according to patch positions.
 
   Pools the input tokens by averaging patches within a k×k grid, where

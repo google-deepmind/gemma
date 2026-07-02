@@ -57,7 +57,7 @@ class Input:
 
   # Name `text` rather than `tokens` to avoid accidental usage instead of
   # `tokens_with_mm`.
-  text: Int['B length_no_mm']
+  text: Int['B length_no_mm']  # pyrefly: ignore[not-a-type]
   images: UInt8['B N H W C'] | None
 
   # Model metadata.
@@ -113,7 +113,7 @@ class Input:
 
   @property
   @jax.jit
-  def tokens_with_mm(self) -> Int['B length_with_mm']:
+  def tokens_with_mm(self) -> Int['B length_with_mm']:  # pyrefly: ignore[not-a-type]
     """Tokens after inserting placeholders for images."""
     if self.config.already_expanded:
       return self.text
@@ -129,13 +129,13 @@ class Input:
 
   @property
   @jax.jit
-  def inputs_mask(self) -> Bool['B length_with_mm']:
+  def inputs_mask(self) -> Bool['B length_with_mm']:  # pyrefly: ignore[not-a-type]
     """Mask (after the extra MM tokens are added)."""
     return self.tokens_with_mm != _PADDING_ID
 
   @property
   @jax.jit
-  def attention_mask(self) -> Bool['B length_with_mm length_with_mm']:
+  def attention_mask(self) -> Bool['B length_with_mm length_with_mm']:  # pyrefly: ignore[not-a-type]
     """Attention mask for the input (include MM tokens)."""
 
     if self.images is not None:
@@ -152,26 +152,26 @@ class Input:
 
   @property
   @jax.jit
-  def positions(self) -> Int['B length_with_mm']:
+  def positions(self) -> Int['B length_with_mm']:  # pyrefly: ignore[not-a-type]
     """Positions for the input (always including the MM tokens)."""
-    return _pos_utils.build_positions_from_mask(self.inputs_mask)
+    return _pos_utils.build_positions_from_mask(self.inputs_mask)  # pyrefly: ignore[bad-argument-type]
 
   @property
   @jax.jit
-  def last_token_pos(self) -> Int['B']:
+  def last_token_pos(self) -> Int['B']:  # pyrefly: ignore[not-a-type, unknown-name]
     """Position of the last token in the sentence (after MM tokens)."""
     # Could also be `self.positions.max(axis=-1)`
-    return jnp.sum(self.inputs_mask, axis=-1) - 1
+    return jnp.sum(self.inputs_mask, axis=-1) - 1  # pyrefly: ignore[bad-argument-type]
 
   @property
   @jax.jit
-  def last_token(self) -> Int['B']:
+  def last_token(self) -> Int['B']:  # pyrefly: ignore[not-a-type, unknown-name]
     """Last token in the sentence (after MM tokens).
 
     Used as the first input token of the model for the auto-regressive sampling.
     """
     x = jnp.take_along_axis(
-        self.tokens_with_mm, self.last_token_pos[:, None], axis=-1
+        self.tokens_with_mm, self.last_token_pos[:, None], axis=-1  # pyrefly: ignore[bad-argument-type, bad-index]
     )
     x = jnp.squeeze(x, axis=-1)
     return x

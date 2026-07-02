@@ -22,10 +22,10 @@ from kauldron.ktyping import Bool, Int, typechecked  # pylint: disable=g-multipl
 
 @typechecked
 def make_causal_bidirectional_attention_mask(
-    causal_mask: Bool['B L'],
+    causal_mask: Bool['B L'],  # pyrefly: ignore[not-a-type]
     *,
     bidirectional_mask: Bool['B L'] | None = None,
-) -> Bool['B L L']:
+) -> Bool['B L L']:  # pyrefly: ignore[not-a-type]
   """Make the attention mask for the transformer.
 
   Gemma transformer attention mask is a little complicated, as the text
@@ -71,8 +71,8 @@ def make_causal_bidirectional_attention_mask(
 
 @typechecked
 def _make_causal_mask(
-    input_mask: Bool['B L'],
-) -> Bool['B L L']:
+    input_mask: Bool['B L'],  # pyrefly: ignore[not-a-type]
+) -> Bool['B L L']:  # pyrefly: ignore[not-a-type]
   """Makes a causal attention mask.
 
   I.e., as in middle diagram of Figure 3 in https://arxiv.org/pdf/1910.10683.
@@ -97,8 +97,8 @@ def _make_causal_mask(
 
 @typechecked
 def _make_block_mask_indices(
-    bidirectional_mask: Bool['B L'],
-) -> Int['B L']:
+    bidirectional_mask: Bool['B L'],  # pyrefly: ignore[not-a-type]
+) -> Int['B L']:  # pyrefly: ignore[not-a-type]
   """Creates block mask identifying segments based on a bidirectional mask.
 
   Args:
@@ -116,9 +116,9 @@ def _make_block_mask_indices(
 
 @typechecked
 def _add_bidirectional_mask(
-    attn_mask: Bool['B L L'],
-    bidirectional_mask: Bool['B L'],
-) -> Bool['B L L']:
+    attn_mask: Bool['B L L'],  # pyrefly: ignore[not-a-type]
+    bidirectional_mask: Bool['B L'],  # pyrefly: ignore[not-a-type]
+) -> Bool['B L L']:  # pyrefly: ignore[not-a-type]
   """Adds bidirectional mask to the attention mask."""
   q_block_indices = _make_block_mask_indices(bidirectional_mask)
   kv_block_indices = q_block_indices

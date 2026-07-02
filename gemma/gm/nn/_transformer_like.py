@@ -45,7 +45,7 @@ class TransformerConfig(Protocol):
       batch_size: int,
       dtype: jnp.dtype[Any],
       cache_length: int,
-      sharding: kd.sharding.ShardingTree | None = None,
+      sharding: kd.sharding.ShardingTree | None = None,  # pyrefly: ignore[not-a-type]
   ) -> _config.Cache:
     ...
 
@@ -118,7 +118,7 @@ class TransformerLike(Protocol):
   @abc.abstractmethod
   def __call__(  # pytype: disable=signature-mismatch
       self,
-      tokens: Int['*B L'],
+      tokens: Int['*B L'],  # pyrefly: ignore[not-a-type]
       *,
       images: UInt8['*B N H W C'] | UInt8['*B H W C'] | None = None,
       positions: Int['*B L_with_mm'] | None = None,
@@ -134,7 +134,7 @@ class TransformerLike(Protocol):
   def apply(
       self,
       variables: VariableDict,
-      tokens: Int['*B L'],
+      tokens: Int['*B L'],  # pyrefly: ignore[not-a-type]
       *,
       images: UInt8['*B N H W C'] | UInt8['*B H W C'] | None = None,
       cache: _config.Cache | None = None,
@@ -152,7 +152,7 @@ class TransformerLike(Protocol):
       batch_size: int,
       dtype: jnp.dtype[Any],
       cache_length: int,
-      sharding: kd.sharding.ShardingTree | None = None,
+      sharding: kd.sharding.ShardingTree | None = None,  # pyrefly: ignore[not-a-type]
   ) -> _config.Cache:
     """Initializes the KV cache for efficient generation."""
     ...

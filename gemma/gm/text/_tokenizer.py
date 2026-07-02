@@ -261,7 +261,7 @@ class Tokenizer:
       token_ids.append(self.special_tokens.EOS)
     return token_ids
 
-  def decode(self, ids: int | list[int] | enp.typing.Array) -> str:
+  def decode(self, ids: int | list[int] | enp.typing.Array) -> str:  # pyrefly: ignore[not-a-type]
     """Decode a token id(s) into a text."""
 
     if isinstance(ids, int):
@@ -357,7 +357,7 @@ class Tokenizer:
 
   def plot_logits(
       self,
-      logits: enp.typing.Array,
+      logits: enp.typing.Array,  # pyrefly: ignore[not-a-type]
       *,
       keep_top: int = 30,
   ) -> go.Figure:

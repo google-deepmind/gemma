@@ -174,7 +174,7 @@ class ChatSampler:
           sampling=self.sampling,
           forbidden_tokens=self.forbidden_tokens,
           stop_tokens=self.stop_tokens,
-          cache_length=self.cache_length,
+          cache_length=self.cache_length,  # pyrefly: ignore[bad-argument-type]
           max_out_length=self.max_out_length,
           pad_length=self.pad_length,
           patch_size=self.patch_size,
@@ -191,7 +191,7 @@ class ChatSampler:
           sampling=self.sampling,
           forbidden_tokens=self.forbidden_tokens,
           stop_tokens=self.stop_tokens,
-          cache_length=self.cache_length,
+          cache_length=self.cache_length,  # pyrefly: ignore[bad-argument-type]
           max_out_length=self.max_out_length,
       )
 
@@ -262,7 +262,7 @@ class ChatSampler:
       self,
       prompt: str | dialog.Conversation,
       *,
-      images: list[np.ndarray | Image.Image] | UInt8['N? H W C'] | None = None,
+      images: list[np.ndarray | Image.Image] | UInt8['N? H W C'] | None = None,  # pyrefly: ignore[not-a-type]
       audio: list[np.ndarray] | None = None,
       audio_lengths: list[int] | None = None,
       sampling: _sampling.SamplingMethod | None = None,
@@ -271,7 +271,7 @@ class ChatSampler:
       multi_turn: bool | None = None,
       print_stream: bool | dialog.Stream | None = None,
       is_legacy_tool_answer: bool = False,
-      sharding: kd.sharding.ShardingTree | None = None,
+      sharding: kd.sharding.ShardingTree | None = None,  # pyrefly: ignore[not-a-type]
   ) -> str:
     """Samples a string from the model.
 
@@ -468,15 +468,15 @@ def _print_stream(
   text_tokens = []
 
   for state in out:
-    print_(stream, state.text)
+    print_(stream, state.text)  # pyrefly: ignore[bad-argument-type]
 
     text_tokens.append(state.text)
     if (
         state.text == '<end_of_turn>' or state.text == '<turn|>'
     ):  # Last token is not printed.
       continue
-  out = dataclasses.replace(state, text=''.join(text_tokens))  # pylint: disable=undefined-variable,undefined-loop-variable
-  return out
+  out = dataclasses.replace(state, text=''.join(text_tokens))  # pylint: disable=undefined-variable,undefined-loop-variable  # pyrefly: ignore[bad-assignment]
+  return out  # pyrefly: ignore[bad-return]
 
 
 def print_(
