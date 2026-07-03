@@ -68,9 +68,9 @@ class SelfConditioning(nn.Module):
   def __call__(
       self,
       *,
-      canvas_embeddings: Embeddings,
-      self_conditioning_signal: Embeddings,
-  ) -> Embeddings:
+      canvas_embeddings: Embeddings,  # pyrefly: ignore[not-a-type]
+      self_conditioning_signal: Embeddings,  # pyrefly: ignore[not-a-type]
+  ) -> Embeddings:  # pyrefly: ignore[not-a-type]
     normed = self.pre_norm(self_conditioning_signal)
     sc_signal = self.ffw(normed)
     combined = canvas_embeddings + sc_signal
@@ -85,9 +85,9 @@ class DiffusionMixin:
   @typechecked
   def call_with_self_conditioning(  # pytype: disable=signature-mismatch
       self,
-      tokens: Int['*B L'],
+      tokens: Int['*B L'],  # pyrefly: ignore[not-a-type]
       *,
-      sc_embeddings: Embeddings,
+      sc_embeddings: Embeddings,  # pyrefly: ignore[not-a-type]
       images: UInt8['*B N H W C'] | UInt8['*B H W C'] | None = None,
       positions: Int['*B L_with_mm'] | None = None,
       cache: _config.Cache | None = None,
@@ -148,7 +148,7 @@ class DiffusionMixin:
 
       # Set the block-local sliding attention mask for LOCAL_SLIDING layers.
       if sliding_attention_mask is not None:
-        inputs = inputs.replace(sliding_attention_mask=sliding_attention_mask)
+        inputs = inputs.replace(sliding_attention_mask=sliding_attention_mask)  # pyrefly: ignore[missing-attribute]
 
       # In the first denoising step, `sc_signal` should be all zeros.
       is_zero_sc = jnp.all(sc_embeddings == 0.0)
@@ -161,7 +161,7 @@ class DiffusionMixin:
           canvas_embeddings=inputs.embeddings,
           self_conditioning_signal=sc_signal,
       )
-      inputs = inputs.replace(embeddings=sc_output)
+      inputs = inputs.replace(embeddings=sc_output)  # pyrefly: ignore[missing-attribute]
 
       x, new_cache = self._apply_attention(inputs, cache)
 

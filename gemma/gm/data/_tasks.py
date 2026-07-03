@@ -137,8 +137,8 @@ class Seq2SeqTask(grain.MapTransform):
 
     # TODO(epot): Supports nested drop
     if self.drop_inputs:
-      del element[self.in_prompt]
-      del element[self.in_response]
+      del element[self.in_prompt]  # pyrefly: ignore[unsupported-operation]
+      del element[self.in_response]  # pyrefly: ignore[unsupported-operation]
 
     # Some datasets (TFDS) returns `bytes` instead of `str`, so decode them.
     prompt = _decode_bytes(prompt)

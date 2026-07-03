@@ -34,11 +34,11 @@ class EarlyStopFn(Protocol):
   def should_stop(
       self,
       *,
-      step: Int[''],
-      canvas: Int['*B L'],
-      previous_canvas: Int['*B L'],
-      logits: Float['*B L V'],
-  ) -> Bool['*B']:
+      step: Int[''],  # pyrefly: ignore[not-a-type]
+      canvas: Int['*B L'],  # pyrefly: ignore[not-a-type]
+      previous_canvas: Int['*B L'],  # pyrefly: ignore[not-a-type]
+      logits: Float['*B L V'],  # pyrefly: ignore[not-a-type]
+  ) -> Bool['*B']:  # pyrefly: ignore[not-a-type]
     """Returns True for each batch element that should stop."""
     ...
 
@@ -51,11 +51,11 @@ class NoEarlyStop(EarlyStopFn):
   def should_stop(
       self,
       *,
-      step: Int[''],
-      canvas: Int['*B L'],
-      previous_canvas: Int['*B L'],
-      logits: Float['*B L V'],
-  ) -> Bool['*B']:
+      step: Int[''],  # pyrefly: ignore[not-a-type]
+      canvas: Int['*B L'],  # pyrefly: ignore[not-a-type]
+      previous_canvas: Int['*B L'],  # pyrefly: ignore[not-a-type]
+      logits: Float['*B L V'],  # pyrefly: ignore[not-a-type]
+  ) -> Bool['*B']:  # pyrefly: ignore[not-a-type]
     del step, previous_canvas, logits
     batch_size = canvas.shape[0]
     return jnp.zeros(batch_size, dtype=jnp.bool_)
@@ -77,11 +77,11 @@ class TokenStabilityEarlyStop(EarlyStopFn):
   def should_stop(
       self,
       *,
-      step: Int[''],
-      canvas: Int['*B L'],
-      previous_canvas: Int['*B L'],
-      logits: Float['*B L V'],
-  ) -> Bool['*B']:
+      step: Int[''],  # pyrefly: ignore[not-a-type]
+      canvas: Int['*B L'],  # pyrefly: ignore[not-a-type]
+      previous_canvas: Int['*B L'],  # pyrefly: ignore[not-a-type]
+      logits: Float['*B L V'],  # pyrefly: ignore[not-a-type]
+  ) -> Bool['*B']:  # pyrefly: ignore[not-a-type]
     del step, canvas
     most_likely_tokens = jnp.argmax(logits, axis=-1)
     return jnp.all(most_likely_tokens == previous_canvas, axis=-1)
@@ -105,11 +105,11 @@ class EntropyEarlyStop(EarlyStopFn):
   def should_stop(
       self,
       *,
-      step: Int[''],
-      canvas: Int['*B L'],
-      previous_canvas: Int['*B L'],
-      logits: Float['*B L V'],
-  ) -> Bool['*B']:
+      step: Int[''],  # pyrefly: ignore[not-a-type]
+      canvas: Int['*B L'],  # pyrefly: ignore[not-a-type]
+      previous_canvas: Int['*B L'],  # pyrefly: ignore[not-a-type]
+      logits: Float['*B L V'],  # pyrefly: ignore[not-a-type]
+  ) -> Bool['*B']:  # pyrefly: ignore[not-a-type]
     del step, canvas, previous_canvas
     log_probs = jax.nn.log_softmax(logits)
     probs = jnp.exp(log_probs)
@@ -143,11 +143,11 @@ class ChainedEarlyStop(EarlyStopFn):
   def should_stop(
       self,
       *,
-      step: Int[''],
-      canvas: Int['*B L'],
-      previous_canvas: Int['*B L'],
-      logits: Float['*B L V'],
-  ) -> Bool['*B']:
+      step: Int[''],  # pyrefly: ignore[not-a-type]
+      canvas: Int['*B L'],  # pyrefly: ignore[not-a-type]
+      previous_canvas: Int['*B L'],  # pyrefly: ignore[not-a-type]
+      logits: Float['*B L V'],  # pyrefly: ignore[not-a-type]
+  ) -> Bool['*B']:  # pyrefly: ignore[not-a-type]
     results = jnp.stack([
         fn.should_stop(
             step=step,

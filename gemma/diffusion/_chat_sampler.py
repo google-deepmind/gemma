@@ -163,7 +163,7 @@ class ChatSampler(gm.text.ChatSampler):
         sampling=self.sampling,
         forbidden_tokens=self.forbidden_tokens,
         stop_tokens=self.stop_tokens,
-        cache_length=self.cache_length,
+        cache_length=self.cache_length,  # pyrefly: ignore[bad-argument-type]
         max_out_length=self.max_out_length,
         pad_length=self.pad_length,
         diffusion_process=self.diffusion_process,

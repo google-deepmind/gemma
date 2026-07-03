@@ -36,11 +36,11 @@ LayerCache = dict[str, jax.Array]
 
 
 def _create_sliding_mask(
-    positions: Int['B L'],
+    positions: Int['B L'],  # pyrefly: ignore[not-a-type]
     *,
     cache_positions: Int['B cache_len'] | None = None,
     sliding_window_size: int,
-) -> Bool['B L cache_len']:
+) -> Bool['B L cache_len']:  # pyrefly: ignore[not-a-type]
   """Create the sliding mask for local sliding attention."""
   if cache_positions is None:
     cache_positions = positions
@@ -137,7 +137,7 @@ class Embedder(nn.Module):
     return jnp.dot(x, self.input_embedding_table.T)
 
   @typechecked
-  def encode_logits(self, x: Float['*B L V']) -> Float['*B L D']:
+  def encode_logits(self, x: Float['*B L V']) -> Float['*B L D']:  # pyrefly: ignore[not-a-type]
     """Encodes the input logits.
 
     Converts the logits to probabilities and uses that as a weighted sum of the
@@ -269,7 +269,7 @@ class Attention(nn.Module):
         segment_pos,
         base_frequency=self.rope_base_frequency,
         scale_factor=self.rope_scale_factor,
-        rope_proportion=self.rope_proportion,
+        rope_proportion=self.rope_proportion,  # pyrefly: ignore[bad-argument-type]
     )
 
     # TODO(imayank): move the key_proj and value_proj to kv_shared_cache=None
@@ -291,7 +291,7 @@ class Attention(nn.Module):
           segment_pos,
           base_frequency=self.rope_base_frequency,
           scale_factor=self.rope_scale_factor,
-          rope_proportion=self.rope_proportion,
+          rope_proportion=self.rope_proportion,  # pyrefly: ignore[bad-argument-type]
       )
 
     # Cache is left aligned.
@@ -648,7 +648,7 @@ class Block(nn.Module):
           '...D,DP->...P', gating_input
       )
       per_layer_inputs_mapped = (
-          nn.gelu(per_layer_inputs_mapped) * per_layer_input
+          nn.gelu(per_layer_inputs_mapped) * per_layer_input  # pyrefly: ignore[unsupported-operation]
       )
       per_layer_inputs_mapped = self.per_layer_projection(
           '...P,PD->...D', per_layer_inputs_mapped

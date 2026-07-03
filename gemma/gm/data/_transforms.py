@@ -97,7 +97,7 @@ class Pad(kd.data.ElementWiseTransform):
   truncate: bool = False
 
   # Do not @typechecked as `element` can be `list` too.
-  def map_element(self, element: Array["length"]) -> Array["max_length"]:
+  def map_element(self, element: Array["length"]) -> Array["max_length"]:  # pyrefly: ignore[not-a-type, unknown-name]
     return _functional.pad(
         element,
         max_length=self.max_length,

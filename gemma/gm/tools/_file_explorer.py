@@ -39,16 +39,16 @@ def file_explorer(
     ],
 ):  # pytype: disable=signature-mismatch
   """File explorer tool."""
-  path = epath.Path(path)
+  path = epath.Path(path)  # pyrefly: ignore[bad-assignment]
   match method:
     case 'cat':
-      return path.read_text()
+      return path.read_text()  # pyrefly: ignore[missing-attribute]
     case 'ls':
       lines = epy.Lines()
-      for p in path.iterdir():
+      for p in path.iterdir():  # pyrefly: ignore[missing-attribute]
         lines += f'{p.name}/' if p.is_dir() else p.name
       return lines.join()
     case 'exists':
-      return path.exists()
+      return path.exists()  # pyrefly: ignore[missing-attribute]
     case _:
       raise ValueError(f'Unknown method: {method}')

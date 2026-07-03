@@ -45,7 +45,7 @@ def get_num_mm_tokens(
 
 @typechecked
 def add_extra_tokens_for_images(
-    tokens: Int['B L'],
+    tokens: Int['B L'],  # pyrefly: ignore[not-a-type]
     *,
     max_num_images: int,
     num_tokens_per_image: int,
@@ -98,12 +98,12 @@ def add_extra_tokens_for_images(
 
 
 def insert_sequence(
-    tokens: Int['B L'],
+    tokens: Int['B L'],  # pyrefly: ignore[not-a-type]
     *,
     at: int,
-    sequence: Int['L'],
+    sequence: Int['L'],  # pyrefly: ignore[not-a-type, unknown-name]
     max_num_images: int,
-) -> Int['B L']:
+) -> Int['B L']:  # pyrefly: ignore[not-a-type]
   """Insert a sequence of tokens at a given position."""
   _, length = tokens.shape
 
@@ -147,11 +147,11 @@ def insert_sequence(
 
 def _get_new_text_tokens(
     *,
-    mm_start: Bool['B L'],
-    text_tokens: Int['B L'],
+    mm_start: Bool['B L'],  # pyrefly: ignore[not-a-type]
+    text_tokens: Int['B L'],  # pyrefly: ignore[not-a-type]
     offset_by: int,
     length_with_mm: int,
-) -> Int['B max_num_images num_tokens_per_image+4']:
+) -> Int['B max_num_images num_tokens_per_image+4']:  # pyrefly: ignore[not-a-type]
   # Jax vmap does not support positional arguments, so need the
   # _get_new_text_tokens_inner indirection.
   return jax.vmap(_get_new_text_tokens_inner, in_axes=(0, 0, None, None))(
@@ -160,11 +160,11 @@ def _get_new_text_tokens(
 
 
 def _get_new_text_tokens_inner(
-    mm_start: Bool['B L'],
-    text_tokens: Int['B L'],
+    mm_start: Bool['B L'],  # pyrefly: ignore[not-a-type]
+    text_tokens: Int['B L'],  # pyrefly: ignore[not-a-type]
     offset_by: int,
     length_with_mm: int,
-) -> Int['L']:
+) -> Int['L']:  # pyrefly: ignore[not-a-type, unknown-name]
   """`_get_new_text_tokens_positions` without batch dimension."""
 
   # Empty buffer in which text and MM tokens will be inserted.
@@ -190,9 +190,9 @@ def _get_new_text_tokens_inner(
 
 def _get_new_text_tokens_positions(
     *,
-    offset_on: Bool['L'],
+    offset_on: Bool['L'],  # pyrefly: ignore[not-a-type, unknown-name]
     offset_by: int,
-) -> Int['L']:
+) -> Int['L']:  # pyrefly: ignore[not-a-type, unknown-name]
   """Create the positions of the new tokens.
 
   Input: `[x, x, x, offset_on, x, x, offset_on, x]`
@@ -215,12 +215,12 @@ def _get_new_text_tokens_positions(
 
 def _get_new_mm_tokens(
     *,
-    mm_start: Bool['B L'],
-    mm_tokens_to_insert: Int['num_tokens_per_image+4'],
+    mm_start: Bool['B L'],  # pyrefly: ignore[not-a-type]
+    mm_tokens_to_insert: Int['num_tokens_per_image+4'],  # pyrefly: ignore[not-a-type, unknown-name]
     max_num_images: int,
     offset_by: int,
     length_with_mm: int,
-) -> Int['B max_num_images num_tokens_per_image+4']:
+) -> Int['B max_num_images num_tokens_per_image+4']:  # pyrefly: ignore[not-a-type]
   # Jax vmap does not support positional argiments, so need the
   # _get_new_mm_tokens_inner indirection.
   return jax.vmap(
@@ -229,12 +229,12 @@ def _get_new_mm_tokens(
 
 
 def _get_new_mm_tokens_inner(
-    mm_start: Bool['L'],
-    mm_tokens_to_insert: Int['num_tokens_per_image+4'],
+    mm_start: Bool['L'],  # pyrefly: ignore[not-a-type, unknown-name]
+    mm_tokens_to_insert: Int['num_tokens_per_image+4'],  # pyrefly: ignore[not-a-type, unknown-name]
     max_num_images: int,
     offset_by: int,
     length_with_mm: int,
-) -> Int['max_num_images num_tokens_per_image+4']:
+) -> Int['max_num_images num_tokens_per_image+4']:  # pyrefly: ignore[not-a-type]
   """`_get_new_mm_tokens` without batch dimension."""
   # Empty buffer row, which will be merged with the final tokens.
   row = jnp.zeros((length_with_mm,), dtype=jnp.int32)
@@ -270,10 +270,10 @@ def _get_new_mm_tokens_inner(
 @typechecked
 def merge_embeddings(
     *,
-    text_embeddings: Float['B L D'],
-    vision_embeddings: Float['B N P D'],
-    mask: Bool['B L'],
-) -> Float['B L D']:
+    text_embeddings: Float['B L D'],  # pyrefly: ignore[not-a-type]
+    vision_embeddings: Float['B N P D'],  # pyrefly: ignore[not-a-type]
+    mask: Bool['B L'],  # pyrefly: ignore[not-a-type]
+) -> Float['B L D']:  # pyrefly: ignore[not-a-type]
   """Merge the text and vision embeddings."""
   return jax.vmap(_merge_embeddings_inner, in_axes=(0, 0, 0))(
       text_embeddings, vision_embeddings, mask
@@ -281,10 +281,10 @@ def merge_embeddings(
 
 
 def _merge_embeddings_inner(
-    text_embeddings: Float['L D'],
-    vision_embeddings: Float['N P D'],
-    mask: Bool['L'],
-) -> Float['L D']:
+    text_embeddings: Float['L D'],  # pyrefly: ignore[not-a-type]
+    vision_embeddings: Float['N P D'],  # pyrefly: ignore[not-a-type]
+    mask: Bool['L'],  # pyrefly: ignore[not-a-type, unknown-name]
+) -> Float['L D']:  # pyrefly: ignore[not-a-type]
   """`merge_embeddings` without batch dimension."""
 
   vision_embeddings = einops.rearrange(
@@ -307,20 +307,20 @@ def _merge_embeddings_inner(
 
 def merge_flat_embeddings(
     *,
-    text_embeddings: Float['B L D'],
-    multimodal_embeddings: Float['B T D'],
-    mask: Bool['B L'],
-) -> Float['B L D']:
+    text_embeddings: Float['B L D'],  # pyrefly: ignore[not-a-type]
+    multimodal_embeddings: Float['B T D'],  # pyrefly: ignore[not-a-type]
+    mask: Bool['B L'],  # pyrefly: ignore[not-a-type]
+) -> Float['B L D']:  # pyrefly: ignore[not-a-type]
   return jax.vmap(_merge_flat_embeddings_inner, in_axes=(0, 0, 0))(
       text_embeddings, multimodal_embeddings, mask
   )
 
 
 def _merge_flat_embeddings_inner(
-    text_embeddings: Float['L D'],
-    multimodal_embeddings: Float['T D'],
-    mask: Bool['L'],
-) -> Float['L D']:
+    text_embeddings: Float['L D'],  # pyrefly: ignore[not-a-type]
+    multimodal_embeddings: Float['T D'],  # pyrefly: ignore[not-a-type]
+    mask: Bool['L'],  # pyrefly: ignore[not-a-type, unknown-name]
+) -> Float['L D']:  # pyrefly: ignore[not-a-type]
   """Merges flattened vision embeddings into text embeddings.
 
   Args:
@@ -347,10 +347,10 @@ def _merge_flat_embeddings_inner(
 @typechecked
 def remove_mm_logits(
     *,
-    logits: Float['B L V'],
-    tokens: Int['B L_no_mm'],
+    logits: Float['B L V'],  # pyrefly: ignore[not-a-type]
+    tokens: Int['B L_no_mm'],  # pyrefly: ignore[not-a-type]
     num_tokens_per_image: int,
-) -> Float['B L_no_mm V']:
+) -> Float['B L_no_mm V']:  # pyrefly: ignore[not-a-type]
   """Remove the logits which are not MM."""
 
   # TODO(epot): This value should be propagated from the model.

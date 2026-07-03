@@ -109,7 +109,7 @@ class CheckpointedEvaluator(evaluators.Evaluator):
         if self.checkpointer.workdir == workdir:
           eval_workdir = workdir / "evals" / self.name
           new_checkpointer = dataclasses.replace(
-              self.checkpointer, workdir=eval_workdir
+              self.checkpointer, workdir=eval_workdir  # pyrefly: ignore[unexpected-keyword]
           )
           object.__setattr__(self, "checkpointer", new_checkpointer)
     if self.cache:

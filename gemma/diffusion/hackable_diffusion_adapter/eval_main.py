@@ -176,9 +176,9 @@ def main(_):
   _inject_ar_evals(cfg, task)
 
   if hasattr(cfg, "init_transform"):
-    cfg.init_transform = None
+    cfg.init_transform = None  # pyrefly: ignore[missing-attribute]
 
-  trainer: kd.train.Trainer = kd.konfig.resolve(cfg)
+  trainer: kd.train.Trainer = kd.konfig.resolve(cfg)  # pyrefly: ignore[bad-assignment]
 
   logging.info("Initializing state...")
   state = trainer.init_state()

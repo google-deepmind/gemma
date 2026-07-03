@@ -81,10 +81,10 @@ class _Inputs:
     per_layer_inputs: Per-layer inputs, if used in model.
   """
 
-  embeddings: Float['B L D']
-  positions: Int['B L']
-  attention_mask: Bool['B L cache_length']
-  inputs_mask: Bool['B L']
+  embeddings: Float['B L D']  # pyrefly: ignore[not-a-type]
+  positions: Int['B L']  # pyrefly: ignore[not-a-type]
+  attention_mask: Bool['B L cache_length']  # pyrefly: ignore[not-a-type]
+  inputs_mask: Bool['B L']  # pyrefly: ignore[not-a-type]
   per_layer_inputs: Float['B L P'] | None = None
 
 
@@ -109,13 +109,13 @@ class Gemma3nTransformer(_transformer.Transformer):
 
   config: _config.TransformerConfig
   # Model info to specifiy the tokenizer version and default checkpoint.
-  INFO: ClassVar[ModelInfo] = ModelInfo()
+  INFO: ClassVar[ModelInfo] = ModelInfo()  # pyrefly: ignore[bad-override]
 
   def __post_init__(self):
     super().__post_init__()
 
   def setup(self):
-    self.embedder = _modules.Embedder(
+    self.embedder = _modules.Embedder(  # pyrefly: ignore[bad-assignment]
         vocab_size=self.config.num_embed,
         embed_dim=self.config.embed_dim,
         vision_proj_dim=self.config.vision_encoder.siglip_encoder.width
@@ -126,12 +126,12 @@ class Gemma3nTransformer(_transformer.Transformer):
     )
 
     self.kv_cache_sharing_patterns = _config.create_kv_cache_sharing_patterns(
-        self.config.kv_cache_sharing_config,
+        self.config.kv_cache_sharing_config,  # pyrefly: ignore[bad-argument-type]
         self.config.num_layers,
         self.config.attention_types,
     )
 
-    self.blocks = [
+    self.blocks = [  # pyrefly: ignore[bad-assignment]
         _modules.Block(
             name=f'layer_{i}',
             num_heads=self.config.num_heads,
@@ -172,12 +172,12 @@ class Gemma3nTransformer(_transformer.Transformer):
             range(self.config.num_layers), self.config.attention_types
         )
     ]
-    self.final_norm = _layers.RMSNorm(
+    self.final_norm = _layers.RMSNorm(  # pyrefly: ignore[bad-assignment]
         scale_plus_one=self.config.scale_plus_one,
         guard_against_excess_precision=self.config.guard_against_excess_precision,
     )
 
-    self.vision_encoder = self.config.vision_encoder
+    self.vision_encoder = self.config.vision_encoder  # pyrefly: ignore[read-only]
     if self.config.use_altup:
       self.altup_projection = [
           _layers.Einsum(
@@ -209,7 +209,7 @@ class Gemma3nTransformer(_transformer.Transformer):
       return self.config.vision_encoder
 
   # Calling `model.apply` on Colab makes the Kernel crash unless it is jitted.
-  @functools.partial(
+  @functools.partial(  # pyrefly: ignore[bad-specialization]
       nn.jit,
       static_argnames=(
           'self',
@@ -223,7 +223,7 @@ class Gemma3nTransformer(_transformer.Transformer):
   @typechecked
   def __call__(  # pytype: disable=signature-mismatch
       self,
-      tokens: Int['*B L'],
+      tokens: Int['*B L'],  # pyrefly: ignore[not-a-type]
       *,
       images: UInt8['*B N H W C'] | UInt8['*B H W C'] | None = None,
       # TODO(epot): Cleanup and simplify the API.
@@ -308,10 +308,10 @@ class Gemma3nTransformer(_transformer.Transformer):
             inputs.positions,
             old_cache.get(layer_name),
             inputs.attention_mask,
-            per_layer_input=per_layer_inputs[..., i, :]
+            per_layer_input=per_layer_inputs[..., i, :]  # pyrefly: ignore[unexpected-keyword]
             if self.config.per_layer_input_dim
             else None,
-            kv_shared_cache=kv_shared_cache,
+            kv_shared_cache=kv_shared_cache,  # pyrefly: ignore[unexpected-keyword]
         )
         new_cache[layer_name] = layer_cache  # pytype: disable=container-type-mismatch
 
@@ -344,7 +344,7 @@ class Gemma3nTransformer(_transformer.Transformer):
         hidden_states=x if return_hidden_states else None,
     )
 
-  @functools.partial(
+  @functools.partial(  # pyrefly: ignore[bad-specialization]
       nn.jit,
       static_argnames=(
           'self',
@@ -360,7 +360,7 @@ class Gemma3nTransformer(_transformer.Transformer):
       batch_size: int,
       dtype: jnp.dtype[Any],
       cache_length: int,
-      sharding: kd.sharding.ShardingTree | None = None,
+      sharding: kd.sharding.ShardingTree | None = None,  # pyrefly: ignore[not-a-type]
   ) -> _config.Cache:
     cache = self.config.init_cache(
         batch_size=batch_size,
@@ -370,14 +370,14 @@ class Gemma3nTransformer(_transformer.Transformer):
     return kd.sharding.with_sharding_constraint(cache, sharding)
 
   @typechecked
-  def _encode_and_get_inputs(
+  def _encode_and_get_inputs(  # pyrefly: ignore[bad-override]
       self,
       *,
-      tokens: Int['B L_no_mm'],
+      tokens: Int['B L_no_mm'],  # pyrefly: ignore[not-a-type]
       images: UInt8['B H W C'] | UInt8['B N H W C'] | None = None,
       attention_mask: Bool['B L_no_mm cache_length'] | None = None,
       positions: Int['B L_no_mm'] | None = None,
-      positions_offset: Int['B'] | None = None,
+      positions_offset: Int['B'] | None = None,  # pyrefly: ignore[unknown-name]
   ) -> _Inputs:
     """Encode the text tokens, eventually including the vision embeddings."""
 
@@ -399,7 +399,7 @@ class Gemma3nTransformer(_transformer.Transformer):
     # Could this be optimized to filter out the `SOFT_TOKEN_PLACEHOLDER` ?
     # Currently, The placeholders are required so the mask, positions are
     # correctly computed.
-    x = self.embedder.encode(inputs.tokens_with_mm)
+    x = self.embedder.encode(inputs.tokens_with_mm)  # pyrefly: ignore[bad-argument-type]
 
     # Encode the vision tokens and merge them with the text embeddings.
     if inputs.images is not None:
@@ -423,7 +423,7 @@ class Gemma3nTransformer(_transformer.Transformer):
     # tokens inserted for the images.
     # This is what the `gm.text.Sampler` implementation does.
     if positions is None:
-      positions = _pos_utils.build_positions_from_mask(inputs.inputs_mask)
+      positions = _pos_utils.build_positions_from_mask(inputs.inputs_mask)  # pyrefly: ignore[bad-argument-type]
       # For multi-turn, during the pre-fill phase, the positions should be
       # shifted to take into account the previous turns.
       if positions_offset is not None:
@@ -444,10 +444,10 @@ class Gemma3nTransformer(_transformer.Transformer):
   def _merge_mm_embeddings(
       self,
       *,
-      tokens: Int['B L'],
-      embeddings: Float['B L D'],
-      images: UInt8['B N H W C'],
-  ) -> Float['B L D']:
+      tokens: Int['B L'],  # pyrefly: ignore[not-a-type]
+      embeddings: Float['B L D'],  # pyrefly: ignore[not-a-type]
+      images: UInt8['B N H W C'],  # pyrefly: ignore[not-a-type]
+  ) -> Float['B L D']:  # pyrefly: ignore[not-a-type]
     """Update the embeddings to include the vision embeddings."""
     # Encode the images
     soft_embeddings = self._encode_vision(images)
@@ -461,7 +461,7 @@ class Gemma3nTransformer(_transformer.Transformer):
 
     return merged_embeddings
 
-  def _encode_vision(self, images: UInt8['B N H W C']) -> Float['B N P D']:
+  def _encode_vision(self, images: UInt8['B N H W C']) -> Float['B N P D']:  # pyrefly: ignore[not-a-type]
     """Encode the images into the same space as the text embeddings."""
     assert self.vision_encoder is not None
     patches = self.vision_encoder.patchify_images(images)
@@ -493,9 +493,9 @@ class Gemma3nTransformer(_transformer.Transformer):
 
   def _maybe_preprocess_embeddings_with_altup(
       self,
-      x: Float['*B L D'],
+      x: Float['*B L D'],  # pyrefly: ignore[not-a-type]
       guard_against_excess_precision: bool = True,
-  ) -> Float['*B L D'] | List[Float['*B L D']]:
+  ) -> Float['*B L D'] | List[Float['*B L D']]:  # pyrefly: ignore[not-a-type]
     if self.config.use_altup:
       eq = '...F,FD->...D'
       target_magnitude = jnp.mean(x**2, axis=-1, keepdims=True) ** 0.5
@@ -510,8 +510,8 @@ class Gemma3nTransformer(_transformer.Transformer):
 
   def _maybe_postprocess_embeddings_with_altup(
       self,
-      x: Float['*B L D'] | List[Float['*B L D']],
-  ) -> Float['*B L D']:
+      x: Float['*B L D'] | List[Float['*B L D']],  # pyrefly: ignore[not-a-type]
+  ) -> Float['*B L D']:  # pyrefly: ignore[not-a-type]
     if self.config.use_altup:
       eq = '...F,FD->...D'
       target_magnitude = jnp.mean(x[0]**2, axis=-1, keepdims=True) ** 0.5
@@ -525,7 +525,7 @@ class Gemma3nTransformer(_transformer.Transformer):
 
 def _make_dummy_images(
     vision_encoder: gemma_vision.SigLiPFromPatches,
-) -> Float['B L P D']:
+) -> Float['B L P D']:  # pyrefly: ignore[not-a-type]
   """Make dummy images for initializing the vision encoder."""
   return jnp.zeros(
       (1, 1, vision_encoder.image_height, vision_encoder.image_width, 3),
