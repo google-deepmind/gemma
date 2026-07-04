@@ -354,6 +354,7 @@ class DiffusionSampler(_sampler_loop.SamplerLoop):
       cache: _config.Cache | None,
       params: _common.Params,
       rng: PRNGKey,
+      last_token_pos: Int['*B'] | None = None,
       full_attention_mask: Bool['*B CacheLength'] | None = None,
   ) -> Tokens:  # pyrefly: ignore[not-a-type]
     """Samples a complete denoised canvas from an initial noisy canvas.
@@ -368,6 +369,7 @@ class DiffusionSampler(_sampler_loop.SamplerLoop):
       cache: Optional KV cache for the transformer.
       params: The transformer model parameters.
       rng: JAX PRNGKey.
+      last_token_pos: Sequence-specific unpadded ending position of each prompt.
       full_attention_mask: full attention mask used for previous canvas
 
     Returns:
@@ -380,10 +382,17 @@ class DiffusionSampler(_sampler_loop.SamplerLoop):
       cache_layer = list(cache.values())[0]
       cache_length = cache_layer['k'].shape[1]
       samples_in_cache: Int['*B'] = cache_layer['end_index']  # pyrefly: ignore[not-a-type]
-      positions = samples_in_cache[:, None] + jnp.arange(canvas_length)[None, :]
+      if last_token_pos is not None:
+        unpadded_valid_tokens = last_token_pos
+        if hasattr(self.model, 'keep_last_prefill_kv') and self.model.keep_last_prefill_kv:
+          unpadded_valid_tokens = unpadded_valid_tokens + 1
+      else:
+        unpadded_valid_tokens = samples_in_cache
+      positions = unpadded_valid_tokens[:, None] + jnp.arange(canvas_length)[None, :]
     else:
       cache_length = None
       samples_in_cache = None
+      unpadded_valid_tokens = None
       positions = jnp.broadcast_to(
           jnp.arange(canvas_length)[None, :], (batch_size, canvas_length)
       )
@@ -392,7 +401,8 @@ class DiffusionSampler(_sampler_loop.SamplerLoop):
         batch_size=batch_size,
         canvas_length=canvas_length,
         cache_length=cache_length,
-        num_valid_tokens=samples_in_cache,
+        num_valid_tokens=unpadded_valid_tokens,
+        physical_valid_tokens=samples_in_cache,
         full_attention_mask=full_attention_mask,
     )
 
@@ -401,7 +411,8 @@ class DiffusionSampler(_sampler_loop.SamplerLoop):
         canvas_length=canvas_length,
         sliding_window_size=self.sliding_window_size,
         cache_length=cache_length,
-        num_valid_tokens=samples_in_cache,
+        num_valid_tokens=unpadded_valid_tokens,
+        physical_valid_tokens=samples_in_cache,
     )
 
     initial_tokens = self.diffusion_process.get_initial_sample(
@@ -513,6 +524,7 @@ class DiffusionSampler(_sampler_loop.SamplerLoop):
         cache=cache,
         params=params,
         rng=sample_rng,
+        last_token_pos=state.last_token_pos,
         full_attention_mask=state.full_attention_mask,
     )
 
@@ -527,6 +539,7 @@ class DiffusionSampler(_sampler_loop.SamplerLoop):
         tokens=canvas,
         cache=cache,
         params=params,
+        last_token_pos=state.last_token_pos,
     )
 
     done = state.done | batch_has_stop_token
@@ -611,6 +624,7 @@ class DiffusionSampler(_sampler_loop.SamplerLoop):
       tokens: Tokens,  # pyrefly: ignore[not-a-type]
       cache: _config.Cache,
       params: _common.Params,
+      last_token_pos: Int['*B'] | None = None,
   ) -> _config.Cache:
     """Inserts tokens into the cache via a transformer forward pass.
 
@@ -622,23 +636,45 @@ class DiffusionSampler(_sampler_loop.SamplerLoop):
       tokens: Tokens to insert, shaped [batch_size, seq_len].
       cache: The current KV cache.
       params: Model parameters.
+      last_token_pos: Sequence-specific unpadded ending position of each prompt.
 
     Returns:
       The updated cache with the tokens inserted.
     """
+    return self._insert_tokens(
+        tokens=tokens,
+        cache=cache,
+        params=params,
+        last_token_pos=last_token_pos,
+    )
 
+  def _insert_tokens(
+      self,
+      tokens: Int['B L'],
+      cache: _config.Cache,
+      params: _common.Params,
+      last_token_pos: Int['*B'] | None = None,
+  ) -> _config.Cache:
     seq_len = tokens.shape[1]
 
     cache_layer = list(cache.values())[0]
     cache_length = cache_layer['k'].shape[1]
     samples_in_cache: Int['B'] = cache_layer['end_index']  # pyrefly: ignore[not-a-type, unknown-name]
-    positions = samples_in_cache[:, None] + jnp.arange(seq_len)[None, :]
+    if last_token_pos is not None:
+      unpadded_valid_tokens = last_token_pos
+      if hasattr(self.model, 'keep_last_prefill_kv') and self.model.keep_last_prefill_kv:
+        unpadded_valid_tokens = unpadded_valid_tokens + 1
+    else:
+      unpadded_valid_tokens = samples_in_cache
+
+    positions = unpadded_valid_tokens[:, None] + jnp.arange(seq_len)[None, :]
 
     attention_mask = _make_causal_attention_mask(
         batch_size=tokens.shape[0],
         canvas_length=seq_len,
         cache_length=cache_length,
-        num_valid_cache_tokens=samples_in_cache,
+        num_valid_cache_tokens=unpadded_valid_tokens,
+        physical_valid_cache_tokens=samples_in_cache,
     )
 
     output = self.model.apply(
@@ -658,6 +694,7 @@ def _make_global_attention_mask(
     canvas_length: int,
     cache_length: int | None,
     num_valid_tokens: Int['*B'] | None,
+    physical_valid_tokens: Int['*B'] | None = None,
     full_attention_mask: Bool['*B CacheLength'] | None = None,
 ) -> Bool['*B CanvasLength CacheLength']:  # pyrefly: ignore[not-a-type]
   """Create attention mask for the diffusion sampler.
@@ -674,6 +711,7 @@ def _make_global_attention_mask(
     cache_length: The length of the cache. If None, no cache is used.
     num_valid_tokens: The number of valid tokens in the cache. Required if
       cache_length is not None.
+    physical_valid_tokens: The physical end index of the cache.
     full_attention_mask: The full attention mask for prompt and cache.
 
   Returns:
@@ -688,10 +726,18 @@ def _make_global_attention_mask(
         'num_valid_samples must be provided if cache_length is set.'
     )
 
-  total_valid = jnp.minimum(num_valid_tokens + canvas_length, cache_length)
-  mask = jnp.arange(cache_length)[None, :] < total_valid[:, None]
+  if physical_valid_tokens is None:
+    physical_valid_tokens = num_valid_tokens
+
+  prompt_mask = jnp.arange(cache_length)[None, :] < num_valid_tokens[:, None]
   if full_attention_mask is not None:
-    mask = mask & full_attention_mask
+    prompt_mask = prompt_mask & full_attention_mask
+
+  canvas_mask = (jnp.arange(cache_length)[None, :] >= physical_valid_tokens[:, None]) & (
+      jnp.arange(cache_length)[None, :] < (physical_valid_tokens + canvas_length)[:, None]
+  )
+
+  mask = prompt_mask | canvas_mask
 
   return jnp.broadcast_to(
       mask[:, None, :], (batch_size, canvas_length, cache_length)
@@ -704,6 +750,7 @@ def _make_causal_attention_mask(
     canvas_length: int,
     cache_length: int | None,
     num_valid_cache_tokens: Int['B'] | None,  # pyrefly: ignore[unknown-name]
+    physical_valid_cache_tokens: Int['B'] | None = None,
 ) -> Bool['B SeqLen CacheLength']:  # pyrefly: ignore[not-a-type]
   """Create a causal attention mask for inserting tokens into the cache.
 
@@ -714,6 +761,7 @@ def _make_causal_attention_mask(
     num_valid_cache_tokens: Per-batch number of samples in the cache before
       inserting new tokens.  If this is larger than cache_length the cache is
       assumed to be full and the oldest samples have been evicted.
+    physical_valid_cache_tokens: The physical end index of the cache.
 
   Returns:
     Attention mask of shape [batch_size, canvas_length, cache_length].
@@ -732,6 +780,9 @@ def _make_causal_attention_mask(
         'num_valid_cache_tokens must be provided if cache_length is set.'
     )
 
+  if physical_valid_cache_tokens is None:
+    physical_valid_cache_tokens = num_valid_cache_tokens
+
   valid_entries = jnp.minimum(num_valid_cache_tokens, cache_length)
 
   # 1. Fill base mask up to the number of valid tokens in the cache.
@@ -742,7 +793,7 @@ def _make_causal_attention_mask(
 
   # 2. Append a lower triangular matrix at the (wrapped) write positions.
   write_indices = (
-      num_valid_cache_tokens[:, None] + jnp.arange(canvas_length)[None, :]
+      physical_valid_cache_tokens[:, None] + jnp.arange(canvas_length)[None, :]
   ) % cache_length
 
   batch_idx = jnp.arange(batch_size)[:, None, None]
@@ -765,6 +816,7 @@ def _make_block_local_attention_mask(
     sliding_window_size: int | None,
     cache_length: int | None,
     num_valid_tokens: Int['*B'] | None,
+    physical_valid_tokens: Int['*B'] | None = None,
 ) -> Bool['*B CanvasLength CacheLength'] | None:
   """Create block-local attention mask for LOCAL_SLIDING layers in diffusion.
 
@@ -785,6 +837,7 @@ def _make_block_local_attention_mask(
     cache_length: The length of the cache. If None, no cache is used.
     num_valid_tokens: The number of valid tokens in the cache before inserting
       canvas tokens. Required if cache_length is not None.
+    physical_valid_tokens: The physical end index of the cache.
 
   Returns:
     The block-local attention mask, or None if sliding_window_size is None.
@@ -801,6 +854,9 @@ def _make_block_local_attention_mask(
         'num_valid_tokens must be provided if cache_length is set.'
     )
 
+  if physical_valid_tokens is None:
+    physical_valid_tokens = num_valid_tokens
+
   # Context boundary: first canvas position in the cache.
   # context_end = num_valid_tokens (index of first canvas token)
   context_end = num_valid_tokens  # [B]
@@ -816,8 +872,8 @@ def _make_block_local_attention_mask(
 
   # Canvas portion: all canvas tokens attend to all other canvas tokens.
   # Canvas is written at [num_valid_tokens, num_valid_tokens + canvas_length).
-  canvas_end = jnp.minimum(num_valid_tokens + canvas_length, cache_length)
-  canvas_mask = (cache_indices >= num_valid_tokens[:, None]) & (
+  canvas_end = jnp.minimum(physical_valid_tokens + canvas_length, cache_length)
+  canvas_mask = (cache_indices >= physical_valid_tokens[:, None]) & (
       cache_indices < canvas_end[:, None]
   )
 

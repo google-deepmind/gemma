@@ -26,9 +26,11 @@ from gemma.diffusion import _transformer
 from gemma.gm.nn.gemma4 import _config
 from gemma.gm.nn.gemma4 import _modules
 from gemma.gm.nn.gemma4 import _transformer as _gemma4_transformer
+from gemma.gm.text import _prefill
 from gemma.gm.text import _sampler_loop
 from gemma.gm.text import _sampling
 from gemma.gm.text import _tokenizer
+from gemma.gm.utils import _types
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -1163,6 +1165,125 @@ class SamplerTest(parameterized.TestCase):
 
     self.assertEqual(output1.shape, (batch_size, canvas_length))
     np.testing.assert_array_equal(output1, output2)
+
+  def test_diffusion_sampler_positions_gap(self):
+    # Setup mock model using the test config
+    vocab_size = _SMALL_CONFIG.num_embed
+    embed_dim = _SMALL_CONFIG.embed_dim
+    tokenizer = _MockTokenizer(vocab_size=vocab_size)
+
+    # Let's mock apply to record call positions
+    recorded_applies = []
+    model = _models.DiffusionGemma_26B_A4B(
+        config=_SMALL_CONFIG,
+        self_conditioning_config=_SMALL_SC_CONFIG,
+    )
+    original_apply = model.apply
+
+    def mock_apply(*args, **kwargs):
+      recorded_applies.append((args, kwargs))
+      return original_apply(*args, **kwargs)
+
+    # Use mock to patch model.apply
+    with mock.patch.object(model, 'apply', side_effect=mock_apply):
+      sampler = _sampler.DiffusionSampler(
+          model=model,
+          end_tokens=(99,),
+          forbidden_tokens=None,
+          sampling=_sampling.Greedy(),
+          cache_length=16,
+          special_tokens=None,
+          diffusion_process=_sampler.DiffusionProcess(),
+          logit_shaper=_sampler.AnnealingTemperatureShaperConfig().make(),
+          sample_from_predictions=_sampler.SampleFromPredictions(
+              text_vocab_size=vocab_size,
+          ),
+          canvas_length=4,
+          max_denoising_steps=2,
+          text_vocab_size=vocab_size,
+      )
+
+      # Build batch inputs using two prompts of different lengths:
+      # Prompt 0: "AB" (BOS + 2 tokens = 3 total)
+      # Prompt 1: "ABCDE" (BOS + 5 tokens = 6 total)
+      tokens_0 = tokenizer.encode('AB', add_bos=True)
+      tokens_1 = tokenizer.encode('ABCDE', add_bos=True)
+
+      padded_tokens = jnp.array([
+          tokens_0 + [tokenizer.special_tokens.PAD] * 3,
+          tokens_1,
+      ])
+
+      input_obj = _types.Input(
+          text=padded_tokens,
+          images=None,
+          config=_types.InputConfig(
+              support_images=False,
+              num_tokens_per_image=0,
+              special_tokens=tokenizer.special_tokens,
+          ),
+      )
+
+      rng = jax.random.PRNGKey(0)
+      init_rng, sample_rng = jax.random.split(rng)
+      params = model.init(
+          rngs=init_rng,
+          tokens=padded_tokens,
+          sc_embeddings=jnp.ones(
+              (2, padded_tokens.shape[-1], embed_dim), dtype=jnp.bfloat16
+          ),
+          attention_mask=jnp.ones(
+              (2, padded_tokens.shape[-1], padded_tokens.shape[-1]),
+              dtype=jnp.bool_,
+          ),
+          method=model.call_with_self_conditioning,
+      )['params']
+
+      init_state = _prefill.prefill(
+          model=model,
+          params=params,
+          input=input_obj,
+          last_state=None,
+          cache_length=16,
+          max_out_length=16,
+          pad_length=(6,),
+          sharding=None,
+          rng=sample_rng,
+      )
+
+      with jax.disable_jit():
+        sampler.sample_next_canvas(
+            canvas_length=4,
+            max_denoising_steps=2,
+            batch_size=2,
+            cache=init_state.cache,
+            params=params,
+            rng=sample_rng,
+            last_token_pos=init_state.last_token_pos,
+        )
+
+    # Inspect the positions passed to apply during denoising steps
+    # (calls to apply with method = call_with_self_conditioning)
+    denoising_calls = [
+        (args, kwargs)
+        for args, kwargs in recorded_applies
+        if kwargs.get('method') == (
+            _transformer.DiffusionMixin.call_with_self_conditioning
+        )
+    ]
+
+    self.assertNotEmpty(denoising_calls)
+    for _, kwargs in denoising_calls:
+      positions = kwargs.get('positions')
+      self.assertEqual(positions.shape, (2, 4))
+
+      # Sequence 0 ("AB") actual length is 3. Since keep_last_prefill_kv is True
+      # its positions should start at 3.
+      np.testing.assert_array_equal(positions[0], np.arange(3, 7))
+
+      # Sequence 1 ("ABCDE") actual length is 6.
+      # Since keep_last_prefill_kv is True, its positions should start at 6.
+      np.testing.assert_array_equal(positions[1], np.arange(6, 10))
 
 
 if __name__ == '__main__':
