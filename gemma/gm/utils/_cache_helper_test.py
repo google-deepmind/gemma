@@ -51,7 +51,7 @@ def test_cache_helper():
   cache = _prefill._get_or_init_cache(
       inputs=input,
       prev_turns=_turn_utils.PrevTurns(last_state=None),
-      model=model,
+      model=model,  # pyrefly: ignore[bad-argument-type]
       params=params,
       cache_length=64,
       sharding=None,

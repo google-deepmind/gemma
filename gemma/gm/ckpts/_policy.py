@@ -36,28 +36,28 @@ class AnchoredPolicyLoader(kd.ckpts.InitTransform):
   policy: kd.ckpts.InitTransform
   anchor: kd.ckpts.InitTransform | None = None
 
-  def transform(self, state: kd.train.TrainState) -> kd.train.TrainState:
-    if set(state.params.keys()) != {'policy', 'anchor'}:
+  def transform(self, state: kd.train.TrainState) -> kd.train.TrainState:  # pyrefly: ignore[bad-override]
+    if set(state.params.keys()) != {'policy', 'anchor'}:  # pyrefly: ignore[missing-attribute]
       raise ValueError(
           'AnchoredPolicyLoader is meant to be used with'
           ' `model=gm.nn.AnchoredPolicy`.'
       )
 
     # Load the policy params.
-    policy_state = dataclasses.replace(state, params=state.params['policy'])
+    policy_state = dataclasses.replace(state, params=state.params['policy'])  # pyrefly: ignore[unsupported-operation]
     policy_state = self.policy.transform(policy_state)
 
     # Load the anchor params.
     if self.anchor is None:
       # If `anchor` is not provided, load a copy the policy params.
-      _checkpoint.release_memory(state.params['anchor'])
+      _checkpoint.release_memory(state.params['anchor'])  # pyrefly: ignore[unsupported-operation]
       anchor_params = jax.tree.map(jnp.copy, policy_state.params)
       anchor_state = dataclasses.replace(
           policy_state,
           params=anchor_params,
       )
     else:
-      anchor_state = dataclasses.replace(state, params=state.params['anchor'])
+      anchor_state = dataclasses.replace(state, params=state.params['anchor'])  # pyrefly: ignore[unsupported-operation]
       anchor_state = self.anchor.transform(anchor_state)
 
     # Merge the two states back together.

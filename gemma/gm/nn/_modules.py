@@ -36,11 +36,11 @@ LayerCache = dict[str, jax.Array]
 
 
 def create_sliding_mask(
-    positions: Int['B L'],
+    positions: Int['B L'],  # pyrefly: ignore[not-a-type]
     *,
     cache_positions: Int['B cache_len'] | None = None,
     sliding_window_size: int,
-) -> Bool['B L cache_len']:
+) -> Bool['B L cache_len']:  # pyrefly: ignore[not-a-type]
   """Create the sliding mask for local sliding attention."""
   if cache_positions is None:
     cache_positions = positions
@@ -262,7 +262,7 @@ class Attention(nn.Module):
         )
       sliding_mask = create_sliding_mask(
           segment_pos,
-          cache_positions=cache_positions if cache else None,  # pylint: disable=undefined-variable
+          cache_positions=cache_positions if cache else None,  # pylint: disable=undefined-variable  # pyrefly: ignore[unbound-name]
           sliding_window_size=self.sliding_window_size,
       )
       # [batch_size, seq_len, cache_size]

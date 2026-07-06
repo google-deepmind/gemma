@@ -53,7 +53,7 @@ class ToolHandlerBase(epy.ContextManager, abc.ABC):
     else:
       system_prompt = dialog.System()
     system_prompt += [dialog.Tool(t) for t in self.tools]
-    return system_prompt + prompt
+    return system_prompt + prompt  # pyrefly: ignore[bad-return, unsupported-operation]
 
   def maybe_execute_tool(
       self, model_output: str
@@ -77,7 +77,7 @@ class ToolHandlerBase(epy.ContextManager, abc.ABC):
     for chunk in turn:
       if isinstance(chunk, dialog.ToolCall):
         data = chunk.data.full_json
-        response = self.call_tool(**data)
+        response = self.call_tool(**data)  # pyrefly: ignore[bad-argument-type]
         response.name = chunk.data.name
         response = _normalize_response(response)
         tool_responses.append(dialog.ToolResponse(response))

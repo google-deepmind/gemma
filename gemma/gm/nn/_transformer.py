@@ -78,10 +78,10 @@ class _Inputs:
     inputs_mask: Mask of the input tokens.
   """
 
-  embeddings: Float['B L D']
-  positions: Int['B L']
-  attention_mask: Bool['B L cache_length']
-  inputs_mask: Bool['B L']
+  embeddings: Float['B L D']  # pyrefly: ignore[not-a-type]
+  positions: Int['B L']  # pyrefly: ignore[not-a-type]
+  attention_mask: Bool['B L cache_length']  # pyrefly: ignore[not-a-type]
+  inputs_mask: Bool['B L']  # pyrefly: ignore[not-a-type]
 
 
 class Transformer(nn.Module):
@@ -151,7 +151,7 @@ class Transformer(nn.Module):
     ]
     self.final_norm = _layers.RMSNorm()
 
-    self.vision_encoder = self.config.vision_encoder
+    self.vision_encoder = self.config.vision_encoder  # pyrefly: ignore[read-only]
 
   if not typing.TYPE_CHECKING:
 
@@ -170,7 +170,7 @@ class Transformer(nn.Module):
       return self.config.vision_encoder
 
   # Calling `model.apply` on Colab makes the Kernel crash unless it is jitted.
-  @functools.partial(
+  @functools.partial(  # pyrefly: ignore[bad-specialization]
       nn.jit,
       static_argnames=(
           'self',
@@ -184,7 +184,7 @@ class Transformer(nn.Module):
   @typechecked
   def __call__(  # pytype: disable=signature-mismatch
       self,
-      tokens: Int['*B L'],
+      tokens: Int['*B L'],  # pyrefly: ignore[not-a-type]
       *,
       images: UInt8['*B N H W C'] | UInt8['*B H W C'] | None = None,
       # TODO(epot): Cleanup and simplify the API.
@@ -277,7 +277,7 @@ class Transformer(nn.Module):
 
   def _apply_attention(
       self, inputs: _Inputs, cache: _config.Cache | None
-  ) -> tuple[Float['*B L D'], _config.Cache]:
+  ) -> tuple[Float['*B L D'], _config.Cache]:  # pyrefly: ignore[not-a-type]
     """Runs the transformer blocks.
 
     Args:
@@ -303,7 +303,7 @@ class Transformer(nn.Module):
     x = self.final_norm(x)
     return x, new_cache
 
-  @functools.partial(
+  @functools.partial(  # pyrefly: ignore[bad-specialization]
       nn.jit,
       static_argnames=(
           'self',
@@ -319,7 +319,7 @@ class Transformer(nn.Module):
       batch_size: int,
       dtype: jnp.dtype[Any],
       cache_length: int,
-      sharding: kd.sharding.ShardingTree | None = None,
+      sharding: kd.sharding.ShardingTree | None = None,  # pyrefly: ignore[not-a-type]
   ) -> _config.Cache:
     cache = self.config.init_cache(
         batch_size=batch_size,
@@ -332,7 +332,7 @@ class Transformer(nn.Module):
   def _encode_and_get_inputs(
       self,
       *,
-      tokens: Int['B L_no_mm'],
+      tokens: Int['B L_no_mm'],  # pyrefly: ignore[not-a-type]
       images: UInt8['B H W C'] | UInt8['B N H W C'] | None = None,
       attention_mask: Bool['B L_with_mm cache_length'] | None = None,
       positions: Int['B L_with_mm'] | None = None,
@@ -357,7 +357,7 @@ class Transformer(nn.Module):
     # Could this be optimized to filter out the `SOFT_TOKEN_PLACEHOLDER` ?
     # Currently, The placeholders are required so the mask, positions are
     # correctly computed.
-    x = self.embedder.encode(inputs.tokens_with_mm)
+    x = self.embedder.encode(inputs.tokens_with_mm)  # pyrefly: ignore[bad-argument-type]
 
     # Encode the vision tokens and merge them with the text embeddings.
     if inputs.images is not None:
@@ -390,10 +390,10 @@ class Transformer(nn.Module):
   def _merge_mm_embeddings(
       self,
       *,
-      tokens: Int['B L'],
-      embeddings: Float['B L D'],
-      images: UInt8['B N H W C'],
-  ) -> Float['B L D']:
+      tokens: Int['B L'],  # pyrefly: ignore[not-a-type]
+      embeddings: Float['B L D'],  # pyrefly: ignore[not-a-type]
+      images: UInt8['B N H W C'],  # pyrefly: ignore[not-a-type]
+  ) -> Float['B L D']:  # pyrefly: ignore[not-a-type]
     """Update the embeddings to include the vision embeddings."""
     # Encode the images
     soft_embeddings = self._encode_vision(images)
@@ -407,7 +407,7 @@ class Transformer(nn.Module):
 
     return merged_embeddings
 
-  def _encode_vision(self, images: UInt8['B N H W C']) -> Float['B N P D']:
+  def _encode_vision(self, images: UInt8['B N H W C']) -> Float['B N P D']:  # pyrefly: ignore[not-a-type]
     """Encode the images into the same space as the text embeddings."""
     assert self.vision_encoder is not None
     patches = self.vision_encoder.patchify_images(images)
@@ -440,7 +440,7 @@ class Transformer(nn.Module):
 
 def _make_dummy_images(
     vision_encoder: gemma_vision.SigLiPFromPatches,
-) -> Float['B L P D']:
+) -> Float['B L P D']:  # pyrefly: ignore[not-a-type]
   """Make dummy images for initializing the vision encoder."""
   return jnp.zeros(
       (1, 1, vision_encoder.image_height, vision_encoder.image_width, 3),

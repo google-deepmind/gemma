@@ -99,10 +99,10 @@ class _Inputs:
     per_layer_inputs: Optional per-layer inputs.
   """
 
-  embeddings: Float['B L D']
-  positions: Int['B L']
-  attention_mask: Bool['B L cache_length']
-  inputs_mask: Bool['B L']
+  embeddings: Float['B L D']  # pyrefly: ignore[not-a-type]
+  positions: Int['B L']  # pyrefly: ignore[not-a-type]
+  attention_mask: Bool['B L cache_length']  # pyrefly: ignore[not-a-type]
+  inputs_mask: Bool['B L']  # pyrefly: ignore[not-a-type]
   sliding_attention_mask: Bool['B L cache_length'] | None = None
   per_layer_inputs: Float['B L P'] | None = None
 
@@ -195,7 +195,7 @@ class Transformer(nn.Module):
     self.blocks = blocks
     self.final_norm = _layers.RMSNorm()
 
-    self.vision_encoder = self.config.vision_encoder
+    self.vision_encoder = self.config.vision_encoder  # pyrefly: ignore[read-only]
 
     if self.config.audio_encoder:
       self.audio_encoder = gemma4_audio_model.AudioTokenizer(
@@ -219,7 +219,7 @@ class Transformer(nn.Module):
       return self.config.vision_encoder
 
   # Calling `model.apply` on Colab makes the Kernel crash unless it is jitted.
-  @functools.partial(
+  @functools.partial(  # pyrefly: ignore[bad-specialization]
       nn.jit,
       static_argnames=(
           'self',
@@ -234,7 +234,7 @@ class Transformer(nn.Module):
   @typechecked
   def __call__(  # pytype: disable=signature-mismatch
       self,
-      tokens: Int['*B L'],
+      tokens: Int['*B L'],  # pyrefly: ignore[not-a-type]
       *,
       images: PreprocessedVisionInput | None = None,
       audio=None,  # raw waveform [batch, samples] or None
@@ -343,7 +343,7 @@ class Transformer(nn.Module):
 
   def _apply_attention(
       self, inputs: _Inputs, cache: _config.Cache | None
-  ) -> tuple[Float['*B L D'], _config.Cache]:
+  ) -> tuple[Float['*B L D'], _config.Cache]:  # pyrefly: ignore[not-a-type]
     """Runs the transformer blocks.
 
     Args:
@@ -389,7 +389,7 @@ class Transformer(nn.Module):
     x = self.final_norm(x)
     return x, new_cache
 
-  @functools.partial(
+  @functools.partial(  # pyrefly: ignore[bad-specialization]
       nn.jit,
       static_argnames=(
           'self',
@@ -405,7 +405,7 @@ class Transformer(nn.Module):
       batch_size: int,
       dtype: jnp.dtype[Any],
       cache_length: int,
-      sharding: kd.sharding.ShardingTree | None = None,
+      sharding: kd.sharding.ShardingTree | None = None,  # pyrefly: ignore[not-a-type]
   ) -> _config.Cache:
     cache = self.config.init_cache(
         batch_size=batch_size,
@@ -493,7 +493,7 @@ class Transformer(nn.Module):
     )
     del tokens
 
-    x = self.embedder.encode(inputs.tokens_with_mm)
+    x = self.embedder.encode(inputs.tokens_with_mm)  # pyrefly: ignore[bad-argument-type]
 
     if self.vision_encoder is not None and self.is_initializing():
       dummy_patches, dummy_positions = _make_dummy_images(self.vision_encoder)
@@ -507,7 +507,7 @@ class Transformer(nn.Module):
 
     if self.config.per_layer_input_dim:
       per_layer_inputs = self.embedder.encode_per_layer_input(
-          x, inputs.tokens_with_mm, ignore_ple_tokens=ignore_ple_tokens
+          x, inputs.tokens_with_mm, ignore_ple_tokens=ignore_ple_tokens  # pyrefly: ignore[bad-argument-type]
       )
     else:
       per_layer_inputs = None

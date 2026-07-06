@@ -151,7 +151,7 @@ def _make_dataset(
               out_target_mask="loss_mask",
               tokenizer=tokenizer,
               # Padding parameters
-              max_length=None if sampling else max_length,
+              max_length=None if sampling else max_length,  # pyrefly: ignore[bad-argument-type]
               # In this dataset, ~1% of examples are longer than 512 tokens.
               truncate=True,
               sampling=sampling,

@@ -107,7 +107,7 @@ class Gemma4Sampler:
       rng: PRNGKeyLike | None = None,
       return_state: bool = False,
       last_state: _sampler_loop.SamplingState | None = None,
-      sharding: kd.sharding.ShardingTree | None = None,
+      sharding: kd.sharding.ShardingTree | None = None,  # pyrefly: ignore[not-a-type]
   ) -> str | list[str] | _sampler.SamplerOutput:
     """Samples from the model with variable-aspect-ratio image support.
 
@@ -180,8 +180,8 @@ class Gemma4Sampler:
       padded_audio = np.zeros((len(audio), max_audio_len), dtype=np.float32)
       for i, a in enumerate(audio):
         padded_audio[i, : len(a)] = a
-      audio = jnp.asarray(padded_audio)[None]       # [1, N_audios, max_samples]
-      audio_lengths = jnp.asarray(audio_lengths)[None]  # [1, N_audios]
+      audio = jnp.asarray(padded_audio)[None]       # [1, N_audios, max_samples]  # pyrefly: ignore[bad-assignment]
+      audio_lengths = jnp.asarray(audio_lengths)[None]  # [1, N_audios]  # pyrefly: ignore[bad-assignment]
 
     tokens = jnp.asarray(tokens)
     if sharding is not None:
@@ -225,7 +225,7 @@ class Gemma4Sampler:
           f" {max_new_tokens} / {self.max_out_length}"
       )
     max_new_tokens = max_new_tokens or self.max_out_length
-    max_new_tokens = jnp.asarray(max_new_tokens)
+    max_new_tokens = jnp.asarray(max_new_tokens)  # pyrefly: ignore[bad-assignment]
 
     sampler = _sampler_loop.SamplerLoop(
         model=self.model,
@@ -248,7 +248,7 @@ class Gemma4Sampler:
         stream=False,
     )
 
-    predicted_tokens = state.predicted_tokens
+    predicted_tokens = state.predicted_tokens  # pyrefly: ignore[missing-attribute]
     if jax.process_count() > 1:
       predicted_tokens = kd.sharding.with_sharding_constraint(
           predicted_tokens,
@@ -263,7 +263,7 @@ class Gemma4Sampler:
     if return_state:
       return _sampler.SamplerOutput(
           text=predicted_texts,
-          state=state,
+          state=state,  # pyrefly: ignore[bad-argument-type]
       )
     else:
       return predicted_texts

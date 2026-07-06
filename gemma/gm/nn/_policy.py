@@ -71,4 +71,4 @@ class AnchoredPolicy(nn.Module):
     #     input='batch.input',  # keys propagated to the `AnchoredPolicy`
     #   ),
     # )
-    return kontext.get_keypaths(self.policy)
+    return kontext.get_keypaths(self.policy)  # pyrefly: ignore[bad-return]

@@ -162,7 +162,7 @@ class Encoder(nn.Module):
           static_argnums=(2,),  # 0=self, 2=deterministic
           policy=getattr(jax.checkpoint_policies, self.remat_policy, None),
       )
-      x = nn.scan(
+      x = nn.scan(  # pyrefly: ignore[bad-assignment]
           block,
           variable_axes={"params": 0},
           split_rngs={"params": True, "dropout": True},
@@ -189,7 +189,7 @@ class Encoder(nn.Module):
             num_heads=self.num_heads,
             dropout=self.dropout,
         )
-        x = block_cur(x, deterministic)
+        x = block_cur(x, deterministic)  # pyrefly: ignore[bad-assignment]
     x: jax.Array = nn.LayerNorm(name="encoder_norm")(x)
     return x
 

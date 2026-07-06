@@ -54,13 +54,17 @@ class SamplingState:
       the prompt, the MM tokens, and the previous turns.
   """
 
-  step: Int['']
-  done: Bool['B']
-  last_token: Int['B']
-  last_token_pos: Int['B']
-  predicted_tokens: Int['B max_out_length']
+  step: Int['']  # pyrefly: ignore[not-a-type]
+  done: Bool['B']  # pyrefly: ignore[not-a-type, unknown-name]
+  last_token: Int['B']  # pyrefly: ignore[not-a-type, unknown-name]
+  last_token_pos: Int['B']  # pyrefly: ignore[not-a-type, unknown-name]
+  predicted_tokens: Int['B max_out_length']  # pyrefly: ignore[not-a-type]
   predicted_top_logits: Float['B max_out_length top_k'] | None = None
   predicted_top_indices: Int['B max_out_length top_k'] | None = None
+  # TODO(epot): Better way to extract logits. This takes a lot of memory.
+  # TODO(epot): Only keep the top-k logits instead? But sorting might increase
+  # computation.
+  # predicted_logits: Float['B max_out_length V']
   # TODO(epot): Uses `_cache_helper.Cache` everywhere !!!
   cache: _config.Cache
   rng: PRNGKey
@@ -69,16 +73,16 @@ class SamplingState:
   # Are converted to array to avoid re-compilation when `init_cache_length`
   # changes.
   # TODO(epot): Remove `init_cache_length` and only use `used_cache_length` ?
-  init_cache_length: Int['']
-  full_attention_mask: Bool['B cache_length']
+  init_cache_length: Int['']  # pyrefly: ignore[not-a-type]
+  full_attention_mask: Bool['B cache_length']  # pyrefly: ignore[not-a-type]
 
   @property
-  def used_cache_length(self) -> Int['']:
+  def used_cache_length(self) -> Int['']:  # pyrefly: ignore[not-a-type]
     """Length of the cache currently used."""
     return self.init_cache_length + self.step
 
   @property
-  def attention_mask_for_step(self) -> Bool['B cache_length']:
+  def attention_mask_for_step(self) -> Bool['B cache_length']:  # pyrefly: ignore[not-a-type]
     """Attention mask for the current step."""
     # Select the slice of the attention mask for the current step.
     # For step == 2, init_cache_length == 5:
@@ -127,7 +131,7 @@ class SamplerLoop:
       *,
       params: _common.Params,
       init_state: SamplingState,
-      max_new_tokens: Int[''],
+      max_new_tokens: Int[''],  # pyrefly: ignore[not-a-type]
       stream: bool = False,
   ) -> SamplingState | Iterator[SamplingState]:
     """Sample the prompt."""
@@ -148,7 +152,7 @@ class SamplerLoop:
       *,
       params: _common.Params,
       state: SamplingState,
-      max_new_tokens: Int[''],
+      max_new_tokens: Int[''],  # pyrefly: ignore[not-a-type]
   ) -> SamplingState:
     """Internal sampling function (to be jitted)."""
 
@@ -201,7 +205,7 @@ class SamplerLoop:
       *,
       params: _common.Params,
       state: SamplingState,
-      max_new_tokens: Int[''],
+      max_new_tokens: Int[''],  # pyrefly: ignore[not-a-type]
   ) -> Iterator[SamplingState]:
     """Streaming sampling function."""
     # Sample autoregressively.
@@ -234,7 +238,7 @@ class SamplerLoop:
         attention_mask=state.attention_mask_for_step[:, None, :],  # B 1 L
     )
 
-    logits = out.logits
+    logits = out.logits  # pyrefly: ignore[missing-attribute]
     # Logit is `B L V` with `L=1`, so collapse the L dimension.
     logits = einops.rearrange(logits, 'B 1 V -> B V')
     if self.forbidden_tokens:  # Eventually filter out the forbidden tokens.
@@ -269,7 +273,8 @@ class SamplerLoop:
         predicted_tokens=predicted_tokens,
         predicted_top_logits=predicted_top_logits,
         predicted_top_indices=predicted_top_indices,
-        cache=out.cache,
+        # predicted_logits=predicted_logits,
+        cache=out.cache,  # pyrefly: ignore[missing-attribute]
         rng=next_rng,
         init_cache_length=state.init_cache_length,
         full_attention_mask=state.full_attention_mask,
@@ -278,10 +283,10 @@ class SamplerLoop:
 
 @typechecked
 def _mask_tokens_after_end_tokens(
-    tokens: Int['B L'],
+    tokens: Int['B L'],  # pyrefly: ignore[not-a-type]
     *,
     end_tokens: tuple[int, ...],
-) -> Int['B L']:
+) -> Int['B L']:  # pyrefly: ignore[not-a-type]
   """Mask token IDs after the EOS token with the padding ID."""
   end_tokens_mask = jnp.isin(tokens, jnp.asarray(end_tokens))
   end_tokens_mask = jnp.cumsum(end_tokens_mask, axis=-1) - end_tokens_mask == 0
@@ -290,10 +295,10 @@ def _mask_tokens_after_end_tokens(
 
 def _mask_full_attention_mask_prefix_for_next_turn(
     *,
-    full_attention_mask: Bool['B cache_length'],
-    predicted_tokens: Int['B L'],
-    init_cache_length: Int[''],
-) -> Bool['B cache_length']:
+    full_attention_mask: Bool['B cache_length'],  # pyrefly: ignore[not-a-type]
+    predicted_tokens: Int['B L'],  # pyrefly: ignore[not-a-type]
+    init_cache_length: Int[''],  # pyrefly: ignore[not-a-type]
+) -> Bool['B cache_length']:  # pyrefly: ignore[not-a-type]
   """Mask the full attention mask for the next turn."""
   num_predicted_tokens = jnp.sum(predicted_tokens != 0, axis=-1)
 

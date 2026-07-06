@@ -32,7 +32,7 @@ else:
   _base_cls = ()
 
 
-class _DummySentencePieceProcessor(*_base_cls):
+class _DummySentencePieceProcessor(*_base_cls):  # pyrefly: ignore[invalid-inheritance]
   """Dummy tokenizer."""
 
   def __init__(self):

@@ -103,7 +103,7 @@ def flatten_unflatten_batch_dim() -> Callable[[_FnT], _FnT]:
       )
       return output
 
-    return decorated
+    return decorated  # pyrefly: ignore[bad-return]
 
   return decorator
 
@@ -173,7 +173,7 @@ def _get_argname_to_non_batch_dim_size(
   }
 
 
-def _get_non_batch_dim_size(ann: TypeAlias) -> int | None:
+def _get_non_batch_dim_size(ann: TypeAlias) -> int | None:  # pyrefly: ignore[invalid-annotation]
   """Returns the number of non-batch dims from the annotation.
 
   Example:
@@ -216,12 +216,12 @@ def _get_non_batch_dim_size(ann: TypeAlias) -> int | None:
     return None
 
 
-def _is_ktyping(ann: TypeAlias) -> bool:
+def _is_ktyping(ann: TypeAlias) -> bool:  # pyrefly: ignore[invalid-annotation]
   """Returns `True` if the annotation is a ktyping array type."""
   return atm.is_array_type(ann)
 
 
-def _is_jaxtyping(ann: TypeAlias) -> bool:
+def _is_jaxtyping(ann: TypeAlias) -> bool:  # pyrefly: ignore[invalid-annotation]
   """Returns `True` if the annotation is a jaxtyping array type."""
   return (
       isinstance(ann, type)

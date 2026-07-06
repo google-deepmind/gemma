@@ -51,7 +51,7 @@ def test_prefill():
   assert input.length_with_mm == 2
 
   init_state = _prefill.prefill(
-      model=model,
+      model=model,  # pyrefly: ignore[bad-argument-type]
       params=params,
       input=input,
       last_state=None,

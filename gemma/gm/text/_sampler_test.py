@@ -47,7 +47,7 @@ def test_sampler():
   params = params['params']
   tokenizer = gm.testing.DummyTokenizer()
   sampler = gm.text.Sampler(
-      model=model,
+      model=model,  # pyrefly: ignore[bad-argument-type]
       params=params,
       tokenizer=tokenizer,
       cache_length=128,
@@ -72,7 +72,7 @@ def test_chat_sampler_gemma4_dispatch():
   params = params['params']
   tokenizer = gm.testing.DummyTokenizer()
   chat_sampler = gm.text.ChatSampler(
-      model=model,
+      model=model,  # pyrefly: ignore[bad-argument-type]
       params=params,
       tokenizer=tokenizer,
       cache_length=128,
@@ -119,7 +119,7 @@ def test_chat_sampler_non_gemma4_dispatch():
   params = params['params']
   tokenizer = gm.testing.DummyTokenizer()
   chat_sampler = gm.text.ChatSampler(
-      model=model,
+      model=model,  # pyrefly: ignore[bad-argument-type]
       params=params,
       tokenizer=tokenizer,
       cache_length=128,

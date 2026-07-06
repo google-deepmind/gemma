@@ -42,7 +42,7 @@ NUM_PLACEHOLDER_TOKENS_PER_IMAGE = 256
 NUM_TOKENS_PER_MEDIA = NUM_PLACEHOLDER_TOKENS_PER_IMAGE + 4
 
 
-def check_mask(input_data: Float["L"]) -> tuple[Bool["1"], Int["L"]]:
+def check_mask(input_data: Float["L"]) -> tuple[Bool["1"], Int["L"]]:  # pyrefly: ignore[bad-index, not-a-type, unknown-name]
   """Checks that the mask contains the correct number of blocks.
 
   Args:
@@ -77,12 +77,12 @@ def check_mask(input_data: Float["L"]) -> tuple[Bool["1"], Int["L"]]:
 
 
 def check_special_vision_token(
-    input_data: Float["B L"],
+    input_data: Float["B L"],  # pyrefly: ignore[not-a-type]
     *,
-    start_positions: Int["B L"],
+    start_positions: Int["B L"],  # pyrefly: ignore[not-a-type]
     special_token: int,
     position_offset: int,
-) -> Bool["1"]:
+) -> Bool["1"]:  # pyrefly: ignore[bad-index, not-a-type]
   """Checks that the input data contains the correct special vision tokens.
 
   Args:
@@ -112,15 +112,15 @@ class VisionInitEmbeddings:
   """Container for vision encoder output."""
 
   patches: Float["B N P D"] | None
-  token_buffer: Int["B NEW_BUFFER"]
-  num_input_tokens: Int["B"]
+  token_buffer: Int["B NEW_BUFFER"]  # pyrefly: ignore[not-a-type]
+  num_input_tokens: Int["B"]  # pyrefly: ignore[not-a-type, unknown-name]
 
 
 @typechecked
 def initialize_vision_tokens(
     patches: Float["B N P D"] | None,
-    token_buffer: Int["B BUFFER"],
-    num_input_tokens: Int["B"],
+    token_buffer: Int["B BUFFER"],  # pyrefly: ignore[not-a-type]
+    num_input_tokens: Int["B"],  # pyrefly: ignore[not-a-type, unknown-name]
 ) -> VisionInitEmbeddings:
   """Initializes vision embeddings.
 
@@ -212,8 +212,8 @@ class VisionExit(nn.Module):
 
   @typechecked
   def __call__(
-      self, x: Float["B INPUT_LENGTH D"]
-  ) -> Float["B OUTPUT_LENGTH D"]:
+      self, x: Float["B INPUT_LENGTH D"]  # pyrefly: ignore[not-a-type]
+  ) -> Float["B OUTPUT_LENGTH D"]:  # pyrefly: ignore[not-a-type]
     cur_length = x.shape[1]
     if cur_length == self.output_length:
       return x
@@ -245,14 +245,14 @@ class SigLiPFromPatches(nn.Module):
   image_channels: int = 3
   apply_stop_gradient: bool = True
 
-  @functools.partial(nn.jit, static_argnames=("self", "is_training"))
+  @functools.partial(nn.jit, static_argnames=("self", "is_training"))  # pyrefly: ignore[bad-specialization]
   @nn.compact
   def __call__(
       self,
       *,
-      patches: Float["B N P D"],
+      patches: Float["B N P D"],  # pyrefly: ignore[not-a-type]
       is_training: bool,
-  ) -> Float["B N siglip_embed_dim"]:
+  ) -> Float["B N siglip_embed_dim"]:  # pyrefly: ignore[not-a-type]
     chex.assert_rank(patches, 4)
     batch_size, num_frames, num_patches, num_channels = patches.shape
     num_patches_one_side = (
@@ -293,7 +293,7 @@ class SigLiPFromPatches(nn.Module):
     return soft_tokens
 
   # Could use `@_jax_utils.flatten_unflatten_batch_dim()` to simplify re-shape
-  def patchify_images(self, images: Float["*B H W C"]) -> Float["*B P D"]:
+  def patchify_images(self, images: Float["*B H W C"]) -> Float["*B P D"]:  # pyrefly: ignore[not-a-type]
     """Patchify images.
 
     Args:
@@ -314,7 +314,7 @@ class SigLiPFromPatches(nn.Module):
 
     patches = _preprocess.patchify_images(
         images,
-        patch_size=self.siglip_encoder.patch_size,
+        patch_size=self.siglip_encoder.patch_size,  # pyrefly: ignore[bad-argument-type]
     )
     patches = patches.reshape((*batch_dims,) + patches.shape[1:])
     return patches

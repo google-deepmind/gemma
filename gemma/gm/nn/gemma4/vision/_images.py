@@ -22,12 +22,12 @@ from kauldron.ktyping import Float, Int, UInt8, typechecked  # pylint: disable=g
 
 @typechecked
 def preprocess_image(
-    image: UInt8['H W C'],
+    image: UInt8['H W C'],  # pyrefly: ignore[not-a-type]
     *,
     patch_size: int = 16,
     max_patches: int = 2520,
     pooling_kernel_size: int = 3,
-) -> Float['H2 W2 C']:
+) -> Float['H2 W2 C']:  # pyrefly: ignore[not-a-type]
   """Preprocesses image."""
   # Step 1: Calculate the target dimensions preserving aspect ratio
   height, width, _ = image.shape
@@ -58,8 +58,8 @@ def preprocess_image(
 
 @typechecked
 def factorized_posemb(
-    posemb: Float['S 2 D'], positions_xy: Int['B L 2']
-) -> Float['B L D']:
+    posemb: Float['S 2 D'], positions_xy: Int['B L 2']  # pyrefly: ignore[not-a-type]
+) -> Float['B L D']:  # pyrefly: ignore[not-a-type]
   """Compute factorized position embedding from (x, y) coordinates."""
   # One-hot positions_xy to the range [0, posemb.shape[0])
   one_hot = jax.nn.one_hot(positions_xy, posemb.shape[0], dtype=posemb.dtype)
@@ -81,8 +81,8 @@ def factorized_posemb(
 
 @typechecked
 def patchify(
-    images: Float['*B H W C'], patch_size: int
-) -> tuple[Float['*B L D'], Int['*B L 2']]:
+    images: Float['*B H W C'], patch_size: int  # pyrefly: ignore[not-a-type]
+) -> tuple[Float['*B L D'], Int['*B L 2']]:  # pyrefly: ignore[not-a-type]
   """Patchify images and return patches and (x, y) coordinates."""
   patches = einops.rearrange(
       images,

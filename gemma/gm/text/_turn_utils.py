@@ -34,7 +34,7 @@ class PrevTurns:
     return self.last_state.cache
 
   @property
-  def last_token_pos(self) -> Int['#B']:
+  def last_token_pos(self) -> Int['#B']:  # pyrefly: ignore[not-a-type]
     """Offset of the last predicated token position."""
     if self.last_state is None:
       return jnp.zeros((1,), dtype=jnp.int32)
@@ -52,10 +52,10 @@ class PrevTurns:
   def make_prefill_attention_mask(
       self,
       *,
-      next_turn_attention_mask: Bool['B L L'],
+      next_turn_attention_mask: Bool['B L L'],  # pyrefly: ignore[not-a-type]
       prefill_cache_length: int,
       # L_with_prev_turns is: {self.used_cache_length}+L+padding
-  ) -> Bool['B L L_with_prev_turns']:
+  ) -> Bool['B L L_with_prev_turns']:  # pyrefly: ignore[not-a-type]
     """Make the attention mask for the next turn."""
     if self.last_state is None:
       return next_turn_attention_mask
@@ -89,7 +89,7 @@ class PrevTurns:
     return attention_mask
 
   @property
-  def prev_attention_mask(self) -> Bool['B {self.used_cache_length}']:
+  def prev_attention_mask(self) -> Bool['B {self.used_cache_length}']:  # pyrefly: ignore[not-a-type]
     assert self.last_state is not None
     # The full_attention_mask from the last turn is padded with zeros
     # as post-processing step in the sampler loop.

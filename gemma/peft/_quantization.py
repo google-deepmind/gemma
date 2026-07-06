@@ -188,8 +188,8 @@ class SimulateQuantizedEinsum(nn.Module):
     kernel = simulate_quantize(
         kernel,
         self.method,
-        axis_to_reduce=get_axis_to_reduce_from_einsum_str(
-            einsum_str=self.wrapped.name
+        axis_to_reduce=get_axis_to_reduce_from_einsum_str(  # pyrefly: ignore[bad-argument-type]
+            einsum_str=self.wrapped.name  # pyrefly: ignore[bad-argument-type]
         ),
     )
 

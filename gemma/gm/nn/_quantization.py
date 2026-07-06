@@ -71,7 +71,7 @@ class QuantizationAwareWrapper(nn.Module):
     #     input='batch.input',  # propagated to wrapper
     #   ),
     # )
-    return kontext.get_keypaths(self.model)
+    return kontext.get_keypaths(self.model)  # pyrefly: ignore[bad-return]
 
   def __getattr__(self, name: str) -> Any:
     # Forward attribute accesses to the wrapped model.
@@ -118,7 +118,7 @@ class IntWrapper(nn.Module):
     #     input='batch.input',  # keys propagated to the `IntWrapper`
     #   ),
     # )
-    return kontext.get_keypaths(self.model)
+    return kontext.get_keypaths(self.model)  # pyrefly: ignore[bad-return]
 
   def __getattr__(self, name: str) -> Any:
     # Forward attribute accesses to the wrapped model.
@@ -139,7 +139,7 @@ def _replace_by_simulated_quantization(
       # name.
       # This seems to be a bug in flax interceptor.
       return _SimulateQuantizedEinsum(
-          name=module.name + 'qat',
+          name=module.name + 'qat',  # pyrefly: ignore[unsupported-operation]
           method=method,
           shape=module.shape,
           weight_name=module.weight_name,

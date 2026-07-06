@@ -360,7 +360,7 @@ class Attention(nn.Module):
         )
       sliding_mask = _modules.create_sliding_mask(
           segment_pos,
-          cache_positions=cache_positions if cache else None,  # pylint: disable=undefined-variable
+          cache_positions=cache_positions if cache else None,  # pylint: disable=undefined-variable  # pyrefly: ignore[unbound-name]
           sliding_window_size=self.sliding_window_size,
       )
       # [batch_size, seq_len, cache_size]
@@ -779,7 +779,7 @@ class Block(nn.Module):
     """
     predictions = [0.0]
     if self.use_altup:
-      predictions = self.altup.predict(x)
+      predictions = self.altup.predict(x)  # pyrefly: ignore[bad-argument-type]
       x = predictions[self.altup.active_idx]
     inputs_normalized = self.pre_attention_norm(x)
 
@@ -805,7 +805,7 @@ class Block(nn.Module):
     if self.post_attention_norm is not None:
       attn_output = self.post_attention_norm(attn_output)
 
-    attn_output += x
+    attn_output += x  # pyrefly: ignore[unsupported-operation]
 
     if self.use_laurel:
       attn_output = (attn_output + laurel_out_normed) * jax.lax.rsqrt(2.0)
@@ -820,7 +820,7 @@ class Block(nn.Module):
     outputs += attn_output
 
     if self.use_altup:
-      outputs = self.altup.correct(predictions, outputs)
+      outputs = self.altup.correct(predictions, outputs)  # pyrefly: ignore[bad-argument-type]
 
     if self.per_layer_input_dim:
       gating_input = (
@@ -829,7 +829,7 @@ class Block(nn.Module):
           else self.altup.scale_corrected_output(outputs[0])
       )
       per_layer_inputs_mapped = self.per_layer_mapping(
-          gating_input, per_layer_input
+          gating_input, per_layer_input  # pyrefly: ignore[bad-argument-type]
       )
       if self.use_altup:  # outputs[0] is altup output, outputs[1:] inc PLI.
         for i in range(1, len(outputs)):
