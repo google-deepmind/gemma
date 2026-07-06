@@ -372,7 +372,7 @@ class Transformer(nn.Module):
           and block.attn_type == _modules.AttentionType.LOCAL_SLIDING
       ):
         attn_mask = inputs.sliding_attention_mask
-        skip_sliding_mask = True
+        skip_sliding_mask = False
       layer_cache, x = block(
           x,
           inputs.positions,
