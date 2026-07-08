@@ -69,7 +69,7 @@ def _init_and_apply(
 ) -> jax.Array:
   rng = jax.random.PRNGKey(0)
   params = model.init(rng, tokens)
-  return model.apply(params, tokens).logits
+  return model.apply(params, tokens).logits  # pyrefly: ignore[missing-attribute]
 
 
 def _get_config() -> gm.nn.config.TransformerConfig:

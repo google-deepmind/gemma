@@ -35,7 +35,7 @@ def test_einsum(inputs_shape, params_shape, eqn, expected_shape):
       eqn,
       jnp.ones(inputs_shape),
   )
-  assert output.shape == expected_shape
+  assert output.shape == expected_shape  # pyrefly: ignore[missing-attribute]
 
 
 @pytest.mark.parametrize(

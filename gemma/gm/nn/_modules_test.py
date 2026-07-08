@@ -174,7 +174,7 @@ def _get_attn_output(
   params = attn.init(rng, x, segment_pos, cache, attn_mask)
   cache, output = attn.apply(params, x, segment_pos, cache, attn_mask)
 
-  return cache, output
+  return cache, output  # pyrefly: ignore[bad-return]
 
 
 def test_attention():
@@ -275,7 +275,7 @@ def test_sliding_window():
       params, x, segment_pos, cache, attn_mask
   )
 
-  assert not (output == sliding_output).all()
+  assert not (output == sliding_output).all()  # pyrefly: ignore[missing-attribute]
 
 
 def test_query_pre_attn_scalar_modifies_output():
@@ -397,7 +397,7 @@ def test_ffw(transpose_gating_einsum: bool):
   outputs = ffw.apply({'params': params}, inputs)
 
   expected_shape = (batch_size, seq_len, features)
-  assert outputs.shape == expected_shape
+  assert outputs.shape == expected_shape  # pyrefly: ignore[missing-attribute]
 
 
 @pytest.mark.parametrize(
@@ -419,7 +419,7 @@ def test_ffw_grad(transpose_gating_einsum: bool, expected_grad: list[float]):
       transpose_gating_einsum=transpose_gating_einsum,
   )
   loss = lambda params, inputs: jnp.square(
-      ffw.apply(params, inputs) - jnp.ones((batch_size, 1, features))
+      ffw.apply(params, inputs) - jnp.ones((batch_size, 1, features))  # pyrefly: ignore[unsupported-operation]
   ).mean()
 
   params = ffw.init(jax.random.PRNGKey(0), inputs)

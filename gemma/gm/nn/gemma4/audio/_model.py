@@ -100,7 +100,7 @@ class AudioTokenizer(nn.Module):
   def __call__(
       self,
       x: Array['batch samples'],
-      sequence_lengths: Int['batch'],
+      sequence_lengths: Int['batch'],  # pyrefly: ignore[unknown-name]
   ) -> tuple[Float['batch seq_len model_dims'], jnp.ndarray]:
     """Computes audio embeddings.
 

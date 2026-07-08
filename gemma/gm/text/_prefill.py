@@ -40,10 +40,10 @@ _PADDING_ID = 0
 class PrefillInput:
   """Input for the prefill phase."""
 
-  tokens: Int['B L']
+  tokens: Int['B L']  # pyrefly: ignore[not-a-type]
   images: UInt8['B N H W C'] | None
-  positions: Int['B L']
-  attention_mask: Bool['B L cache_length']
+  positions: Int['B L']  # pyrefly: ignore[not-a-type]
+  attention_mask: Bool['B L cache_length']  # pyrefly: ignore[not-a-type]
   cache: _cache_helper.Cache
 
 
@@ -58,7 +58,7 @@ def prefill(
     max_out_length: int,
     pad_length: None | int | tuple[int, ...] = None,
     rng: PRNGKey,
-    sharding: kd.sharding.ShardingTree | None,
+    sharding: kd.sharding.ShardingTree | None,  # pyrefly: ignore[not-a-type]
     vision_input=None,
     audio=None,
     audio_lengths=None,
@@ -111,7 +111,7 @@ def prefill(
       input=input,
       cache=full_cache,
       prev_turns=prev_turns,
-      pad_lengths=pad_length,
+      pad_lengths=pad_length,  # pyrefly: ignore[bad-argument-type]
       vision_input=vision_input,
   )
 
@@ -143,14 +143,14 @@ def prefill(
         'audio_lengths': audio_lengths,
         'audio_soft_token_counts': audio_soft_token_counts,
     })
-  out = model.apply({'params': params}, **kwargs)
+  out = model.apply({'params': params}, **kwargs)  # pyrefly: ignore[unexpected-keyword]
 
   # TODO(epot): Could check whether the cache is full.
 
   # Write the new cache back to the full cache.
   cache = _merge_cache(
       full_cache=full_cache,
-      prefill_cache=out.cache,
+      prefill_cache=out.cache,  # pyrefly: ignore[missing-attribute]
   )
   del out
 
@@ -217,9 +217,12 @@ def prefill(
   # A cleaner implementation could be to have a per-batch cache index, to
   # remove padding. But I leave this to my future self (or to future Gemini).
 
-  new_used_cache_length = (
-      prev_turns.used_cache_length + input.length_with_mm - 1
-  )
+  if hasattr(model, 'keep_last_prefill_kv') and model.keep_last_prefill_kv:
+    new_used_cache_length = prev_turns.used_cache_length + input.length_with_mm
+  else:
+    new_used_cache_length = (
+        prev_turns.used_cache_length + input.length_with_mm - 1
+    )
   cache = cache.set_end_index(new_used_cache_length)
 
   # TODO(epot): The first token was predicted, so could use this, but would
@@ -287,7 +290,7 @@ def _get_or_init_cache(
     model: _transformer_like.TransformerLike,
     params: _common.Params,
     cache_length: int,
-    sharding: kd.sharding.ShardingTree | None,
+    sharding: kd.sharding.ShardingTree | None,  # pyrefly: ignore[not-a-type]
 ) -> _cache_helper.Cache:
   """Initialize or reuse the cache."""
 
@@ -359,9 +362,9 @@ def _merge_cache(
     full_cache: _cache_helper.Cache,
     prefill_cache: _config.Cache,
 ) -> _cache_helper.Cache:
-  prefill_cache = _cache_helper.Cache(prefill_cache)
+  prefill_cache = _cache_helper.Cache(prefill_cache)  # pyrefly: ignore[bad-assignment]
 
-  return full_cache.at[:, : prefill_cache.total_cache_length].set_kv(
+  return full_cache.at[:, : prefill_cache.total_cache_length].set_kv(  # pyrefly: ignore[missing-attribute]
       prefill_cache
   )
 

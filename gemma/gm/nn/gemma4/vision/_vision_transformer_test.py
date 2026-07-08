@@ -64,4 +64,4 @@ def test_vision_transformer_output_shape():
   ]
   output = block.apply({'params': params}, x, input_mask, positions)
 
-  assert output.shape == (batch_size, seq_len, d_model)
+  assert output.shape == (batch_size, seq_len, d_model)  # pyrefly: ignore[missing-attribute]

@@ -64,7 +64,7 @@ class VisionEntry(nn.Module):
       self,
       images_or_patches: Float['B H W C'] | Float['B L P'],
       positions_xy: Int['B L 2'] | None = None,
-  ) -> Float['B L D']:
+  ) -> Float['B L D']:  # pyrefly: ignore[not-a-type]
 
     if images_or_patches.ndim == 4:
       # Patchify inputs. Assume constant aspect ratio.
@@ -107,11 +107,11 @@ class VisionExit(nn.Module):
   @typechecked
   def _maybe_downsample(
       self,
-      x: Float['B L D'],
+      x: Float['B L D'],  # pyrefly: ignore[not-a-type]
       *,
       positions_xy: Int['B L 2'] | None = None,
       length: int,
-  ) -> tuple[Float['B l D'], Bool['B l'] | None]:
+  ) -> tuple[Float['B l D'], Bool['B l'] | None]:  # pyrefly: ignore[not-a-type]
     cur_length = x.shape[1]
     if cur_length == length:
       if positions_xy is None:
@@ -158,11 +158,11 @@ class VisionExit(nn.Module):
   @typechecked
   def _single_call(
       self,
-      x: Float['B L D'],
+      x: Float['B L D'],  # pyrefly: ignore[not-a-type]
       *,
       positions_xy: Int['B L 2'] | None = None,
       length: int,
-  ) -> tuple[Float['B l D'], Bool['B l'] | None]:
+  ) -> tuple[Float['B l D'], Bool['B l'] | None]:  # pyrefly: ignore[not-a-type]
     """Apply vision exit processing for a single output length."""
     x, mask = self._maybe_downsample(
         x, positions_xy=positions_xy, length=length
@@ -175,11 +175,11 @@ class VisionExit(nn.Module):
   @typechecked
   def __call__(
       self,
-      x: Float['B L D'],
+      x: Float['B L D'],  # pyrefly: ignore[not-a-type]
       *,
       positions_xy: Int['B L 2'] | None = None,
       output_length_overrides: tuple[int, ...] | None = None,
-  ) -> tuple[tuple[Float['B l D'], Bool['B l'] | None], ...]:
+  ) -> tuple[tuple[Float['B l D'], Bool['B l'] | None], ...]:  # pyrefly: ignore[not-a-type]
     """Apply vision exit processing.
 
     Args:

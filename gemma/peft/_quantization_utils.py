@@ -111,7 +111,7 @@ def quantize(
 
   try:
     # get models dims to identify layer based on weight shape
-    head_dim, d_model, _ = params['layer_0']['attn']['q_einsum'][
+    head_dim, d_model, _ = params['layer_0']['attn']['q_einsum'][  # pyrefly: ignore[unsupported-operation]
         checkpoint_kernel_key
     ].shape
   except KeyError:
@@ -123,7 +123,7 @@ def quantize(
         bitwidth=bitwidth,
         granularity=QuantizationGranularity.PER_CHANNEL,
         dtype=dtype,
-        axis_to_reduce=_get_axis_to_reduce_from_weight_shape(
+        axis_to_reduce=_get_axis_to_reduce_from_weight_shape(  # pyrefly: ignore[bad-argument-type]
             data[key].shape, head_dim=head_dim, d_model=d_model
         ),
     )
@@ -153,7 +153,7 @@ def quantize(
       data = quantize_leaf(data, 'linear')
     return data
 
-  quantized_params = jax.tree.map(convert_leaf, dict(params), is_leaf=is_leaf)
+  quantized_params = jax.tree.map(convert_leaf, dict(params), is_leaf=is_leaf)  # pyrefly: ignore[no-matching-overload]
   return quantized_params
 
 

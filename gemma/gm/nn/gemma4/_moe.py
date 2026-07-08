@@ -213,10 +213,23 @@ class MoE(nn.Module):
     )
     return out
 
-  def __call__(self, x):
-    """Applies the MoE module."""
+  def __call__(self, x, unnormalized_x=None):
+    """Applies the MoE module.
+
+    Args:
+      x: Normalized input for the expert FFW computation.
+      unnormalized_x: Optional un-normalized input for the router. If None,
+        defaults to x. When the caller applies a pre-FFW norm before calling
+        this module, the un-normalized activations should be passed here so that
+        the router applies only its own router_norm (avoiding a double norm).
+
+    Returns:
+      Output of the MoE module.
+    """
+    if unnormalized_x is None:
+      unnormalized_x = x
     # Router: RMS-norm, scale, then compute logits.
-    router_input = self.router_norm(x)
+    router_input = self.router_norm(unnormalized_x)
     root_size = jax.lax.rsqrt(
         jnp.array(self.features, dtype=router_input.dtype)
     )
@@ -365,10 +378,23 @@ class MoERagged(nn.Module):
     )
     return out
 
-  def __call__(self, x):
-    """Applies the MoERagged module."""
+  def __call__(self, x, unnormalized_x=None):
+    """Applies the MoERagged module.
+
+    Args:
+      x: Normalized input for the expert FFW computation.
+      unnormalized_x: Optional un-normalized input for the router. If None,
+        defaults to x. When the caller applies a pre-FFW norm before calling
+        this module, the un-normalized activations should be passed here so that
+        the router applies only its own router_norm (avoiding a double norm).
+
+    Returns:
+      Output of the MoE module.
+    """
+    if unnormalized_x is None:
+      unnormalized_x = x
     # Router: RMS-norm, scale, then compute logits.
-    router_input = self.router_norm(x)
+    router_input = self.router_norm(unnormalized_x)
     root_size = jax.lax.rsqrt(
         jnp.array(self.features, dtype=router_input.dtype)
     )

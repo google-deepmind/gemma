@@ -36,11 +36,11 @@ LayerCache = dict[str, jax.Array]
 
 
 def _create_sliding_mask(
-    positions: Int['B L'],
+    positions: Int['B L'],  # pyrefly: ignore[not-a-type]
     *,
     cache_positions: Int['B cache_len'] | None = None,
     sliding_window_size: int,
-) -> Bool['B L cache_len']:
+) -> Bool['B L cache_len']:  # pyrefly: ignore[not-a-type]
   """Create the sliding mask for local sliding attention."""
   if cache_positions is None:
     cache_positions = positions
@@ -137,7 +137,7 @@ class Embedder(nn.Module):
     return jnp.dot(x, self.input_embedding_table.T)
 
   @typechecked
-  def encode_logits(self, x: Float['*B L V']) -> Float['*B L D']:
+  def encode_logits(self, x: Float['*B L V']) -> Float['*B L D']:  # pyrefly: ignore[not-a-type]
     """Encodes the input logits.
 
     Converts the logits to probabilities and uses that as a weighted sum of the
@@ -166,13 +166,20 @@ class Embedder(nn.Module):
     x = self.audio_soft_embedding_norm(x)
     return x
 
-  def encode_per_layer_input(self, x: jax.Array, t: jax.Array) -> jax.Array:
+  def encode_per_layer_input(
+      self,
+      x: jax.Array,
+      t: jax.Array,
+      ignore_ple_tokens: bool = False,
+  ) -> jax.Array:
     """Encodes the input tokens.
 
     Args:
       x: Input shape [seq_len, embed_dim] or [batch_size, seq_len, embed_dim].
       t: Input tokens of shape [seq_len] or [batch_size, seq_len], where each
         token is an integer in [0, vocab_size).
+      ignore_ple_tokens: If True, the tokens are not used to compute the per
+        layer input embeddings.
 
     Returns:
       Encoded input of shape [seq_len, num_layers, per_layer_input_dim] or
@@ -184,6 +191,8 @@ class Embedder(nn.Module):
     )
     x = self.per_layer_model_projection('...td,dnp->...tnp', x)
     x = self.per_layer_projection_norm(x)
+    if ignore_ple_tokens:
+      return x
     y = self.per_layer_input_embedding_table[(t,)]
     y *= jnp.sqrt(self.per_layer_input_dim).astype(y.dtype)
     return (x + y) * jax.lax.rsqrt(2.0).astype(x.dtype)
@@ -237,6 +246,7 @@ class Attention(nn.Module):
       cache: LayerCache | None,
       attn_mask: jax.Array,
       kv_shared_cache: LayerCache | None = None,
+      skip_sliding_mask: bool = False,
   ) -> tuple[LayerCache | None, jax.Array]:
     """Applies multi-head attention to the inputs.
 
@@ -246,6 +256,7 @@ class Attention(nn.Module):
       cache: KV cache or None.
       attn_mask: Attention mask of shape [batch_size, seq_len, cache_size].
       kv_shared_cache: Cache for shared KV layers.
+      skip_sliding_mask: If True, skip the sliding mask.
 
     Returns:
       cache: Updated attention KV cache.
@@ -258,7 +269,7 @@ class Attention(nn.Module):
         segment_pos,
         base_frequency=self.rope_base_frequency,
         scale_factor=self.rope_scale_factor,
-        rope_proportion=self.rope_proportion,
+        rope_proportion=self.rope_proportion,  # pyrefly: ignore[bad-argument-type]
     )
 
     # TODO(imayank): move the key_proj and value_proj to kv_shared_cache=None
@@ -280,7 +291,7 @@ class Attention(nn.Module):
           segment_pos,
           base_frequency=self.rope_base_frequency,
           scale_factor=self.rope_scale_factor,
-          rope_proportion=self.rope_proportion,
+          rope_proportion=self.rope_proportion,  # pyrefly: ignore[bad-argument-type]
       )
 
     # Cache is left aligned.
@@ -326,7 +337,7 @@ class Attention(nn.Module):
       logits = jnp.tanh(logits / self.attn_logits_soft_cap)
       logits = logits * self.attn_logits_soft_cap
 
-    if self.attn_type == AttentionType.LOCAL_SLIDING:
+    if self.attn_type == AttentionType.LOCAL_SLIDING and not skip_sliding_mask:
       if self.sliding_window_size is None:
         raise ValueError(
             'Sliding_window_size must be set if Local Sliding attention type'
@@ -587,6 +598,7 @@ class Block(nn.Module):
       attn_mask: jax.Array,
       per_layer_input: jax.Array | None = None,
       kv_shared_cache: LayerCache | None = None,
+      skip_sliding_mask: bool = False,
   ) -> tuple[LayerCache | None, jax.Array]:
     """Applies the block to the inputs.
 
@@ -598,6 +610,7 @@ class Block(nn.Module):
       per_layer_input: Per-layer input of shape [batch_size, seq_len,
         per_layer_input_dim].
       kv_shared_cache: Cache for shared KV layers.
+      skip_sliding_mask: If True, skip the sliding mask.
 
     Returns:
       cache: Updated attention KV cache.
@@ -612,6 +625,7 @@ class Block(nn.Module):
         cache,
         attn_mask,
         kv_shared_cache,
+        skip_sliding_mask=skip_sliding_mask,
     )
 
     if self.post_attention_norm is not None:
@@ -634,7 +648,7 @@ class Block(nn.Module):
           '...D,DP->...P', gating_input
       )
       per_layer_inputs_mapped = (
-          nn.gelu(per_layer_inputs_mapped) * per_layer_input
+          nn.gelu(per_layer_inputs_mapped) * per_layer_input  # pyrefly: ignore[unsupported-operation]
       )
       per_layer_inputs_mapped = self.per_layer_projection(
           '...P,PD->...D', per_layer_inputs_mapped
@@ -667,7 +681,7 @@ class Block(nn.Module):
 
     # MoE branch (mlp in checkpoint)
     moe_in = self.pre_ffw_norm(attn_output)
-    moe_out = self.mlp(moe_in)
+    moe_out = self.mlp(moe_in, unnormalized_x=attn_output)  # pytype: disable=wrong-keyword-args
     if self.post_ffw1_norm is not None:
       moe_out = self.post_ffw1_norm(moe_out)
 

@@ -55,7 +55,7 @@ class ToolSampler(_chat_sampler.ChatSampler):
       self,
       prompt: str | dialog.Conversation,
       *,
-      images: list[np.ndarray | Image.Image] | UInt8['N? H W C'] | None = None,
+      images: list[np.ndarray | Image.Image] | UInt8['N? H W C'] | None = None,  # pyrefly: ignore[not-a-type]
       audio: list[np.ndarray] | None = None,
       audio_lengths: list[int] | None = None,
       sampling: _sampling.SamplingMethod | None = None,
@@ -64,7 +64,7 @@ class ToolSampler(_chat_sampler.ChatSampler):
       multi_turn: bool | None = None,
       print_stream: bool | dialog.Stream | None = None,
       is_legacy_tool_answer: bool = False,
-      sharding: kd.sharding.ShardingTree | None = None,
+      sharding: kd.sharding.ShardingTree | None = None,  # pyrefly: ignore[not-a-type]
   ) -> str:
     """Sampler which supports tool use.
 

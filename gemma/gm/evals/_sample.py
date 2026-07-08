@@ -65,7 +65,7 @@ class SamplerEvaluator(kd.evals.EvaluatorBase):
   # Dataset parameters
   num_batches: Optional[int] = None
   cache: bool = False
-  ds: kd.data.Pipeline = config_util.ROOT_CFG_REF.eval_ds
+  ds: kd.data.Pipeline = config_util.ROOT_CFG_REF.eval_ds  # pyrefly: ignore[bad-assignment]
 
   model: nn.Module = config_util.ROOT_CFG_REF.model
 
@@ -111,7 +111,7 @@ class SamplerEvaluator(kd.evals.EvaluatorBase):
     aux = kd.train.Auxiliaries(
         losses=self.losses,
         metrics=self.metrics,
-        summaries=summaries | self.summaries,
+        summaries=summaries | self.summaries,  # pyrefly: ignore[unsupported-operation]
     )
     aux_state = kd.train.AuxiliariesState()
 
@@ -175,8 +175,8 @@ class SamplerEvaluator(kd.evals.EvaluatorBase):
   def _get_sampler(self, state: kd.train.TrainState):
     """Returns the sampler to use."""
     return _sampler.Sampler(
-        model=self.model,
-        params=state.params,
+        model=self.model,  # pyrefly: ignore[bad-argument-type]
+        params=state.params,  # pyrefly: ignore[bad-argument-type]
         tokenizer=self._task.tokenizer,
         cache_length=self.cache_length,
         pad_length=self.pad_length,

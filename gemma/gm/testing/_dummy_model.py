@@ -30,7 +30,7 @@ class DummyGemma(_transformer.Transformer):  # pylint: disable=invalid-name
       head_dim=128,
       final_logit_softcap=None,
       attention_types=(config_lib.AttentionType.GLOBAL,),
-      use_post_attn_norm=None,
+      use_post_attn_norm=None,  # pyrefly: ignore[bad-argument-type]
       attn_logits_soft_cap=None,
-      use_post_ffw_norm=None,
+      use_post_ffw_norm=None,  # pyrefly: ignore[bad-argument-type]
   )

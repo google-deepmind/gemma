@@ -27,7 +27,7 @@ class SamplingMethod(abc.ABC):
   """Base class for sampling methods."""
 
   @abc.abstractmethod
-  def get_next_tokens(self, logits: Float['*B V'], rng: PRNGKey) -> Int['*B']:
+  def get_next_tokens(self, logits: Float['*B V'], rng: PRNGKey) -> Int['*B']:  # pyrefly: ignore[not-a-type]
     """Returns the next tokens to generate.
 
     Args:
@@ -45,7 +45,7 @@ class Greedy(SamplingMethod):
   """Greedy sampling."""
 
   @typechecked
-  def get_next_tokens(self, logits: Float['*B V'], rng: PRNGKey) -> Int['*B']:
+  def get_next_tokens(self, logits: Float['*B V'], rng: PRNGKey) -> Int['*B']:  # pyrefly: ignore[not-a-type]
     del rng
     return jnp.argmax(logits, axis=-1)
 
@@ -57,7 +57,7 @@ class RandomSampling(SamplingMethod):
   temperature: float = 1.0
 
   @typechecked
-  def get_next_tokens(self, logits: Float['*B V'], rng: PRNGKey) -> Int['*B']:
+  def get_next_tokens(self, logits: Float['*B V'], rng: PRNGKey) -> Int['*B']:  # pyrefly: ignore[not-a-type]
     return jax.random.categorical(rng, logits / self.temperature, axis=-1)
 
 
@@ -69,7 +69,7 @@ class TopkSampling(SamplingMethod):
   k: int = 1
 
   @typechecked
-  def get_next_tokens(self, logits: Float['*B V'], rng: PRNGKey) -> Int['*B']:
+  def get_next_tokens(self, logits: Float['*B V'], rng: PRNGKey) -> Int['*B']:  # pyrefly: ignore[not-a-type]
     logits, batch_shape = enp.flatten(logits, '... V')
 
     batch_size = logits.shape[0]
@@ -90,7 +90,7 @@ class TopPSampling(SamplingMethod):
   temperature: float = 1.0
 
   @typechecked
-  def get_next_tokens(self, logits: Float['... V'], rng: PRNGKey) -> Int['...']:
+  def get_next_tokens(self, logits: Float['... V'], rng: PRNGKey) -> Int['...']:  # pyrefly: ignore[bad-index, not-a-type]
     # temperature scaling
     logits = logits / self.temperature
 

@@ -67,7 +67,7 @@ class SamplerOutput:
   state: _sampler_loop.SamplingState
 
   @property
-  def tokens(self) -> Int['B L'] | Int['L']:
+  def tokens(self) -> Int['B L'] | Int['L']:  # pyrefly: ignore[unknown-name]
     """Predicted tokens."""
     return self._maybe_unbatch(self.state.predicted_tokens)
 
@@ -76,7 +76,7 @@ class SamplerOutput:
   #   """Logits of the predicted tokens."""
   #   return self._maybe_unbatch(self.state.predicted_logits)
 
-  def _maybe_unbatch(self, x: Array['B *d']) -> Float['*d']:
+  def _maybe_unbatch(self, x: Array['B *d']) -> Float['*d']:  # pyrefly: ignore[not-a-type, unknown-name]
     if isinstance(self.text, str):
       (x,) = x
     return x
@@ -166,7 +166,7 @@ class Sampler:
 
   # Unbatched version (`str -> str`)
   @typing.overload
-  def sample(
+  def sample(  # pyrefly: ignore[inconsistent-overload-default]
       self,
       prompt: str | dialog.Conversation,
       *,
@@ -177,7 +177,7 @@ class Sampler:
       rng: PRNGKeyLike | None = ...,
       return_state: Literal[False] = ...,
       last_state: _sampler_loop.SamplingState | None = ...,
-      sharding: kd.sharding.ShardingTree | None = ...,
+      sharding: kd.sharding.ShardingTree | None = ...,  # pyrefly: ignore[not-a-type]
   ) -> str:
     ...
 
@@ -187,14 +187,14 @@ class Sampler:
       self,
       prompt: Sequence[str | dialog.Conversation],
       *,
-      images: Sequence[UInt8['N H W C']] | None = ...,
+      images: Sequence[UInt8['N H W C']] | None = ...,  # pyrefly: ignore[not-a-type]
       max_new_tokens: int | None = ...,
       stream: Literal[False] = ...,
       sampling: _sampling.SamplingMethod = ...,
       rng: PRNGKeyLike | None = ...,
       return_state: Literal[False] = ...,
       last_state: _sampler_loop.SamplingState | None = ...,
-      sharding: kd.sharding.ShardingTree | None = ...,
+      sharding: kd.sharding.ShardingTree | None = ...,  # pyrefly: ignore[not-a-type]
   ) -> list[str]:
     ...
 
@@ -212,7 +212,7 @@ class Sampler:
       rng: PRNGKeyLike | None = ...,
       return_state: Literal[True] = ...,
       last_state: _sampler_loop.SamplingState | None = ...,
-      sharding: kd.sharding.ShardingTree | None = ...,
+      sharding: kd.sharding.ShardingTree | None = ...,  # pyrefly: ignore[not-a-type]
   ) -> SamplerOutput:
     ...
 
@@ -358,14 +358,14 @@ class Sampler:
 
     if stream:
       return self._stream_decode_state(  # pytype: disable=bad-return-type
-          state,
+          state,  # pyrefly: ignore[bad-argument-type]
           return_state=return_state,
           has_batch_dim=has_batch_dim,
       )
     else:
       return self._decode_state(  # pytype: disable=bad-return-type
-          state,
-          predicted_tokens=state.predicted_tokens,
+          state,  # pyrefly: ignore[bad-argument-type]
+          predicted_tokens=state.predicted_tokens,  # pyrefly: ignore[missing-attribute]
           has_batch_dim=has_batch_dim,
           return_state=return_state,
       )
@@ -421,7 +421,7 @@ class Sampler:
       *,
       add_bos: bool,
       pad_length: int | None = None,
-  ) -> Float['B L']:
+  ) -> Float['B L']:  # pyrefly: ignore[not-a-type]
     """Encode the prompts."""
     prompt = _normalize_prompt(prompt, format=self.tokenizer.FORMAT)
     tokens = [self.tokenizer.encode(p, add_bos=add_bos) for p in prompt]
@@ -441,7 +441,7 @@ class Sampler:
   def _decode_state(
       self,
       state: _sampler_loop.SamplingState,
-      predicted_tokens: Int['B L'],
+      predicted_tokens: Int['B L'],  # pyrefly: ignore[not-a-type]
       *,
       has_batch_dim: bool,
       return_state: bool,
@@ -532,21 +532,21 @@ def _normalize_prompt(prompt: _Prompt, format: dialog.Format) -> list[str]:  # p
     prompt = prompt.tolist()
 
   if isinstance(prompt, str | dialog.Conversation):
-    prompt = [prompt]
+    prompt = [prompt]  # pyrefly: ignore[bad-assignment]
   else:
-    prompt = list(prompt)
+    prompt = list(prompt)  # pyrefly: ignore[bad-assignment]
 
   # Normalize the prompt to strings.
-  prompt = [
+  prompt = [  # pyrefly: ignore[bad-assignment]
       c.as_text(format=format) if isinstance(c, dialog.Conversation) else c
       for c in prompt
   ]
 
-  return prompt
+  return prompt  # pyrefly: ignore[bad-return]
 
 
 def _normalize_images(
-    images: Sequence[UInt8['N? H W C']] | UInt8['N? H W C'] | None = None,
+    images: Sequence[UInt8['N? H W C']] | UInt8['N? H W C'] | None = None,  # pyrefly: ignore[not-a-type]
     *,
     has_batch_dim: bool,
 ) -> UInt8['B N H W C'] | None:
@@ -588,7 +588,7 @@ def _normalize_rng(seed_or_rng: PRNGKeyLike | None) -> PRNGKey:
   if seed_or_rng is None:
     seed_or_rng = py_random.randint(0, 1000000000)
   if not isinstance(seed_or_rng, jax.Array):
-    seed_or_rng = jax.random.key(seed_or_rng)
+    seed_or_rng = jax.random.key(seed_or_rng)  # pyrefly: ignore[bad-argument-type]
   return seed_or_rng
 
 
@@ -602,7 +602,7 @@ def _max_across_hosts(x: int) -> int:
   """Returns the maximum value across all hosts."""
   if jax.process_count() == 1:
     return x
-  x = jnp.asarray([x] * jax.local_device_count())
+  x = jnp.asarray([x] * jax.local_device_count())  # pyrefly: ignore[bad-assignment]
   x = _max_across_hosts_pmap(x)
   return x[0]
 

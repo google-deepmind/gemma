@@ -50,11 +50,11 @@ class NpoLoss(kd.losses.Loss):
   def get_values(
       self,
       *,
-      tokens: Int['*B L 1'],
-      sequence_mask: Bool['*B L 1'],
-      policy_logits: Float['*B L V'],
-      anchor_logits: Float['*B L V'],
-  ) -> Float['*B 1']:
+      tokens: Int['*B L 1'],  # pyrefly: ignore[not-a-type]
+      sequence_mask: Bool['*B L 1'],  # pyrefly: ignore[not-a-type]
+      policy_logits: Float['*B L V'],  # pyrefly: ignore[not-a-type]
+      anchor_logits: Float['*B L V'],  # pyrefly: ignore[not-a-type]
+  ) -> Float['*B 1']:  # pyrefly: ignore[not-a-type]
     """Computes the NPO loss."""
 
     sequence_mask = jnp.squeeze(sequence_mask, axis=-1)
@@ -85,10 +85,10 @@ class NpoLoss(kd.losses.Loss):
 @typechecked
 def _get_logprobs_for_target(
     *,
-    logits: Float['*B L V'],
-    targets: Int['*B L'],
-    sequence_mask: Bool['*B L'],
-) -> Float['*B']:
+    logits: Float['*B L V'],  # pyrefly: ignore[not-a-type]
+    targets: Int['*B L'],  # pyrefly: ignore[not-a-type]
+    sequence_mask: Bool['*B L'],  # pyrefly: ignore[not-a-type]
+) -> Float['*B']:  # pyrefly: ignore[not-a-type]
   """Computes the per token xent given logits."""
   # We perform softmax in float32 to improve stability.
   logits = logits.astype(jnp.float32)
