@@ -97,3 +97,7 @@ The 2B checkpoint and 24GB+ RAM on GPU are used for the 7B checkpoint.
 We welcome contributions! Please read our [Contributing Guidelines](./CONTRIBUTING.md) before submitting a pull request.
 
 *This is not an official Google product.*
+
+---
+
+*[Mukller](https://github.com/Mukller)*
