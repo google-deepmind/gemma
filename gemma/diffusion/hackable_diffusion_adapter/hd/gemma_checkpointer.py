@@ -191,8 +191,10 @@ def cheaply_load_params(params_from_state, checkpoint_path: epath.PathLike):
   # Load into CPU memory to avoid OOM on device.
   with jax.default_device(jax.devices('cpu')[0]):
 
+    import numpy as np
+
     def _make_empty_cpu_array(spec):
-      return jnp.empty(spec.shape, spec.dtype, device=jax.devices('cpu')[0])
+      return np.empty(spec.shape, spec.dtype)
 
     ckpt = ocp.PyTreeCheckpointer()
     metadata = ckpt.metadata(checkpoint_path)
