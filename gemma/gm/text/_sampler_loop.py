@@ -90,7 +90,10 @@ class SamplingState:
     cache_length = self.full_attention_mask.shape[-1]
 
     # +1 because the current step can be self-attended too.
-    step_mask = jnp.arange(cache_length) < self.used_cache_length + 1
+    used_cache_len = self.used_cache_length
+    if used_cache_len.ndim > 0:
+      used_cache_len = used_cache_len[..., None]
+    step_mask = jnp.arange(cache_length) < used_cache_len + 1
     attention_mask = self.full_attention_mask * step_mask
     return attention_mask
 

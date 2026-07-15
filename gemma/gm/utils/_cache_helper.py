@@ -71,10 +71,10 @@ class Cache:
     return _CacheProxyAt(self)
 
   @property
-  def end_index(self) -> Int['']:  # pyrefly: ignore[not-a-type]
+  def end_index(self) -> Int['*B']:  # pyrefly: ignore[not-a-type]
     """End index of the cache."""
     layer_data = next(iter(self.cache.values()))
-    return layer_data['end_index'][0]
+    return layer_data['end_index']
 
   def set_end_index(self, value: int) -> Cache:
     """Set the end index of the cache."""
@@ -86,7 +86,7 @@ class Cache:
   def is_full(self) -> Bool['']:  # pyrefly: ignore[not-a-type]
     """Returns whether the cache is full."""
     # Maybe will lose the last token.
-    return self.end_index >= self.total_cache_length - 1
+    return jnp.any(self.end_index >= self.total_cache_length - 1)
 
 
 @dataclasses.dataclass(frozen=True)
