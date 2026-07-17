@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from unittest import mock
+import dialog
 from gemma import gm
 from gemma.gm.text import _sampler
 from gemma.gm.text import _sampler_loop
@@ -145,3 +146,103 @@ def test_chat_sampler_non_gemma4_dispatch():
     assert isinstance(output, str)
   # Verify sampler.sample was called (not gemma4_sampler.sample).
   mock_sample.assert_called_once()
+
+
+def test_chat_sampler_conversation_legacy_format():
+  """Tests that `conversation` parses turns stored in a legacy format.
+
+  Non-Gemma4 tokenizers (Gemma 2/3/3n) store turns formatted with the legacy
+  `<start_of_turn>` tags, while `dialog.Conversation` only parses the canonical
+  `<|turn>` tags. The `conversation` property must convert the stored text to
+  the canonical format before parsing.
+  """
+  model = gm.testing.DummyGemma()
+  params = model.init(
+      jax.random.PRNGKey(0),
+      jnp.zeros((5,), dtype=jnp.int32),
+  )
+  params = params['params']
+  tokenizer = gm.testing.DummyTokenizer()
+  assert tokenizer.FORMAT is not dialog.Format.GEMMA4  # Legacy format.
+  chat_sampler = gm.text.ChatSampler(
+      model=model,  # pyrefly: ignore[bad-argument-type]
+      params=params,
+      tokenizer=tokenizer,
+      cache_length=128,
+      max_out_length=128,
+  )
+
+  mock_sample = mock.MagicMock(
+      return_value=_sampler.SamplerOutput(
+          text='hi there<end_of_turn>',
+          state=mock.MagicMock(),
+      )
+  )
+  with mock.patch.object(
+      type(chat_sampler),
+      'sampler',
+      new_callable=lambda: property(
+          lambda self: mock.MagicMock(sample=mock_sample)
+      ),
+  ):
+    chat_sampler.chat('Hello world')
+
+  conv = chat_sampler.conversation
+  assert len(conv) == 2
+  assert isinstance(conv[0], dialog.User)
+  assert isinstance(conv[1], dialog.Model)
+  assert 'Hello world' in conv[0].as_text()
+  assert 'hi there' in conv[1].as_text()
+
+
+def test_tool_sampler_multi_turn_legacy_format():
+  """Tests `ToolSampler.chat` across turns with a legacy-format tokenizer.
+
+  `ToolSampler.chat` evaluates `self.conversation` on every call (including
+  the internal recursive call after a tool executes), so the property must
+  not fail once turns are stored (regression test).
+  """
+
+  class _NoOpToolHandler(gm.tools.ToolHandlerBase):
+
+    def _tools(self):
+      return []
+
+    def _call_tool(self, name, arguments):
+      return None
+
+  model = gm.testing.DummyGemma()
+  params = model.init(
+      jax.random.PRNGKey(0),
+      jnp.zeros((5,), dtype=jnp.int32),
+  )
+  params = params['params']
+  tokenizer = gm.testing.DummyTokenizer()
+  tool_sampler = gm.text.ToolSampler(
+      model=model,  # pyrefly: ignore[bad-argument-type]
+      params=params,
+      tokenizer=tokenizer,
+      tool_handler=_NoOpToolHandler(),
+      multi_turn=True,
+      cache_length=128,
+      max_out_length=128,
+  )
+
+  mock_sample = mock.MagicMock(
+      return_value=_sampler.SamplerOutput(
+          text='hi there<end_of_turn>',
+          state=mock.MagicMock(),
+      )
+  )
+  with mock.patch.object(
+      type(tool_sampler),
+      'sampler',
+      new_callable=lambda: property(
+          lambda self: mock.MagicMock(sample=mock_sample)
+      ),
+  ):
+    output = tool_sampler.chat('Hello world')
+    assert isinstance(output, str)
+    # Second turn reads `self.conversation` and must not fail.
+    output = tool_sampler.chat('How are you?')
+    assert isinstance(output, str)
