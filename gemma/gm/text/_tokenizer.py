@@ -80,6 +80,9 @@ class SpecialTokens(enum.IntEnum, metaclass=_DisplayEnumType):
   BEGIN_OF_TOOL_RESPONSE: ClassVar[int]  # '<begin_of_tool_response>'
   END_OF_TOOL_RESPONSE: ClassVar[int]  # '<end_of_tool_response>'
 
+  BEGIN_OF_THINKING_CHANNEL: ClassVar[int]  # '<|channel>' (start of thinking)
+  END_OF_THINKING_CHANNEL: ClassVar[int]  # '<channel|>' (end of thinking)
+
 
 class _Gemma2SpecialTokens(SpecialTokens, enum.IntEnum):
   """Special tokens ids."""
@@ -152,6 +155,13 @@ class _Gemma4SpecialTokens(SpecialTokens, enum.IntEnum):
   AUDIO_PLACEHOLDER = 258881  # <|audio|>
   START_OF_AUDIO = 256000  # <|audio> (BOA)
   END_OF_AUDIO = 258883  # <audio|> (EOA)
+
+  # Thinking channel tokens (Gemma4 only)
+  # <|channel> opens the thinking block, <channel|> closes it.
+  # These are multi-token sequences; the actual token IDs are determined
+  # by the tokenizer. We define the start tokens here for detection.
+  BEGIN_OF_THINKING_CHANNEL = 258884  # <|channel> (start of thinking)
+  END_OF_THINKING_CHANNEL = 258885  # <channel|> (end of thinking)
 
   # Tool tokens
   BEGIN_OF_TOOL_RESPONSE = 50
@@ -490,3 +500,4 @@ class Gemma4Tokenizer(Tokenizer):
 def _real_whitespaces(text: str) -> str:
   """Normalize whitespaces."""
   return text.replace(_WHITESPACE_CHAR, ' ')
+
