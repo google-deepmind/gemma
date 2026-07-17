@@ -52,6 +52,14 @@ class SamplingState:
     rng: Seed to use for sampling.
     init_cache_length: Length of the cache length in the pre-fill phase. Include
       the prompt, the MM tokens, and the previous turns.
+    thinking_tokens_remaining: Number of thinking tokens remaining before
+      forced exit from the thinking channel. -1 means no limit (thinking
+      budget disabled). When 0, the sampler will force-exit the thinking
+      block by adding the end-of-thinking-channel token to the stop set.
+    in_thinking_channel: Whether the model is currently inside a thinking
+      channel block. Updated each step based on channel marker detection.
+    prev_tokens_buffer: Buffer of the last N generated tokens for detecting
+      multi-token channel markers. Used for thinking channel detection.
   """
 
   step: Int['']  # pyrefly: ignore[not-a-type]
@@ -73,6 +81,13 @@ class SamplingState:
   # TODO(epot): Remove `init_cache_length` and only use `used_cache_length` ?
   init_cache_length: Int['']  # pyrefly: ignore[not-a-type]
   full_attention_mask: Bool['B cache_length']  # pyrefly: ignore[not-a-type]
+
+  # Thinking channel budget tracking.
+  thinking_tokens_remaining: Int[''] = -1  # pyrefly: ignore[not-a-type]
+  in_thinking_channel: Bool['B'] = None  # pyrefly: ignore[not-a-type]
+  # Buffer of last 8 tokens per batch element for multi-token marker detection.
+  # Shape: [B, 8], initialized to -1 (empty).
+  prev_tokens_buffer: Int['B 8'] = None  # pyrefly: ignore[not-a-type]
 
   @property
   def used_cache_length(self) -> Int['']:  # pyrefly: ignore[not-a-type]
@@ -117,6 +132,10 @@ class SamplerLoop:
   sampling: _sampling.SamplingMethod
   cache_length: int
   special_tokens: type[_tokenizer.SpecialTokens]
+  # Maximum number of tokens allowed inside a thinking channel block.
+  # When the budget is exhausted, the sampler forces an exit from the thinking
+  # block. Set to -1 to disable (no limit). Default: 8192 tokens.
+  max_thinking_tokens: int = -1
 
   # @functools.partial(
   #     jax.jit,
@@ -241,6 +260,26 @@ class SamplerLoop:
     if self.forbidden_tokens:  # Eventually filter out the forbidden tokens.
       logits = logits.at[:, self.forbidden_tokens].set(-jnp.inf)
 
+    # --- Thinking channel budget enforcement ---
+    # If thinking budget is exhausted, suppress tokens that would continue
+    # the thinking block. This forces the model to generate the closing
+    # channel marker or transition to normal output.
+    if (
+        self.max_thinking_tokens >= 0
+        and state.thinking_tokens_remaining is not None
+    ):
+      budget_exhausted = state.thinking_tokens_remaining <= 0
+      in_channel = (
+          state.in_thinking_channel is not None
+          and jnp.any(state.in_thinking_channel)
+      )
+      should_suppress = budget_exhausted & in_channel
+      if should_suppress:
+        # Suppress the thinking channel start token to prevent re-entering
+        # the thinking block. The model should now generate the end marker.
+        begin_channel = self.special_tokens.BEGIN_OF_THINKING_CHANNEL
+        logits = logits.at[:, begin_channel].set(-jnp.inf)
+
     # Sample next token.
     next_rng, curr_rng = jax.random.split(state.rng)
     next_token = self.sampling.get_next_tokens(logits, rng=curr_rng)
@@ -252,6 +291,53 @@ class SamplerLoop:
 
     # Check whether we have reached an end token.
     done = state.done | jnp.isin(next_token, jnp.asarray(self.end_tokens))
+
+    # --- Update thinking channel state ---
+    new_in_thinking_channel = state.in_thinking_channel
+    new_thinking_remaining = state.thinking_tokens_remaining
+    new_prev_buffer = state.prev_tokens_buffer
+
+    if (
+        self.max_thinking_tokens >= 0
+        and state.in_thinking_channel is not None
+    ):
+      # Update the sliding window buffer of previous tokens.
+      # Shift buffer left and append the new token (use first batch element
+      # for marker detection, as all batch elements share the same thinking
+      # state in practice).
+      new_prev_buffer = jnp.roll(state.prev_tokens_buffer, -1, axis=-1)
+      new_prev_buffer = new_prev_buffer.at[:, -1].set(next_token)
+
+      # Detect channel markers in the buffer.
+      begin_ch = self.special_tokens.BEGIN_OF_THINKING_CHANNEL
+      end_ch = self.special_tokens.END_OF_THINKING_CHANNEL
+
+      # Check if the buffer contains the start-of-thinking marker.
+      # The marker is a multi-token sequence; we detect it by checking if
+      # any position in the buffer matches the begin channel token.
+      # For simplicity, we use the single-token detection: if the current
+      # token IS the begin channel token, we enter thinking mode.
+      entered_thinking = jnp.isin(next_token, jnp.asarray([begin_ch]))
+      exited_thinking = jnp.isin(next_token, jnp.asarray([end_ch]))
+
+      # Update thinking state per batch element.
+      new_in_thinking_channel = jnp.where(
+          entered_thinking,
+          jnp.ones_like(state.in_thinking_channel),
+          jnp.where(
+              exited_thinking,
+              jnp.zeros_like(state.in_thinking_channel),
+              state.in_thinking_channel,
+          ),
+      )
+
+      # Decrement thinking budget when inside thinking channel.
+      is_thinking = new_in_thinking_channel & ~exited_thinking
+      new_thinking_remaining = jnp.where(
+          is_thinking,
+          jnp.maximum(state.thinking_tokens_remaining - 1, 0),
+          state.thinking_tokens_remaining,
+      )
 
     return SamplingState(
         step=state.step + 1,
@@ -266,6 +352,9 @@ class SamplerLoop:
         rng=next_rng,
         init_cache_length=state.init_cache_length,
         full_attention_mask=state.full_attention_mask,
+        thinking_tokens_remaining=new_thinking_remaining,
+        in_thinking_channel=new_in_thinking_channel,
+        prev_tokens_buffer=new_prev_buffer,
     )
 
 
@@ -295,3 +384,4 @@ def _mask_full_attention_mask_prefix_for_next_turn(
   mask = jnp.arange(cache_length)[None, ...] < length_pred[..., None]
   full_attention_mask = full_attention_mask * mask
   return full_attention_mask
+
