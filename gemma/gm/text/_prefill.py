@@ -84,6 +84,9 @@ def prefill(
     audio: Audio input data or None.
     audio_lengths: Lengths of audio inputs or None.
     audio_soft_token_counts: Soft token counts for audio or None.
+    max_thinking_tokens: Maximum number of tokens allowed inside the thinking
+      channel block (Gemma 4 only). When the budget is exhausted, the sampler
+      forces an exit from the thinking block. Set to -1 to disable (no limit).
 
   Returns:
     The initial state for the sampling loop.
