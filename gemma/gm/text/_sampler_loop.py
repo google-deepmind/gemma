@@ -274,11 +274,16 @@ class SamplerLoop:
           and jnp.any(state.in_thinking_channel)
       )
       should_suppress = budget_exhausted & in_channel
-      if should_suppress:
-        # Suppress the thinking channel start token to prevent re-entering
-        # the thinking block. The model should now generate the end marker.
-        begin_channel = self.special_tokens.BEGIN_OF_THINKING_CHANNEL
-        logits = logits.at[:, begin_channel].set(-jnp.inf)
+      # Suppress the thinking channel start token to prevent re-entering
+      # the thinking block. The model should now generate the end marker.
+      # Note: must use jnp.where (not Python if) because should_suppress
+      # is a JAX tracer and _sample_step is jit-compiled.
+      begin_channel = self.special_tokens.BEGIN_OF_THINKING_CHANNEL
+      logits = jnp.where(
+          should_suppress,
+          logits.at[:, begin_channel].set(-jnp.inf),
+          logits,
+      )
 
     # Sample next token.
     next_rng, curr_rng = jax.random.split(state.rng)
