@@ -29,9 +29,6 @@ from __future__ import annotations
 
 import dataclasses
 import warnings
-from typing import Sequence
-
-import jax.numpy as jnp
 
 
 # Recommended maximum system prompt length in tokens.
@@ -195,73 +192,6 @@ class MultiTurnConfig:
           'context_priority_decay must be between 0.0 and 1.0, '
           f'got {self.context_priority_decay}'
       )
-
-
-def truncate_system_prompt(
-    tokens: list[int],
-    max_tokens: int,
-    strategy: str = 'head_tail',
-) -> list[int]:
-  """Truncate a system prompt to fit within a token budget.
-
-  Args:
-    tokens: The system prompt token IDs.
-    max_tokens: Maximum number of tokens to keep.
-    strategy: Truncation strategy ('head_tail' or 'head_only').
-
-  Returns:
-    Truncated token list.
-  """
-  if len(tokens) <= max_tokens:
-    return tokens
-
-  if strategy == 'head_only':
-    return tokens[:max_tokens]
-  elif strategy == 'head_tail':
-    # Keep first 60% and last 40% of the budget
-    head_size = int(max_tokens * 0.6)
-    tail_size = max_tokens - head_size
-    return tokens[:head_size] + tokens[-tail_size:]
-  else:
-    raise ValueError(f'Unknown truncation strategy: {strategy!r}')
-
-
-def compute_turn_priority_weights(
-    num_turns: int,
-    system_prompt_length: int,
-    decay: float = 0.3,
-) -> list[float]:
-  """Compute attention priority weights for multi-turn conversations.
-
-  Later turns get higher priority, with the system prompt getting the
-  highest priority. The decay parameter controls how quickly older turns
-  lose priority.
-
-  Args:
-    num_turns: Number of conversation turns (excluding system prompt).
-    system_prompt_length: Length of the system prompt in tokens.
-    decay: Priority decay rate (0.0 = no decay, 1.0 = linear).
-
-  Returns:
-    List of priority weights, one per turn + system prompt.
-  """
-  weights = []
-
-  # System prompt always gets the highest weight.
-  weights.append(1.0 + decay)
-
-  # Earlier turns get lower priority, later turns get higher priority.
-  for i in range(num_turns):
-    # Normalize turn index to [0, 1]
-    if num_turns > 1:
-      normalized_idx = i / (num_turns - 1)
-    else:
-      normalized_idx = 1.0
-    # Apply decay: later turns get higher weight
-    weight = 1.0 + decay * normalized_idx
-    weights.append(weight)
-
-  return weights
 
 
 def should_refresh_context(
