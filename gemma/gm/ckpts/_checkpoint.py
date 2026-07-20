@@ -31,6 +31,7 @@ from gemma.gm.ckpts import _compat
 from gemma.gm.ckpts import _quantization
 from gemma.gm.typing._common import Params  # pylint: disable=g-importing-member
 import jax
+import jax.numpy as jnp
 from kauldron import kd
 import numpy as np
 from orbax import checkpoint as ocp
@@ -165,7 +166,7 @@ class _CheckpointTree:
       target_params = _nested_to_flat(ckpt_params)
     elif self.type == _CheckpointType.KAULDRON:
       target_params = etree.copy(metadata.tree)
-      target_params['params'] = ckpt_params  # pyrefly: ignore[unsupported-operation]
+      target_params['params'] = ckpt_params
     elif self.type == _CheckpointType.STACKED:
       target_params = _nested_to_stacked(
           ckpt_params, _compat.get_attention_pattern_len(self.tree)
@@ -173,7 +174,7 @@ class _CheckpointTree:
     else:
       raise ValueError(f'Unsupported checkpoint structure: {self.type}')
 
-    return target_params  # pyrefly: ignore[bad-return]
+    return target_params
 
   @functools.cached_property
   def has_mm_params(self) -> bool:
@@ -216,9 +217,10 @@ def load_params(
     params: Params | None = None,
     donate: bool = True,
     text_only: bool = False,
-    sharding: kd.sharding.ShardingTree | None = None,  # pyrefly: ignore[not-a-type]
+    sharding: kd.sharding.ShardingTree | None = None,
     quantize: bool = False,
     restore_concurrent_gb: int | None = None,
+    dtype: jnp.dtype | None = None,
 ) -> Params:
   """Restore the params from a checkpoint.
 
@@ -235,8 +237,10 @@ def load_params(
     quantize: If `True`, the params will be mapped to enable quantization aware
       training.
     restore_concurrent_gb: Max concurrent GB allowed to be restored.
+    dtype: The data type to restore the params as.
 
   Returns:
+
     The restored params.
   """
   if sharding is not None and params is not None:
@@ -258,12 +262,23 @@ def load_params(
     # checkpoint structure, so orbax restore as bfloat16 jax.Array, rather than
     # numpy arrays.
     # Params are always restored as NESTED
-    params = metadata.as_nested(remove_mm=text_only and metadata.has_mm_params)  # pyrefly: ignore[bad-assignment]
+    params = metadata.as_nested(remove_mm=text_only and metadata.has_mm_params)
+    if dtype is not None:
+      params = _CheckpointTree(
+          tree=jax.tree.map(
+              lambda x: jax.ShapeDtypeStruct(
+                  shape=x.shape,
+                  dtype=dtype,
+                  sharding=getattr(x, 'sharding', None),
+              ),
+              params.tree,
+          )
+      )
     if sharding is not None:
       params = kd.sharding.with_sharding_constraint(params, sharding)
   else:
     # If params explicitly provided, use that
-    params = _CheckpointTree(tree=params)  # pyrefly: ignore[bad-assignment]
+    params = _CheckpointTree(tree=params)
     if params.type != _CheckpointType.NESTED:
       raise ValueError(
           'The input params provided to `load_params()` should be the raw'
@@ -285,7 +300,7 @@ def load_params(
   # Restore the params
   # To supports different checkpoint structures, the original params have to
   # be remapped into the checkpoint structure.
-  output_with_skip = metadata.make_tree_for_params(params)  # pyrefly: ignore[bad-argument-type]
+  output_with_skip = metadata.make_tree_for_params(params)
   restore_fn = functools.partial(ckpt.restore, path)
   output = _partial_restore(restore_fn, output_with_skip)
 
@@ -342,14 +357,14 @@ def load_params(
 
 def _stacked_to_nested(params: Params) -> Params:
   """Reformat the params from STACKED to NESTED."""
-  params = etree.copy(params)  # pyrefly: ignore[bad-assignment]
+  params = etree.copy(params)
   params = _compat.unstack_params(params)
   return _flat_to_nested(params)
 
 
 def _flat_to_nested(params: Params) -> Params:
   """Reformat the params from FLAT to NESTED."""
-  params = etree.copy(params)  # pyrefly: ignore[bad-assignment]
+  params = etree.copy(params)
   # Split the params for the MM and the transformer.
   transformer_params = {
       k: v for k, v in params.items() if k.startswith('transformer/')
@@ -377,16 +392,16 @@ def _nested_to_stacked(params: Params, attn_pattern_len: int) -> Params:
 
 def _nested_to_flat(params: Params) -> Params:
   """Reformat the params from NESTED to FLAT."""
-  params = etree.copy(params)  # Copy to allow mutating the tree.  # pyrefly: ignore[bad-assignment]
+  params = etree.copy(params)  # Copy to allow mutating the tree.
 
-  mm_params = params.pop('vision_encoder', {})  # pyrefly: ignore[missing-attribute]
+  mm_params = params.pop('vision_encoder', {})
   if mm_params:
     mm_params = _nested_to_flat_single(mm_params, name='SigLiPFromPatches_0')
 
   transformer_params = _nested_to_flat_single(params, name='transformer')
 
   # TODO(epot): Reshape the MM params too.
-  return transformer_params | mm_params  # pyrefly: ignore[unsupported-operation]
+  return transformer_params | mm_params
 
 
 def _nested_to_flat_single(params: Params, *, name: str) -> Params:
@@ -412,26 +427,26 @@ def _remove_mm_params(params):
 
   # Vision params
   if 'vision_encoder' in params:
-    del params['vision_encoder']  # pyrefly: ignore[unsupported-operation]
+    del params['vision_encoder']
   for k in ('mm_input_projection', 'mm_soft_embedding_norm',
             'mm_pre_projection_norm', 'mm_input_embedding_extra'):
     if k in params.get('embedder', {}):
-      del params['embedder'][k]  # pyrefly: ignore[bad-index, unsupported-operation]
+      del params['embedder'][k]
 
   # Audio params (Gemma4)
   if 'audio_encoder' in params:
-    del params['audio_encoder']  # pyrefly: ignore[unsupported-operation]
+    del params['audio_encoder']
   for k in ('audio_input_projection', 'audio_soft_embedding_norm',
             'audio_input_embedding', 'audio_input_embedding_extra'):
     if k in params.get('embedder', {}):
-      del params['embedder'][k]  # pyrefly: ignore[bad-index, unsupported-operation]
+      del params['embedder'][k]
 
   return params
 
 
 def _add_skip_mm_params(params: Params, metadata: _CheckpointTree) -> Params:
   """Add skip MM params to restore."""
-  params = etree.copy(params)  # pyrefly: ignore[bad-assignment]
+  params = etree.copy(params)
   params_with_mm = metadata.nested_tree
 
   # Known top-level multimodal encoder keys.
@@ -452,7 +467,7 @@ def _add_skip_mm_params(params: Params, metadata: _CheckpointTree) -> Params:
 
   for k in mm_top_level_keys:
     if k in params_with_mm and k not in params:
-      params[k] = params_with_mm[k]  # pyrefly: ignore[unsupported-operation]
+      params[k] = params_with_mm[k]
 
   embedder_mm = params_with_mm.get('embedder', {})
   for k in mm_embedder_keys:

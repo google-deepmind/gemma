@@ -43,7 +43,7 @@ class Einsum(nn.Module):
       if 'w' in w:
         w = w['w']
     if self.w_scale is not None:
-      w *= self.w_scale
+      w *= jnp.array(self.w_scale, dtype=w.dtype)
     return jnp.einsum(eqn, x, w)
 
 
@@ -68,7 +68,7 @@ class ClippedEinsum(nn.Module):
       if 'w' in w:
         w = w['w']
     if self.w_scale is not None:
-      w *= self.w_scale
+      w *= jnp.array(self.w_scale, dtype=w.dtype)
 
     inf = float('inf')
     clip_input_min = self.param(
@@ -99,9 +99,7 @@ class RMSNorm(nn.Module):
   def __call__(self, x):
     var = jnp.mean(jnp.square(x), axis=-1, keepdims=True)
 
-    # Jax.lax.rsqrt is used because it returns different floats than
-    # jnp.reciprocal(jnp.sqrt(var + 1e-06))
-    normed_inputs = x * jax.lax.rsqrt(var + 1e-06)
+    normed_inputs = x * jax.lax.rsqrt(var + jnp.array(1e-06, dtype=var.dtype))
 
     if self.with_scale:
       scale = self.param(
