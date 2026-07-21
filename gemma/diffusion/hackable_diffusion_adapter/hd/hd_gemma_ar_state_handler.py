@@ -36,7 +36,7 @@ PAD_TOKEN = 0
 Tokens = Int["*B L"]
 Conditioning = hd_typing.Conditioning
 DataArray = hd_typing.DataArray
-DiffusionStepTree = hd.sampling.DiffusionStepTree
+DiffusionStepTree = hd_typing.PyTree[hd.sampling.DiffusionStep]
 
 
 ################################################################################
