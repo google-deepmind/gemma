@@ -36,7 +36,7 @@ PAD_TOKEN = 0
 Tokens = Int["*B L"]
 Conditioning = hd_typing.Conditioning
 DataArray = hd_typing.DataArray
-DiffusionStepTree = hd.sampling.DiffusionStepTree
+DiffusionStep = hd.sampling.DiffusionStep
 
 
 ################################################################################
@@ -50,7 +50,7 @@ class PropagateSelfConditioningFn(hd.sampling.UpdateConditioningFn):
   def __call__(
       self,
       conditioning: Conditioning,
-      step_carry: DiffusionStepTree,
+      step_carry: DiffusionStep,
   ) -> Conditioning:
     """Update conditioning based on the current diffusion step.
 
@@ -275,7 +275,7 @@ class GemmaARStateHandler(ar_diffusion_sampler.ARStateHandler):
 
   def update_ar_state(
       self,
-      canvas_last_step: DiffusionStepTree,
+      canvas_last_step: DiffusionStep,
       sampler_state: ar_diffusion_sampler.SamplerState,
   ) -> ar_diffusion_sampler.SamplerState:
     """Post-processes a sampled canvas and updates the sampler state.
