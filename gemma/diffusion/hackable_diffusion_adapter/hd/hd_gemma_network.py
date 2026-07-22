@@ -30,9 +30,9 @@ import jax.numpy as jnp
 ################################################################################
 
 Conditioning = hd_typing.Conditioning
-DataTree = hd_typing.DataTree
-TimeTree = hd_typing.TimeTree
-TargetInfoTree = hd_typing.TargetInfoTree
+DataArray = hd_typing.DataArray
+TimeArray = hd_typing.TimeArray
+TargetInfo = hd_typing.TargetInfo
 
 
 DiffusionNetwork = diffusion_network.DiffusionNetwork
@@ -154,9 +154,9 @@ class WrappedDiffusionGemmaNetwork(nn.Module):
   def encoder_call(
       self,
       *,
-      x: DataTree,
+      x: DataArray,
       conditioning_embeddings: dict[str, Any],
-  ) -> DataTree:
+  ) -> DataArray:
     """Calls the Gemma encoder.
 
     Args:
@@ -187,11 +187,11 @@ class WrappedDiffusionGemmaNetwork(nn.Module):
   def __call__(
       self,
       *,
-      time: TimeTree,
-      xt: DataTree,
+      time: TimeArray,
+      xt: DataArray,
       conditioning: Conditioning | None,
       is_training: bool = True,
-  ) -> TargetInfoTree:
+  ) -> TargetInfo:
     """Runs the diffusion denoiser forward pass.
 
     Args:
