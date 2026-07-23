@@ -35,7 +35,7 @@ TimeTree = hd_typing.TimeTree
 TargetInfoTree = hd_typing.TargetInfoTree
 
 
-BaseDiffusionNetwork = diffusion_network.BaseDiffusionNetwork
+DiffusionNetwork = diffusion_network.DiffusionNetwork
 
 DiffusionGemmaModel = gemma_diffusion.DiffusionGemma_26B_A4B
 
@@ -112,8 +112,8 @@ def prefill_kv_cache_with_encoder(
 ################################################################################
 
 
-class WrappedDiffusionGemmaNetwork(nn.Module, BaseDiffusionNetwork):
-  """Wraps a Diffusion Gemma model as an HD ``BaseDiffusionNetwork``.
+class WrappedDiffusionGemmaNetwork(nn.Module):
+  """Wraps a Diffusion Gemma model as an HD ``DiffusionNetwork``.
 
   The wrapper handles the hackable diffusion interfaces and Gemma specifics. For
   self conditioning, it uses `call_with_self_conditioning` function from Gemma.
