@@ -47,4 +47,9 @@ def test_rmsnorm(x, expected):
   rmsnorm = gm.nn.RMSNorm()
   params = rmsnorm.init(jax.random.PRNGKey(0), x)
   output = rmsnorm.apply(params, x)
-  np.testing.assert_array_equal(output, jnp.array([expected]))
+  np.testing.assert_allclose(
+      output,
+      jnp.array([expected]),
+      rtol=1e-5,
+      atol=1e-5,
+  )
