@@ -122,6 +122,11 @@ class Sampler:
       you have a task where the model generates really long outputs.
     pad_length: If provided, pad the prompt to this length. This ensure the
       prompt is always the same length, to avoid jit re-compilation.
+    max_thinking_tokens: Maximum number of tokens allowed inside the thinking
+      channel block. When the budget is exhausted, the sampler forces an exit
+      from the thinking block by suppressing the thinking channel start token.
+      Set to -1 to disable (no limit). Default: -1 (disabled). Recommended
+      values: 4096-8192 for typical use cases.
   """
   # pylint: enable=g-docstring-quotes
 
@@ -137,6 +142,7 @@ class Sampler:
   cache_length: int = 4096
   max_out_length: int = 2048
   pad_length: None | int | tuple[int, ...] = (256, 512, 1024)
+  max_thinking_tokens: int = -1
 
   def __post_init__(self):
     # If not provided, initialize the tokenizer.
@@ -328,6 +334,7 @@ class Sampler:
         # the output buffer. However in the sampling loop, users can choose
         # to only decode a subset by setting a smaller `max_new_tokens`.
         max_out_length=self.max_out_length,
+        max_thinking_tokens=self.max_thinking_tokens,
     )
 
     # Max out length is static, while max_new_tokens is dynamic.
@@ -385,6 +392,7 @@ class Sampler:
         sampling=sampling,
         cache_length=self.cache_length,
         special_tokens=self.tokenizer.special_tokens,
+        max_thinking_tokens=self.max_thinking_tokens,
     )
 
   def _get_inputs(
@@ -610,3 +618,4 @@ def _max_across_hosts(x: int) -> int:
 @functools.partial(jax.pmap, axis_name='i')
 def _max_across_hosts_pmap(x: jax.Array) -> jax.Array:
   return jax.lax.pmax(x, 'i')
+

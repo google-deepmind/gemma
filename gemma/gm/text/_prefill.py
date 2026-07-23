@@ -63,6 +63,7 @@ def prefill(
     audio=None,
     audio_lengths=None,
     audio_soft_token_counts=None,
+    max_thinking_tokens: int = -1,
 ) -> _sampler_loop.SamplingState:
   """Pre-fill the KV cache and initial model input.
 
@@ -83,6 +84,9 @@ def prefill(
     audio: Audio input data or None.
     audio_lengths: Lengths of audio inputs or None.
     audio_soft_token_counts: Soft token counts for audio or None.
+    max_thinking_tokens: Maximum number of tokens allowed inside the thinking
+      channel block (Gemma 4 only). When the budget is exhausted, the sampler
+      forces an exit from the thinking block. Set to -1 to disable (no limit).
 
   Returns:
     The initial state for the sampling loop.
@@ -236,6 +240,7 @@ def prefill(
       prev_turns=prev_turns,
       cache=cache,
       rng=rng,
+      max_thinking_tokens=max_thinking_tokens,
   )
 
 
@@ -247,6 +252,7 @@ def _make_init_state(
     prev_turns: _turn_utils.PrevTurns,
     cache: _cache_helper.Cache,
     rng: PRNGKey,
+    max_thinking_tokens: int = -1,
 ) -> _sampler_loop.SamplingState:
   """Initial state for the sampling loop."""
 
@@ -259,6 +265,17 @@ def _make_init_state(
       prev_turns=prev_turns,
       cache_length=cache.total_cache_length,
   )
+
+  # Initialize thinking channel state.
+  batch_size = input.batch_size
+  if max_thinking_tokens >= 0:
+    thinking_tokens_remaining = jnp.asarray(max_thinking_tokens, dtype=jnp.int32)
+    in_thinking_channel = jnp.zeros((batch_size,), dtype=jnp.bool_)
+    prev_tokens_buffer = jnp.full((batch_size, 8), -1, dtype=jnp.int32)
+  else:
+    thinking_tokens_remaining = jnp.asarray(-1, dtype=jnp.int32)
+    in_thinking_channel = None
+    prev_tokens_buffer = None
 
   return _sampler_loop.SamplingState(
       step=jnp.asarray(0),
@@ -280,6 +297,9 @@ def _make_init_state(
       rng=rng,
       full_attention_mask=full_attention_mask,
       init_cache_length=jnp.asarray(new_used_cache_length),
+      thinking_tokens_remaining=thinking_tokens_remaining,
+      in_thinking_channel=in_thinking_channel,
+      prev_tokens_buffer=prev_tokens_buffer,
   )
 
 
@@ -428,3 +448,4 @@ def _make_full_attention_mask(
 
 def _dtype(params: _common.Params) -> jnp.dtype:
   return jax.tree.leaves(params)[0].dtype
+

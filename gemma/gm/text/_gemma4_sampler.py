@@ -63,6 +63,9 @@ class Gemma4Sampler:
     pooling_kernel_size: Pooling kernel size.
     audio_sample_rate: Audio sample rate in Hz.
     audio_seq_length: Maximum audio sequence length.
+    max_thinking_tokens: Maximum number of tokens allowed inside the thinking
+      channel block. When the budget is exhausted, the sampler forces an exit
+      from the thinking block. Set to -1 to disable (no limit).
   """
 
   model: _transformer_like.TransformerLike
@@ -81,6 +84,7 @@ class Gemma4Sampler:
   pooling_kernel_size: int = 3
   audio_sample_rate: int = 16000
   audio_seq_length: int = 750
+  max_thinking_tokens: int = -1
 
   def __post_init__(self):
     if self.tokenizer is None:
@@ -217,6 +221,7 @@ class Gemma4Sampler:
         audio=audio,
         audio_lengths=audio_lengths,
         audio_soft_token_counts=tuple(audio_soft_token_counts),
+        max_thinking_tokens=self.max_thinking_tokens,
     )
 
     if max_new_tokens and max_new_tokens > self.max_out_length:
@@ -239,6 +244,7 @@ class Gemma4Sampler:
         sampling=sampling,
         cache_length=self.cache_length,
         special_tokens=self.tokenizer.special_tokens,
+        max_thinking_tokens=self.max_thinking_tokens,
     )
 
     state = sampler.sample(
@@ -311,3 +317,4 @@ class Gemma4Sampler:
       return ()
     else:
       return tuple(_sampler._normalize_token(self.tokenizer, t) for t in tokens)  # pylint: disable=protected-access
+
