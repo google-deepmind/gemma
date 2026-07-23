@@ -59,6 +59,7 @@ def prefill(
     pad_length: None | int | tuple[int, ...] = None,
     rng: PRNGKey,
     sharding: kd.sharding.ShardingTree | None,  # pyrefly: ignore[not-a-type]
+    top_k_logits: int = 0,
     vision_input=None,
     audio=None,
     audio_lengths=None,
@@ -236,6 +237,7 @@ def prefill(
       prev_turns=prev_turns,
       cache=cache,
       rng=rng,
+      top_k_logits=top_k_logits,
   )
 
 
@@ -247,6 +249,7 @@ def _make_init_state(
     prev_turns: _turn_utils.PrevTurns,
     cache: _cache_helper.Cache,
     rng: PRNGKey,
+    top_k_logits: int = 0,
 ) -> _sampler_loop.SamplingState:
   """Initial state for the sampling loop."""
 
@@ -272,10 +275,12 @@ def _make_init_state(
       predicted_tokens=jnp.zeros(
           (input.batch_size, max_out_length), dtype=jnp.int32
       ),
-      # predicted_logits=jnp.zeros(
-      #     (batch_size, self.max_out_length, out.logits.shape[-1]),
-      #     dtype=jnp.float32,
-      # ),
+      predicted_top_logits=jnp.zeros(
+          (input.batch_size, max_out_length, top_k_logits), dtype=jnp.float32
+      ) if top_k_logits > 0 else None,
+      predicted_top_indices=jnp.zeros(
+          (input.batch_size, max_out_length, top_k_logits), dtype=jnp.int32
+      ) if top_k_logits > 0 else None,
       cache=cache.cache,
       rng=rng,
       full_attention_mask=full_attention_mask,
