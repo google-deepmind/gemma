@@ -25,3 +25,27 @@ def test_pickle():
   tokenizer.encode('Hello world!')  # Trigger the lazy-loading of the tokenizer.
 
   pickle.dumps(tokenizer)
+
+
+def test_gemma4_tokenizer_forbids_multimodal_placeholder_tokens():
+  """Regression test for https://github.com/google-deepmind/gemma/issues/613.
+
+  Gemma 4 introduced distinct token ids for image and audio multimodal
+  placeholders. The tokenizer must mark all six as forbidden so the sampler
+  cannot generate raw placeholder tokens during text-only inference (which
+  would corrupt the output).
+  """
+  forbidden = gm.text.Gemma4Tokenizer.FORBIDDEN_TOKENS
+  st = gm.text.Gemma4Tokenizer.special_tokens
+  for token in (
+      st.IMAGE_PLACEHOLDER,
+      st.START_OF_IMAGE,
+      st.END_OF_IMAGE,
+      st.AUDIO_PLACEHOLDER,
+      st.START_OF_AUDIO,
+      st.END_OF_AUDIO,
+  ):
+    assert token in forbidden, (
+        f'Token {token!r} ({st(token).name}) must be in Gemma4Tokenizer'
+        f'.FORBIDDEN_TOKENS, but FORBIDDEN_TOKENS is {forbidden!r}'
+    )
