@@ -46,10 +46,10 @@ class SFTInferenceFn(inference.InferenceFn):
 
   def __call__(
       self,
-      time: hd_typing.TimeTree,
-      xt: hd_typing.DataTree,
+      time: hd_typing.TimeArray,
+      xt: hd_typing.DataArray,
       conditioning: hd_typing.Conditioning | None,
-  ) -> hd_typing.TargetInfoTree:
+  ) -> hd_typing.TargetInfo:
     """Evaluates the denoiser backbone at the given diffusion time and state.
 
     Args:
@@ -90,8 +90,8 @@ class SFTInferenceFn(inference.InferenceFn):
 def sft_decode(
     gemma_network: Any,
     *,
-    xt: hd_typing.DataTree,
-    time: hd_typing.TimeTree,
+    xt: hd_typing.DataArray,
+    time: hd_typing.TimeArray,
     kv_cache: Any,
     positions: jnp.ndarray,
     prompt_mask: jnp.ndarray,
