@@ -24,7 +24,6 @@ LoRA).
 """
 
 from absl.testing import absltest
-
 import flax.linen as nn
 from gemma.diffusion import _models
 from gemma.diffusion import _transformer as diffusion_transformer
@@ -34,7 +33,6 @@ from gemma.diffusion.hackable_diffusion_adapter.hd import sft_model
 from gemma.gm.nn.gemma4 import _config
 from gemma.gm.nn.gemma4 import _modules
 from hackable_diffusion.lib.corruption import discrete
-from hackable_diffusion.lib.corruption import schedules
 from hackable_diffusion.lib.training import time_sampling
 import jax
 import jax.numpy as jnp
@@ -232,7 +230,7 @@ def _make_sft_diffusion(
   """Create an SFTDiffusion module with a tiny Gemma model."""
   corruption_process = discrete.CategoricalProcess.uniform_process(
       num_categories=num_embed,
-      schedule=schedules.RFSchedule(),
+      schedule=discrete.LinearDiscreteSchedule(),
   )
   ts = time_sampling.UniformTimeSampler()
   gemma_network = _make_gemma_network()

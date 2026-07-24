@@ -418,7 +418,7 @@ class SFTDiffusion(nn.Module):
     )
 
     # Get noise info
-    noise_info = self.corruption_process.get_schedule_info(time)
+    noise_info = self.corruption_process.schedule.evaluate(time)
 
     return {
         'output': converted,

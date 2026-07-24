@@ -72,7 +72,7 @@ def get_config(args: ConfigArgs = ConfigArgs()):
 
   cfg.aux.corruption_process = hd.corruption.CategoricalProcess.uniform_process(
       num_categories=cfg.ref.aux.vocab_size,
-      schedule=hd.corruption.RFSchedule(),
+      schedule=hd.corruption.LinearDiscreteSchedule(),
   )
   cfg.aux.prompt_len = 1024
   cfg.aux.num_canvases = 2
