@@ -160,8 +160,8 @@ def _get_new_text_tokens(
 
 
 def _get_new_text_tokens_inner(
-    mm_start: Bool['B L'],  # pyrefly: ignore[not-a-type]
-    text_tokens: Int['B L'],  # pyrefly: ignore[not-a-type]
+    mm_start: Bool['L'],  # pyrefly: ignore[not-a-type, unknown-name]
+    text_tokens: Int['L'],  # pyrefly: ignore[not-a-type, unknown-name]
     offset_by: int,
     length_with_mm: int,
 ) -> Int['L']:  # pyrefly: ignore[not-a-type, unknown-name]
