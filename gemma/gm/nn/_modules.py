@@ -77,7 +77,7 @@ class Embedder(nn.Module):
     # * `mm_soft_embedding_norm` and `mm_input_projection`: Those weights
     #   serve to project the soft tokens from the image encoder into the
     #   embedding space of the text encoder. Those tokens are then merged with
-    #   the text tokens inside `Transformer._include_vision_embeddings`.
+    #   the text tokens inside `Transformer._merge_mm_embeddings`.
     if self.vision_proj_dim:
       self.mm_soft_embedding_norm = _layers.RMSNorm()
       self.mm_input_projection = _layers.Einsum(
