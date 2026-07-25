@@ -35,7 +35,7 @@ class PrevTurns:
 
   @property
   def last_token_pos(self) -> Int['#B']:  # pyrefly: ignore[not-a-type]
-    """Offset of the last predicated token position."""
+    """Offset of the last predicted token position."""
     if self.last_state is None:
       return jnp.zeros((1,), dtype=jnp.int32)
     else:
