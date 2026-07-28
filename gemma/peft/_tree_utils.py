@@ -16,9 +16,14 @@
 
 from __future__ import annotations
 
+import itertools
 from typing import Any, NamedTuple
 
+import jax
+import jax.numpy as jnp
+
 _ParamsDict = dict[str, Any]
+_WEIGHT_KEYS = ('kernel', 'w')
 
 
 class SplittedParams(NamedTuple):
@@ -137,9 +142,122 @@ def merge_params(original: _ParamsDict, lora: _ParamsDict) -> _ParamsDict:
   return _merge_recursive(original, lora)
 
 
-def fuse_params():
-  raise NotImplementedError()
+def fuse_params(params: _ParamsDict) -> _ParamsDict:
+  """Fuse LoRA adapters into the base weight tensors.
+
+  For every subtree that contains both a base weight (`kernel` or `w`) and a
+  `lora` branch with `a` / `b`, this replaces the weight with
+  `weight + lora_delta(a, b)`.
+
+  The `lora` adapters are left in the tree so `unfuse_params` can reverse the
+  operation. After fusing, callers that want LoRA-free inference can drop the
+  adapters with `split_params` and load the fused weights into a non-LoRA model.
+
+  This mirrors the usual LoRA merge semantics:
+
+  * Dense: `kernel += a @ b`
+  * Einsum / DenseGeneral (no batch dims): contract `a` and `b` over the rank
+    axis, then permute if needed so the result matches the weight layout.
+
+  LoRA DenseGeneral layers with non-empty `batch_dims` are not supported
+  because those adapters are not shared with a single base kernel.
+
+  Args:
+    params: Nested parameter tree, typically containing LoRA adapters.
+
+  Returns:
+    A new parameter tree with LoRA deltas folded into the base weights.
+  """
+  return _map_lora_fusion(params, sign=1)
 
 
-def unfuse_params():
-  raise NotImplementedError()
+def unfuse_params(params: _ParamsDict) -> _ParamsDict:
+  """Inverse of `fuse_params`.
+
+  Subtracts the LoRA delta from each fused base weight. Requires the `lora`
+  adapters (`a`, `b`) to still be present in the tree (as left by
+  `fuse_params`).
+
+  Args:
+    params: Nested parameter tree previously returned by `fuse_params`.
+
+  Returns:
+    A new parameter tree with LoRA deltas removed from the base weights.
+  """
+  return _map_lora_fusion(params, sign=-1)
+
+
+def _map_lora_fusion(params: _ParamsDict, *, sign: int) -> _ParamsDict:
+  """Recursively apply `weight += sign * lora_delta` for every LoRA node."""
+
+  def _recurse(node: Any) -> Any:
+    if not isinstance(node, dict):
+      return node
+
+    new_node = {key: _recurse(value) for key, value in node.items()}
+    lora = new_node.get('lora')
+    if not isinstance(lora, dict) or 'a' not in lora or 'b' not in lora:
+      return new_node
+
+    weight_key = _find_weight_key(new_node)
+    if weight_key is None:
+      return new_node
+
+    delta = _lora_weight_delta(lora['a'], lora['b'], new_node[weight_key])
+    new_node[weight_key] = new_node[weight_key] + sign * delta
+    return new_node
+
+  return _recurse(params)
+
+
+def _find_weight_key(node: _ParamsDict) -> str | None:
+  for key in _WEIGHT_KEYS:
+    value = node.get(key)
+    if _is_array(value):
+      return key
+  return None
+
+
+def _is_array(value: Any) -> bool:
+  return isinstance(value, (jax.Array, jnp.ndarray)) or (
+      hasattr(value, 'shape')
+      and hasattr(value, 'dtype')
+      and hasattr(value, '__array__')
+  )
+
+
+def _lora_weight_delta(a: Any, b: Any, weight: Any) -> jax.Array:
+  """Materialize the LoRA update with the same shape as `weight`."""
+  a = jnp.asarray(a)
+  b = jnp.asarray(b)
+  weight = jnp.asarray(weight)
+
+  if a.shape[-1] != b.shape[0]:
+    raise ValueError(
+        'Unsupported LoRA layout for fusion: expected `b` to start with the '
+        f'rank dimension matching `a.shape[-1]` (got a.shape={a.shape}, '
+        f'b.shape={b.shape}). LoRA DenseGeneral with non-empty batch_dims is '
+        'not supported by fuse_params/unfuse_params.'
+    )
+
+  delta = jnp.tensordot(a, b, axes=([-1], [0]))
+  if delta.shape == weight.shape:
+    return delta
+
+  if sorted(delta.shape) != sorted(weight.shape):
+    raise ValueError(
+        'LoRA delta shape is incompatible with the base weight: '
+        f'delta.shape={delta.shape}, weight.shape={weight.shape}, '
+        f'a.shape={a.shape}, b.shape={b.shape}.'
+    )
+
+  # Einsum LoRA factors are built as (reduced_dims + rank) / (rank + out_dims)
+  # in weight-letter order, which can differ from the original weight layout.
+  for perm in itertools.permutations(range(delta.ndim)):
+    if tuple(delta.shape[i] for i in perm) == weight.shape:
+      return jnp.transpose(delta, perm)
+
+  raise ValueError(
+      'Could not permute LoRA delta to match the base weight layout: '
+      f'delta.shape={delta.shape}, weight.shape={weight.shape}.'
+  )
