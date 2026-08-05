@@ -162,6 +162,11 @@ class ChatSampler:
     return getattr(self.model, 'INFO', None) is not None and (
         self.model.INFO.tokenizer_version == 4
     )
+  
+  def resize_cache(self, new_cache_length:int):
+    object.__setattr__(self, 'cache_length', new_cache_length)
+    #reinitialization of the sampler
+    object.__setattr__(self, 'sampler', self.sampler)
 
   @functools.cached_property
   def _inner_sampler(self) -> _sampler.Sampler | _gemma4_sampler.Gemma4Sampler:
