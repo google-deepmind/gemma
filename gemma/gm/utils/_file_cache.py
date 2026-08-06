@@ -28,12 +28,24 @@ def maybe_get_from_cache(
     remote_file_path: epath.PathLike,
     cache_subdir: str,
 ) -> epath.Path:
-  """Returns the cached file if exists, otherwise returns the remote file path."""
-  filename = epath.Path(remote_file_path).name
+  """Returns the cached file if exists, otherwise downloads it and returns local path."""
+  remote_path_str = str(remote_file_path)
+  filename = epath.Path(remote_path_str).name
 
-  cache_filepath = _get_cache_dir() / cache_subdir / filename
+  cache_dir = _get_cache_dir() / cache_subdir
+  cache_filepath = cache_dir / filename
   if cache_filepath.exists():
     return cache_filepath
+    
+  if remote_path_str.startswith('gs://'):
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    http_url = remote_path_str.replace('gs://', 'https://storage.googleapis.com/')
+    print(f"Downloading {filename} to {cache_filepath}...")
+    
+    import urllib.request
+    urllib.request.urlretrieve(http_url, str(cache_filepath))
+    return cache_filepath
+
   return epath.Path(remote_file_path)
 
 
