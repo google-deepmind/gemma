@@ -73,10 +73,15 @@ def factorized_posemb(
   pos_oh = jnp.where(nan, jnp.nan, one_hot)
   # Compute the XY position embedding for each valid position
   # Note: jnp.einsum() will preserve the NaNs
-  pe_seq = jnp.einsum('blis,sid->ibld', pos_oh, posemb).astype(posemb.dtype)
-  # Sum over the XY-index axis to get the final embeddings
-  # Note: jnp.sum() will return NaNs if either the X or Y coordinate is invalid
-  return jnp.sum(pe_seq, axis=0)
+  pos_oh_0 = pos_oh[:, :, 0, :]
+  posemb_0 = posemb[:, 0, :]
+  out_0 = jnp.matmul(pos_oh_0, posemb_0)
+
+  pos_oh_1 = pos_oh[:, :, 1, :]
+  posemb_1 = posemb[:, 1, :]
+  out_1 = jnp.matmul(pos_oh_1, posemb_1)
+
+  return (out_0 + out_1).astype(posemb.dtype)
 
 
 @typechecked
