@@ -71,15 +71,15 @@ def quantize(
 ) -> PyTree:
   """Quantizes the given params.
 
-  In ths API, we convert the elements of params in order to actually get
-  quantized values. It is currently limited to INT$ per-channel weight
+  In this API, we convert the elements of params in order to actually get
+  quantized values. It is currently limited to INT4/INT8 per-channel weight
   quantization.
 
   Args:
     params: The params to quantize.
     method: The quantization method to use.
     checkpoint_kernel_key: The key of the kernel in the checkpoint (in
-      pre-trained checkpoitns that is 'w').
+      pre-trained checkpoints that is 'w').
     in_place_keys: Whether to quantize the keys in place.
 
   Returns:
@@ -146,7 +146,7 @@ def quantize(
       data = quantize_leaf(data, checkpoint_kernel_key)
     # This hack is required because the FeedForward layer call two different
     # Einsum with using `nn.share_scope`, so the two wrappers need a different
-    # name. Weights are not stored under any kernel key and are isntead under
+    # name. Weights are not stored under any kernel key and are instead under
     # the following names.
     if 'gating_einsum' in data or 'linear' in data:
       data = quantize_leaf(data, 'gating_einsum')
