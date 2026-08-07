@@ -319,6 +319,53 @@ def test_attention_with_gqa():
   assert output.shape == expected_output_shape
 
 
+def test_attention_cache_uses_per_batch_end_index():
+  """KV writes must honor each batch row's `end_index`, not only row 0."""
+  batch_size = 2
+  num_heads = 2
+  head_dim = 4
+  features = 8
+  cache_size = 8
+  seq_len = 1
+  query_pre_attn_scalar = head_dim**-0.5
+
+  attn = _modules.Attention(
+      num_heads=num_heads,
+      num_kv_heads=num_heads,
+      features=features,
+      head_dim=head_dim,
+      attn_type=_ATTN_TYPE,
+      query_pre_attn_scalar=query_pre_attn_scalar,
+  )
+
+  rng = jax.random.PRNGKey(0)
+  x = jax.random.normal(rng, (batch_size, seq_len, features))
+  segment_pos = jnp.array([[5], [2]], dtype=jnp.int32)
+  cache = _modules.Attention.init_cache(
+      cache_size=cache_size,
+      num_heads=num_heads,
+      head_dim=head_dim,
+      batch_size=batch_size,
+      dtype=jnp.float32,
+  )
+  cache['end_index'] = jnp.array([1, 4], dtype=jnp.int32)
+  cache['v'] = cache['v'] + jnp.arange(cache_size)[None, :, None, None]
+  cache['k'] = cache['k'] + jnp.arange(cache_size)[None, :, None, None]
+  attn_mask = jnp.ones((batch_size, seq_len, cache_size))
+
+  params = attn.init(rng, x, segment_pos, cache, attn_mask)
+  new_cache, _ = attn.apply(params, x, segment_pos, cache, attn_mask)
+
+  assert new_cache['end_index'].tolist() == [2, 5]
+  np.testing.assert_array_equal(new_cache['positions'][0, 1], segment_pos[0, 0])
+  np.testing.assert_array_equal(new_cache['positions'][1, 4], segment_pos[1, 0])
+  np.testing.assert_allclose(new_cache['v'][0, 0], cache['v'][0, 0])
+  np.testing.assert_allclose(new_cache['v'][1, 1], cache['v'][1, 1])
+  assert not jnp.allclose(new_cache['v'][0, 1], cache['v'][0, 1])
+  assert not jnp.allclose(new_cache['v'][1, 4], cache['v'][1, 4])
+  np.testing.assert_allclose(new_cache['v'][1, 1], cache['v'][1, 1])
+
+
 def test_sliding_window():
   num_heads = 2
   head_dim = 4
