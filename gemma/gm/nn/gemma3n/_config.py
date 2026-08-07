@@ -84,7 +84,7 @@ def create_kv_cache_sharing_patterns(  # pylint: disable=invalid-name
 
 
 class QueryPreAttentionNormalisation(enum.Enum):
-  """Initialization strategy."""
+  """Query pre-attention scaling strategy."""
 
   # Apply no scaling.
   NONE = enum.auto()
