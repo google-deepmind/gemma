@@ -30,7 +30,6 @@ class NpoLoss(kd.losses.Loss):
 
   Attributes:
     tau: The temperature of the loss.
-    label_smoothing: The label smoothing to apply to the loss.
     tokens: The key to the tokens to predict.
     sequence_mask: The key to the sequence mask.
     policy_logits: The key to the policy logits.
