@@ -685,7 +685,7 @@ def _make_global_attention_mask(
 
   if num_valid_tokens is None:
     raise ValueError(
-        'num_valid_samples must be provided if cache_length is set.'
+        'num_valid_tokens must be provided if cache_length is set.'
     )
 
   total_valid = jnp.minimum(num_valid_tokens + canvas_length, cache_length)
