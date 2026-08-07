@@ -389,7 +389,7 @@ class MoERagged(nn.Module):
         the router applies only its own router_norm (avoiding a double norm).
 
     Returns:
-      Output of the MoE module.
+      Output of the MoERagged module.
     """
     if unnormalized_x is None:
       unnormalized_x = x
