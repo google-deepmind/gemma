@@ -404,7 +404,7 @@ class SFTDiffusion(nn.Module):
         jax.random.uniform(self.make_rng('sampling'), shape=(batch_size,))
         < self.self_cond_prob
     )
-    # Reshape to broadcast with x0_hat_logits (Batch, ..., Channels)
+    # Reshape to broadcast with sc_logits (Batch, ..., Channels)
     do_self_cond = do_self_cond.reshape(
         (batch_size,) + (1,) * (sc_logits.ndim - 1)
     )
