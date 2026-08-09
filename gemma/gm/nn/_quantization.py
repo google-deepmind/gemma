@@ -87,25 +87,32 @@ class IntWrapper(nn.Module):
 
   Attributes:
     model: The model to wrap.
+    dtype: The integer dtype to use for quantization (default: jnp.int4).
+    exclude_scopes: List of scope name patterns to exclude from quantization.
+      By default, excludes 'vision_encoder' to keep vision models in full
+      precision while quantizing the text model.
   """
 
   _: dataclasses.KW_ONLY
 
   model: nn.Module
   dtype: jnp.dtype = jnp.int4
+  exclude_scopes: tuple[str, ...] = ('vision_encoder',)
 
   def __post_init__(self):
     super().__post_init__()
     # Share scope, to make the wrapper module transparent with respect to the
     # parameters (instead of nesting `{'params': model_params}}` rather than
-    # `{'params': {'model': model_params}}`).
+    # `{'params': {'model': model_params}}`)`.
     if self.scope is not None:
       nn.share_scope(self, self.model)
 
   @nn.compact
   def __call__(self, *args, **kwargs):
     """Calls the model."""
-    replace_module_fn = functools.partial(_replace_by_int, dtype=self.dtype)
+    replace_module_fn = functools.partial(
+        _replace_by_int, dtype=self.dtype, exclude_scopes=self.exclude_scopes
+    )
     with peft.ModuleInterceptor(replace_module_fn):
       return self.model(*args, **kwargs)
 
@@ -149,7 +156,29 @@ def _replace_by_simulated_quantization(
       return module
 
 
-def _replace_by_int(module: nn.Module, dtype: jnp.dtype):
+def _replace_by_int(
+    module: nn.Module, dtype: jnp.dtype, exclude_scopes: tuple[str, ...] = ()
+):
+  """Replace module with quantized version, respecting scope exclusions.
+
+  Args:
+    module: The module to potentially replace.
+    dtype: The integer dtype to use for quantization.
+    exclude_scopes: Tuple of scope name patterns to exclude from quantization.
+      If the module's scope path contains any of these patterns, the module
+      is returned unchanged.
+
+  Returns:
+    Either the quantized version of the module or the original module if
+    excluded.
+  """
+  # Check if this module should be excluded based on its scope
+  if hasattr(module, 'scope') and module.scope is not None:
+    scope_path = module.scope.path_text
+    for exclude_pattern in exclude_scopes:
+      if exclude_pattern in scope_path:
+        return module
+
   match module:
     case nn.Dense():
       return peft.IntDense(wrapped=module, dtype=dtype)
