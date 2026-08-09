@@ -42,6 +42,7 @@ with epy.lazy_imports():
 
 
 _WHITESPACE_CHAR = '▁'  # Note this is NOT a undescore (▁ != _)
+_ESCAPE_CHAR = '\uE000'  # Private Use Area character for escaping special tokens
 
 
 class _DisplayEnumType(enum.EnumType):
@@ -213,6 +214,12 @@ class Tokenizer:
     else:
       raise ValueError(f'Unsupported tokenizer version: {version}')
 
+  def escape(self, text: str) -> str:
+    """Escapes special sequences in the text so they are tokenized as text."""
+    text = text.replace('<', f'<{_ESCAPE_CHAR}')
+    text = text.replace('[', f'[{_ESCAPE_CHAR}')
+    return text
+
   def encode(
       self,
       text: str | list[str],
@@ -242,7 +249,13 @@ class Tokenizer:
     if isinstance(text, str):
       if self.FORMAT_TO_CONVERT:
         text = self.FORMAT_TO_CONVERT.from_gemma4(text)
-      token_ids = self._sp.EncodeAsIds(text)
+      if _ESCAPE_CHAR in text:
+        token_ids = []
+        for part in text.split(_ESCAPE_CHAR):
+          if part:
+            token_ids.extend(self._sp.EncodeAsIds(part))
+      else:
+        token_ids = self._sp.EncodeAsIds(text)
     else:
       text = [t.replace(' ', _WHITESPACE_CHAR) for t in text]
       if self.FORMAT_TO_CONVERT:
