@@ -136,6 +136,11 @@ class ChatSampler:
   audio_seq_length: int = 750
 
   # Internal variables, but exposed for power users.
+  
+  # History of images and audio to allow re-prefilling when pruning context.
+  history_images: list[typing.Any] = dataclasses.field(default_factory=list)
+  history_audio: list[typing.Any] = dataclasses.field(default_factory=list)
+  history_audio_lengths: list[typing.Any] = dataclasses.field(default_factory=list)
 
   # Last state of the sampler.
   last_state: _sampler_loop.SamplingState = dataclasses.field(  # pytype: disable=annotation-type-mismatch
@@ -330,10 +335,21 @@ class ChatSampler:
       multi_turn = self.multi_turn
     stream = self.initialize_stream(print_stream)
 
+    if stream:
+      stream = self.initialize_stream(print_stream)
+
     if not multi_turn:
       # Non-multi-turn, erase the previous conversations.
       object.__setattr__(self, 'last_state', None)
       object.__setattr__(self, 'turns', [])
+      object.__setattr__(self, 'history_images', [])
+      object.__setattr__(self, 'history_audio', [])
+      object.__setattr__(self, 'history_audio_lengths', [])
+
+    # Save media for the current turn so we can re-prefill later if needed.
+    self.history_images.append(images)
+    self.history_audio.append(audio)
+    self.history_audio_lengths.append(audio_lengths)
 
     # --- Unified prompt formatting via `dialog` library ---
     if isinstance(prompt, str):
@@ -376,6 +392,77 @@ class ChatSampler:
         format=self.tokenizer.FORMAT,
         add_tool_response_tag_after_call=not is_legacy_tool_answer,
     )
+
+    # --- Context Pruning / Rolling KV Cache ---
+    # Check if we need to prune the cache.
+    new_tokens_len = len(self.tokenizer.encode(prompt_text, add_bos=last_state is None))
+    used_cache = last_state.used_cache_length if last_state is not None else 0
+    # Reserve tokens for output generation
+    reserve_length = max_new_tokens if max_new_tokens is not None else self.max_out_length
+    
+    if self.cache_length is not None and (used_cache + new_tokens_len + reserve_length > self.cache_length):
+      # Prune the oldest turns (excluding the system prompt if present)
+      # We pop in pairs: User + Model.
+      while len(self.turns) >= 2 and (used_cache + new_tokens_len + reserve_length > self.cache_length):
+        # Determine index of the first conversational turn (skip System prompt).
+        first_turn_idx = 0
+        if self.turns and isinstance(self.turns[0], _template.System):
+          first_turn_idx = 1
+        
+        if len(self.turns) <= first_turn_idx + 1:
+          break # Cannot prune further
+        
+        self.turns.pop(first_turn_idx)     # Pop user turn
+        self.turns.pop(first_turn_idx)     # Pop model response
+        
+        # Pop corresponding media. (Turn index roughly corresponds to history indices,
+        # but history is appended per user-call. One user call = 1 user prompt + 1 model response.)
+        history_idx = first_turn_idx // 2
+        if len(self.history_images) > history_idx:
+          self.history_images.pop(history_idx)
+        if len(self.history_audio) > history_idx:
+          self.history_audio.pop(history_idx)
+        if len(self.history_audio_lengths) > history_idx:
+          self.history_audio_lengths.pop(history_idx)
+          
+        # Re-estimate used_cache by counting remaining tokens from scratch
+        full_conversation = dialog.Conversation(''.join(t.text for t in self.turns))
+        re_prompt_text = full_conversation.as_text(format=self.tokenizer.FORMAT, add_tool_response_tag_after_call=False)
+        used_cache = len(self.tokenizer.encode(re_prompt_text, add_bos=True))
+
+      # Since we pruned the past, we must re-prefill from scratch.
+      last_state = None
+      object.__setattr__(self, 'last_state', None)
+      
+      # Rebuild the prompt text to include the pruned past.
+      full_conversation = dialog.Conversation(''.join(t.text for t in self.turns))
+      past_text = full_conversation.as_text(format=self.tokenizer.FORMAT, add_tool_response_tag_after_call=False)
+      prompt_text = past_text + prompt_text
+      
+      # Combine remaining history media for the re-prefill
+      all_images = []
+      for imgs in self.history_images:
+        if imgs is not None:
+          if isinstance(imgs, list):
+             all_images.extend(imgs)
+          else:
+             # Need to concatenate batched tensors or keep in list depending on input format.
+             # ChatSampler expects a list or a single tensor.
+             # For simplicity, if they aren't lists, we just pass the new ones.
+             # We assume users pass lists of images if they use multi-turn multimodal.
+             all_images.append(imgs)
+      images = all_images if all_images else None
+      
+      # Audio similarly
+      all_audio = []
+      all_audio_lengths = []
+      for a, al in zip(self.history_audio, self.history_audio_lengths):
+        if a is not None:
+          all_audio.extend(a)
+        if al is not None:
+          all_audio_lengths.extend(al)
+      audio = all_audio if all_audio else None
+      audio_lengths = all_audio_lengths if all_audio_lengths else None
 
     # --- Dispatch to the correct sampler ---
     out = self._sample(
