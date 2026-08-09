@@ -122,6 +122,7 @@ class Sampler:
       you have a task where the model generates really long outputs.
     pad_length: If provided, pad the prompt to this length. This ensure the
       prompt is always the same length, to avoid jit re-compilation.
+    top_k_logits: Number of top logits to retain and extract. Defaults to 0 (disabled).
   """
   # pylint: enable=g-docstring-quotes
 
@@ -137,6 +138,7 @@ class Sampler:
   cache_length: int = 4096
   max_out_length: int = 2048
   pad_length: None | int | tuple[int, ...] = (256, 512, 1024)
+  top_k_logits: int = 0
 
   def __post_init__(self):
     # If not provided, initialize the tokenizer.
@@ -328,6 +330,7 @@ class Sampler:
         # the output buffer. However in the sampling loop, users can choose
         # to only decode a subset by setting a smaller `max_new_tokens`.
         max_out_length=self.max_out_length,
+        top_k_logits=self.top_k_logits,
     )
 
     # Max out length is static, while max_new_tokens is dynamic.
@@ -385,6 +388,7 @@ class Sampler:
         sampling=sampling,
         cache_length=self.cache_length,
         special_tokens=self.tokenizer.special_tokens,
+        top_k_logits=self.top_k_logits,
     )
 
   def _get_inputs(
