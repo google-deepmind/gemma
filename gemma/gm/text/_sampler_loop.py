@@ -117,6 +117,11 @@ class SamplerLoop:
   sampling: _sampling.SamplingMethod
   cache_length: int
   special_tokens: type[_tokenizer.SpecialTokens]
+  # Immediately reduce logits to top-k after each forward pass to cut VRAM
+  # usage (issue #675).  Set to 0 (default) to keep the full vocabulary
+  # logits, which is required when ``forbidden_tokens`` covers tokens beyond
+  # the top-k range.
+  top_k_logits: int = 0
 
   # @functools.partial(
   #     jax.jit,
@@ -240,6 +245,16 @@ class SamplerLoop:
     logits = einops.rearrange(logits, 'B 1 V -> B V')
     if self.forbidden_tokens:  # Eventually filter out the forbidden tokens.
       logits = logits.at[:, self.forbidden_tokens].set(-jnp.inf)
+
+    # --- Issue #675 fix: discard most of the vocab tensor immediately. ---
+    # Keeping `predicted_logits` (B, max_out_length, V) for the full
+    # 256k-token vocabulary causes massive VRAM spikes.  By masking all but
+    # the top-k values to -inf *before* sampling we achieve the same
+    # distribution while only retaining O(k) values per step.
+    if self.top_k_logits > 0:
+      # Find the threshold: the k-th largest logit per batch element.
+      topk_vals = jnp.sort(logits, axis=-1)[:, -self.top_k_logits][..., None]
+      logits = jnp.where(logits >= topk_vals, logits, -jnp.inf)
 
     # Sample next token.
     next_rng, curr_rng = jax.random.split(state.rng)
