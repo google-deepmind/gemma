@@ -37,11 +37,10 @@ class Einsum(nn.Module):
         self.dtype if self.dtype is not None else None,
     )
     # Workaround for behavior with nn.share_scope in parent modules:
-    # self.param might return a dict {'w': tensor} instead of the bare tensor.
-    # The key appears to be the default class weight_name 'w'.
-    if isinstance(w, dict):
-      if 'w' in w:
-        w = w['w']
+    # self.param might return a dict {self.weight_name: tensor} instead of the
+    # bare tensor.
+    if isinstance(w, dict) and self.weight_name in w:
+      w = w[self.weight_name]
     if self.w_scale is not None:
       w *= self.w_scale
     return jnp.einsum(eqn, x, w)
@@ -64,9 +63,8 @@ class ClippedEinsum(nn.Module):
         self.shape,
         self.dtype if self.dtype is not None else None,
     )
-    if isinstance(w, dict):
-      if 'w' in w:
-        w = w['w']
+    if isinstance(w, dict) and self.weight_name in w:
+      w = w[self.weight_name]
     if self.w_scale is not None:
       w *= self.w_scale
 
