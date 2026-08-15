@@ -31,6 +31,7 @@ from kauldron import kd
 import optax
 
 from gemma.diffusion.hackable_diffusion_adapter import checkpointed_evaluator as _checkpointed_evaluator  # pylint: disable=line-too-long
+
 CheckpointedEvaluator = _checkpointed_evaluator.CheckpointedEvaluator
 
 
@@ -101,6 +102,7 @@ def sft_decode(
     total_canvas_len: int,
     canvas_size: int,
     sc_logits: jnp.ndarray | None = None,
+    sc_mask: jnp.ndarray | None = None,
     is_training: bool = True,
 ) -> hd_typing.TargetInfoTree:
   """Runs the SFT decoder pass: denoise canvases using the prefilled KV cache.
@@ -121,6 +123,8 @@ def sft_decode(
     total_canvas_len: Total canvas length.
     canvas_size: Number of tokens per canvas.
     sc_logits: Optional self-conditioning logits.
+    sc_mask: Optional broadcastable mask selecting examples that use
+      self-conditioning.
     is_training: Whether we are in training mode.
 
   Returns:
@@ -147,6 +151,8 @@ def sft_decode(
   }
   if sc_logits is not None:
     conditioning['sc_logits'] = sc_logits
+  if sc_mask is not None:
+    conditioning['sc_mask'] = sc_mask
 
   return gemma_network(
       xt=xt,
@@ -396,7 +402,6 @@ class SFTDiffusion(nn.Module):
 
     converted_first_pass = jax.lax.stop_gradient(converted_first_pass)
     sc_logits = converted_first_pass['logits']
-    zero_logits = jnp.zeros_like(sc_logits)
 
     # With probability self_cond_prob, run self-conditioning element-wise.
     batch_size = xt.shape[0]
@@ -404,13 +409,12 @@ class SFTDiffusion(nn.Module):
         jax.random.uniform(self.make_rng('sampling'), shape=(batch_size,))
         < self.self_cond_prob
     )
-    # Reshape to broadcast with x0_hat_logits (Batch, ..., Channels)
-    do_self_cond = do_self_cond.reshape(
-        (batch_size,) + (1,) * (sc_logits.ndim - 1)
+    # Apply the mask after logits are converted to embeddings so disabled
+    # examples receive an exact-zero self-conditioning signal.
+    sc_mask = do_self_cond.reshape((batch_size,) + (1,) * (sc_logits.ndim - 1))
+    denoiser_output = sft_decode(
+        **decoder_kwargs, sc_logits=sc_logits, sc_mask=sc_mask
     )
-    sc_logits = jnp.where(do_self_cond, sc_logits, zero_logits)
-
-    denoiser_output = sft_decode(**decoder_kwargs, sc_logits=sc_logits)
 
     # Convert predictions (computes loss-ready dict)
     converted = self.corruption_process.convert_predictions(

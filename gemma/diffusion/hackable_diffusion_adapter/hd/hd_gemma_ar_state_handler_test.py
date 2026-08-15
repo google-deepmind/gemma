@@ -743,10 +743,21 @@ class PropagateSelfConditioningFnTest(absltest.TestCase):
     conditioning = {"other": 1}
     step_carry = mock.MagicMock()
     step_carry.aux = {"logits": jnp.array([1, 2])}
+    step_carry.step_info.step = jnp.array(1)
 
     res = fn(conditioning, step_carry)
     self.assertEqual(res["sc_logits"].tolist(), [1, 2])
+    self.assertTrue(bool(res["sc_mask"]))
     self.assertEqual(res["other"], 1)
+
+  def test_call_disables_self_conditioning_on_first_step(self):
+    fn = hd_gemma_ar_state_handler.PropagateSelfConditioningFn()
+    step_carry = mock.MagicMock()
+    step_carry.aux = {"logits": jnp.zeros((1, 2, 3))}
+    step_carry.step_info.step = jnp.array(0)
+
+    res = fn({}, step_carry)
+    self.assertFalse(bool(res["sc_mask"]))
 
 
 class GemmaARStateHandlerTest(absltest.TestCase):
