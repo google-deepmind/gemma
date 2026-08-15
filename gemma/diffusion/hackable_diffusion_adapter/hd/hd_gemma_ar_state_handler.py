@@ -62,6 +62,8 @@ class PropagateSelfConditioningFn(hd.sampling.UpdateConditioningFn):
       The updated conditioning dict.
     """
     conditioning["sc_logits"] = step_carry.aux["logits"]
+    # Step 0 carries placeholder zero logits, not a previous prediction.
+    conditioning["sc_mask"] = step_carry.step_info.step > 0
     return conditioning
 
 
