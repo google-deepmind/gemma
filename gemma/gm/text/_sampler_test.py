@@ -14,6 +14,7 @@
 
 from unittest import mock
 from gemma import gm
+from gemma.gm.text import _gemma4_sampler
 from gemma.gm.text import _sampler
 from gemma.gm.text import _sampler_loop
 import jax
@@ -145,3 +146,45 @@ def test_chat_sampler_non_gemma4_dispatch():
     assert isinstance(output, str)
   # Verify sampler.sample was called (not gemma4_sampler.sample).
   mock_sample.assert_called_once()
+
+
+def test_gemma4_sampler_cache_full_warning():
+  """Gemma4Sampler should warn when the KV cache is full after sampling.
+
+  Reproduces the parity gap with Sampler._decode_state(): Sampler has
+  always emitted this warning; Gemma4Sampler was missing it, causing
+  silently truncated responses when cache_length is exceeded.
+  """
+  model = gm.testing.DummyGemma()
+  params = model.init(
+      jax.random.PRNGKey(0),
+      jnp.zeros((5,), dtype=jnp.int32),
+  )
+  params = params['params']
+  tokenizer = gm.testing.DummyTokenizer()
+  sampler = _gemma4_sampler.Gemma4Sampler(
+      model=model,  # pyrefly: ignore[bad-argument-type]
+      params=params,
+      tokenizer=tokenizer,
+      cache_length=128,
+      max_out_length=32,
+  )
+
+  # Build a mock SamplingState where the cache ran full during generation.
+  mock_state = mock.MagicMock()
+  mock_state.predicted_tokens = jnp.zeros((1, 32), dtype=jnp.int32)
+  mock_state.cache_info.is_full.item.return_value = True
+
+  with (
+      mock.patch.object(
+          _sampler_loop.SamplerLoop,
+          'sample',
+          return_value=mock_state,
+      ),
+      mock.patch('kauldron.utils.status.log') as mock_log,
+  ):
+    sampler.sample('hello', last_state=None)
+
+  # The warning must have been emitted exactly once and mention cache_length.
+  mock_log.assert_called_once()
+  assert 'cache_length' in mock_log.call_args[0][0].lower()
