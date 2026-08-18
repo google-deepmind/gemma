@@ -27,6 +27,7 @@ from typing import Any, TypeVar
 from etils import epath
 from etils.etree import jax as etree  # pylint: disable=g-importing-member
 import flax
+import flax.core
 from gemma.gm.ckpts import _compat
 from gemma.gm.ckpts import _quantization
 from gemma.gm.typing._common import Params  # pylint: disable=g-importing-member
@@ -342,14 +343,14 @@ def load_params(
 
 def _stacked_to_nested(params: Params) -> Params:
   """Reformat the params from STACKED to NESTED."""
-  params = etree.copy(params)  # pyrefly: ignore[bad-assignment]
+  params = flax.core.unfreeze(params) if isinstance(params, flax.core.FrozenDict) else etree.copy(params)  # pyrefly: ignore[bad-assignment]
   params = _compat.unstack_params(params)
   return _flat_to_nested(params)
 
 
 def _flat_to_nested(params: Params) -> Params:
   """Reformat the params from FLAT to NESTED."""
-  params = etree.copy(params)  # pyrefly: ignore[bad-assignment]
+  params = flax.core.unfreeze(params) if isinstance(params, flax.core.FrozenDict) else etree.copy(params)  # pyrefly: ignore[bad-assignment]
   # Split the params for the MM and the transformer.
   transformer_params = {
       k: v for k, v in params.items() if k.startswith('transformer/')
@@ -377,7 +378,7 @@ def _nested_to_stacked(params: Params, attn_pattern_len: int) -> Params:
 
 def _nested_to_flat(params: Params) -> Params:
   """Reformat the params from NESTED to FLAT."""
-  params = etree.copy(params)  # Copy to allow mutating the tree.  # pyrefly: ignore[bad-assignment]
+  params = flax.core.unfreeze(params) if isinstance(params, flax.core.FrozenDict) else etree.copy(params)  # Copy to allow mutating the tree.  # pyrefly: ignore[bad-assignment]
 
   mm_params = params.pop('vision_encoder', {})  # pyrefly: ignore[missing-attribute]
   if mm_params:
@@ -405,7 +406,10 @@ def _flat_to_nested_single(params: Params, *, name: str) -> Params:
 def _remove_mm_params(params):
   """Remove the MM params."""
   # Copy to allow mutating the tree.
-  params = etree.copy(params)
+  if isinstance(params, flax.core.FrozenDict):
+    params = flax.core.unfreeze(params)
+  else:
+    params = etree.copy(params)
 
   # TODO(epot): Once orbax supports partial restore, we would not need to
   # load those extra params in the first place.
@@ -431,7 +435,7 @@ def _remove_mm_params(params):
 
 def _add_skip_mm_params(params: Params, metadata: _CheckpointTree) -> Params:
   """Add skip MM params to restore."""
-  params = etree.copy(params)  # pyrefly: ignore[bad-assignment]
+  params = flax.core.unfreeze(params) if isinstance(params, flax.core.FrozenDict) else etree.copy(params)  # pyrefly: ignore[bad-assignment]
   params_with_mm = metadata.nested_tree
 
   # Known top-level multimodal encoder keys.
