@@ -162,8 +162,8 @@ class Embedder(nn.Module):
 
   def encode_audio(self, x: jax.Array) -> jax.Array:
     """Projects audio embeddings to the embedding space of the text encoder."""
-    x = self.audio_input_projection('...tm,md->...td', x)
     x = self.audio_soft_embedding_norm(x)
+    x = self.audio_input_projection('...tm,md->...td', x)
     return x
 
   def encode_per_layer_input(
