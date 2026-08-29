@@ -160,23 +160,37 @@ class Gemma4Sampler:
       if audio_lengths is None:
         audio_lengths = [len(a) for a in audio]
 
-      for length in audio_lengths:
-        frame_length = int(round(self.audio_sample_rate * 20.0 / 1000.0))
-        hop_length = int(round(self.audio_sample_rate * 10.0 / 1000.0))
-        frame_size_for_unfold = frame_length + 1
-        num_mel_frames = (length - frame_size_for_unfold) // hop_length + 1
-        t = num_mel_frames
+      frame_length = int(round(self.audio_sample_rate * 20.0 / 1000.0))
+      hop_length = int(round(self.audio_sample_rate * 10.0 / 1000.0))
+      frame_size_for_unfold = frame_length + 1
+
+      if self.pad_length is not None:
+        audio_soft_token_counts = [self.audio_seq_length for _ in audio_lengths]
+        t = self.audio_seq_length
         for _ in range(2):
-          t_padded = t + 2
-          t = (t_padded - 3) // 2 + 1
-        audio_soft_token_counts.append(min(t, self.audio_seq_length))
+          t = 2 * t
+        num_mel_frames = t
+        max_audio_len = (
+            (num_mel_frames - 1) * hop_length
+            + frame_size_for_unfold
+            + hop_length
+            - 1
+        )
+      else:
+        for length in audio_lengths:
+          num_mel_frames = (length - frame_size_for_unfold) // hop_length + 1
+          t = num_mel_frames
+          for _ in range(2):
+            t_padded = t + 2
+            t = (t_padded - 3) // 2 + 1
+          audio_soft_token_counts.append(min(t, self.audio_seq_length))
+        max_audio_len = max(len(a) for a in audio)
 
       tokens = _token_utils.add_variable_extra_tokens_for_audio(
           tokens,
           soft_token_counts=audio_soft_token_counts,
       )
 
-      max_audio_len = max(len(a) for a in audio)
       padded_audio = np.zeros((len(audio), max_audio_len), dtype=np.float32)
       for i, a in enumerate(audio):
         padded_audio[i, : len(a)] = a
@@ -217,6 +231,7 @@ class Gemma4Sampler:
         audio=audio,
         audio_lengths=audio_lengths,
         audio_soft_token_counts=tuple(audio_soft_token_counts),
+        audio_seq_length=self.audio_seq_length,
     )
 
     if max_new_tokens and max_new_tokens > self.max_out_length:
