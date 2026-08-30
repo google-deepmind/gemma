@@ -466,8 +466,10 @@ def _print_stream(
 ) -> _sampler.SamplerOutput:
   """Prints the streaming output."""
   text_tokens = []
+  last_state = None
 
   for state in out:
+    last_state = state
     print_(stream, state.text)  # pyrefly: ignore[bad-argument-type]
 
     text_tokens.append(state.text)
@@ -475,7 +477,14 @@ def _print_stream(
         state.text == '<end_of_turn>' or state.text == '<turn|>'
     ):  # Last token is not printed.
       continue
-  out = dataclasses.replace(state, text=''.join(text_tokens))  # pylint: disable=undefined-variable,undefined-loop-variable  # pyrefly: ignore[bad-assignment]
+
+  if last_state is None:
+    raise ValueError(
+        'Streaming sampling produced no tokens. This can happen when'
+        ' `max_new_tokens` is 0 or when the cache is full before any token'
+        ' could be generated (try increasing `cache_length`).'
+    )
+  out = dataclasses.replace(last_state, text=''.join(text_tokens))  # pyrefly: ignore[bad-assignment]
   return out  # pyrefly: ignore[bad-return]
 
 
