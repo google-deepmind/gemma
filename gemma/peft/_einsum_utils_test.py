@@ -61,3 +61,13 @@ def test_einsum():
         weights_shape=(3, 4),
         rank=2,
     )
+
+
+@pytest.mark.parametrize('weights_shape', [(3,), (3, 4, 5)])
+def test_einsum_rejects_weights_shape_mismatch(weights_shape):
+  with pytest.raises(ValueError, match='`weights_shape` should match'):
+    _einsum_utils.get_lora_einsum_str_and_shapes(
+        einsum_str='...ij,jk->...ik',
+        weights_shape=weights_shape,
+        rank=2,
+    )
