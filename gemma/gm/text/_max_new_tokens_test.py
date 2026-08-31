@@ -43,7 +43,9 @@ def test_sampler_preserves_zero_max_new_tokens():
   sampler_loop = mock.MagicMock()
   sampler_loop.sample.return_value = _fake_state(sampler.max_out_length)
 
-  with mock.patch.object(_sampler._prefill, 'prefill', return_value=mock.MagicMock()):
+  with mock.patch.object(
+      _sampler._prefill, 'prefill', return_value=mock.MagicMock()
+  ):
     with mock.patch.object(
         _sampler.Sampler,
         '_initialize_sampler_loop',
