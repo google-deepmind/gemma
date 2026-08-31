@@ -34,7 +34,7 @@ _orig_call = _orig_block.__call__
 @functools.partial(
     nn.remat,
     policy=jax.checkpoint_policies.nothing_saveable,
-    static_argnums=7,
+    static_argnums=8,
 )
 def rematted_call_fn(
     self,
@@ -44,7 +44,8 @@ def rematted_call_fn(
     attn_mask,
     per_layer_input,
     kv_shared_cache,
-    skip_sliding_mask,
+    sliding_attention_mask,
+    disable_sliding_window,
 ):
   return _orig_call(
       self,
@@ -54,7 +55,8 @@ def rematted_call_fn(
       attn_mask,
       per_layer_input=per_layer_input,
       kv_shared_cache=kv_shared_cache,
-      skip_sliding_mask=skip_sliding_mask,
+      sliding_attention_mask=sliding_attention_mask,
+      disable_sliding_window=disable_sliding_window,
   )
 
 def new_call(
@@ -65,7 +67,8 @@ def new_call(
     attn_mask,
     per_layer_input=None,
     kv_shared_cache=None,
-    skip_sliding_mask=False,
+    sliding_attention_mask=None,
+    disable_sliding_window=False,
 ):
   return rematted_call_fn(
       self,
@@ -75,7 +78,8 @@ def new_call(
       attn_mask,
       per_layer_input,
       kv_shared_cache,
-      skip_sliding_mask,
+      sliding_attention_mask,
+      disable_sliding_window,
   )
 
 _modules.Block.__call__ = new_call
