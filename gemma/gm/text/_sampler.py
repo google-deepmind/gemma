@@ -26,6 +26,7 @@ from etils import enp
 from gemma.gm.data import _functional
 from gemma.gm.nn import _transformer_like
 from gemma.gm.text import _prefill
+from gemma.gm.text import _prompt_safety
 from gemma.gm.text import _sampler_loop
 from gemma.gm.text import _sampling
 from gemma.gm.text import _tokenizer
@@ -536,13 +537,14 @@ def _normalize_prompt(prompt: _Prompt, format: dialog.Format) -> list[str]:  # p
   else:
     prompt = list(prompt)  # pyrefly: ignore[bad-assignment]
 
-  # Normalize the prompt to strings.
-  prompt = [  # pyrefly: ignore[bad-assignment]
-      c.as_text(format=format) if isinstance(c, dialog.Conversation) else c
-      for c in prompt
-  ]
+  normalized_prompt = []
+  for value in prompt:
+    if isinstance(value, dialog.Conversation):
+      _prompt_safety.validate_conversation(value, format=format)
+      value = value.as_text(format=format)
+    normalized_prompt.append(value)
 
-  return prompt  # pyrefly: ignore[bad-return]
+  return normalized_prompt  # pyrefly: ignore[bad-return]
 
 
 def _normalize_images(
