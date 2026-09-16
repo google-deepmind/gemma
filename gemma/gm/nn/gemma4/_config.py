@@ -157,7 +157,7 @@ class TransformerConfig:
   def init_cache(
       self,
       batch_size: int,
-      dtype: jnp.dtype = jnp.bfloat16,
+      dtype: jnp.dtype = jnp.bfloat16,  # pyrefly: ignore[bad-function-definition]
       *,
       cache_length: int,
   ) -> Cache:

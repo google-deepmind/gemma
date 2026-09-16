@@ -37,7 +37,7 @@ class LoRADenseAdapter(nn.Module):
   rank: int
   features: int  # Output dimension.
 
-  dtype: jnp.dtype = jnp.float_
+  dtype: jnp.dtype = jnp.float_  # pyrefly: ignore[bad-assignment]
   a_init: nn.initializers.Initializer = nn.initializers.kaiming_uniform()
   b_init: nn.initializers.Initializer = nn.initializers.zeros_init()
 
@@ -60,7 +60,7 @@ class LoRADense(nn.Module):
   rank: int
   wrapped: nn.Dense
 
-  dtype: jnp.dtype = jnp.float_
+  dtype: jnp.dtype = jnp.float_  # pyrefly: ignore[bad-assignment]
   a_init: nn.initializers.Initializer = nn.initializers.kaiming_uniform()
   b_init: nn.initializers.Initializer = nn.initializers.zeros_init()
 
@@ -110,7 +110,7 @@ class LoRAEinsumAdapter(nn.Module):
   einsum_str: str
   shape: Sequence[int]
 
-  dtype: jnp.dtype = jnp.float_
+  dtype: jnp.dtype = jnp.float_  # pyrefly: ignore[bad-assignment]
   a_init: nn.initializers.Initializer = nn.initializers.kaiming_uniform()
   b_init: nn.initializers.Initializer = nn.initializers.zeros_init()
 
@@ -143,7 +143,7 @@ class LoRAEinsum(nn.Module):
   rank: int
   wrapped: nn.Einsum
 
-  dtype: jnp.dtype = jnp.float_
+  dtype: jnp.dtype = jnp.float_  # pyrefly: ignore[bad-assignment]
   a_init: nn.initializers.Initializer = nn.initializers.kaiming_uniform()
   b_init: nn.initializers.Initializer = nn.initializers.zeros_init()
 
@@ -197,7 +197,7 @@ class LoRADenseGeneralAdapter(nn.Module):
   axis: int | Sequence[int]
   batch_dims: Sequence[int]
 
-  dtype: jnp.dtype = jnp.float_
+  dtype: jnp.dtype = jnp.float_  # pyrefly: ignore[bad-assignment]
   a_init: nn.initializers.Initializer = nn.initializers.kaiming_uniform()
   b_init: nn.initializers.Initializer = nn.initializers.zeros_init()
 
@@ -254,7 +254,7 @@ class LoRADenseGeneral(nn.Module):
   rank: int
   wrapped: nn.DenseGeneral
 
-  dtype: jnp.dtype = jnp.float_
+  dtype: jnp.dtype = jnp.float_  # pyrefly: ignore[bad-assignment]
   a_init: nn.initializers.Initializer = nn.initializers.kaiming_uniform()
   b_init: nn.initializers.Initializer = nn.initializers.zeros_init()
 

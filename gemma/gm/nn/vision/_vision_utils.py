@@ -29,7 +29,7 @@ def _posemb_sincos_2d(
     *,
     width: int,
     temperature: float = 10_000.0,
-    dtype: jnp.dtype = jnp.float32,
+    dtype: jnp.dtype = jnp.float32,  # pyrefly: ignore[bad-function-definition]
 ) -> typing.Float["B M D"]:
   """Follows the MoCo v3 logic."""
   y, x = jnp.mgrid[:h, :w]
@@ -231,7 +231,7 @@ class ViTModel(nn.Module):
       seqshape: tuple[int, int],
       width: int,
       name: str,
-      dtype: jnp.dtype = jnp.float32,
+      dtype: jnp.dtype = jnp.float32,  # pyrefly: ignore[bad-function-definition]
   ) -> typing.Float["B M D"]:
     """Returns the position embedding."""
     if typ == "learn":

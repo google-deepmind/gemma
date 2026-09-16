@@ -403,7 +403,7 @@ class Attention(nn.Module):
       num_heads: int,
       head_dim: int,
       batch_size: int,
-      dtype: jnp.dtype = jnp.bfloat16,
+      dtype: jnp.dtype = jnp.bfloat16,  # pyrefly: ignore[bad-function-definition]
   ) -> LayerCache:
     del cls  # not used
     return {

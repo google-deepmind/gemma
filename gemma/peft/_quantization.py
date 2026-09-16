@@ -209,7 +209,7 @@ class IntDense(nn.Module):
   _: dataclasses.KW_ONLY
 
   wrapped: nn.Dense
-  dtype: jnp.dtype = jnp.int4
+  dtype: jnp.dtype = jnp.int4  # pyrefly: ignore[bad-assignment]
 
   def __post_init__(self):
     super().__post_init__()
@@ -251,7 +251,7 @@ class IntEinsum(nn.Module):
   _: dataclasses.KW_ONLY
 
   wrapped: nn.Einsum
-  dtype: jnp.dtype = jnp.int4
+  dtype: jnp.dtype = jnp.int4  # pyrefly: ignore[bad-assignment]
 
   def __post_init__(self):
     super().__post_init__()

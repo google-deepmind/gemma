@@ -71,14 +71,14 @@ class AudioTokenizer(nn.Module):
         chunk_size,
         num_lower=-1,
         num_upper=0,
-        out_dtype=jnp.bool_,
+        out_dtype=jnp.bool_,  # pyrefly: ignore[bad-argument-type]
     ).T
     upper_causal_mask = audio_modules.LocalDotProductAttention._ones_matrix_band_part(  # pylint: disable=protected-access
         chunk_size,
         context_size,
         num_lower=-1,
         num_upper=upper_diagonal,
-        out_dtype=jnp.bool_,
+        out_dtype=jnp.bool_,  # pyrefly: ignore[bad-argument-type]
     )
     causal_valid_mask = lower_causal_mask & upper_causal_mask
     return causal_valid_mask

@@ -102,7 +102,7 @@ class VisionExit(nn.Module):
 
   d_model: int
   output_length: int | tuple[int, ...] = 256
-  param_dtype: jnp.dtype = jnp.float32
+  param_dtype: jnp.dtype = jnp.float32  # pyrefly: ignore[bad-assignment]
 
   @typechecked
   def _maybe_downsample(
@@ -207,7 +207,7 @@ class VisionExit(nn.Module):
 class Standardize(nn.Module):
   """Applies feature-wise standardization: x = (x - bias) * scale."""
 
-  param_dtype: jnp.dtype = jnp.float32
+  param_dtype: jnp.dtype = jnp.float32  # pyrefly: ignore[bad-assignment]
 
   @nn.compact
   def __call__(self, x: jax.Array) -> jax.Array:
