@@ -55,7 +55,7 @@ class _ModelWithGemma3nEinsum(nn.Module):
 def _make_replace_fn(rank=2, dtype=jnp.bfloat16):
   """Returns a LoRA replacement function for use with ModuleInterceptor."""
   return lambda m: _lora._replace_by_lora(
-      m, rank=rank, dtype=dtype, verbose=False
+      m, rank=rank, dtype=dtype, verbose=False  # pyrefly: ignore[bad-argument-type]
   )
 
 

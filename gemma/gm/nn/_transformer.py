@@ -97,7 +97,7 @@ class Transformer(nn.Module):
 
   return_last_only: bool | None = None
 
-  dtype: jnp.dtype = jnp.bfloat16
+  dtype: jnp.dtype = jnp.bfloat16  # pyrefly: ignore[bad-assignment]
 
   # Keys to specify in the config which inputs to pass to the `__call__`
   # function (e.g. `tokens='batch.tokens'`).

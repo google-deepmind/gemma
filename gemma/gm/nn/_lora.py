@@ -61,7 +61,7 @@ class LoRA(nn.Module):
 
   rank: int
   model: nn.Module
-  dtype: jnp.dtype = jnp.bfloat16
+  dtype: jnp.dtype = jnp.bfloat16  # pyrefly: ignore[bad-assignment]
   verbose: bool = False
 
   def __post_init__(self):
