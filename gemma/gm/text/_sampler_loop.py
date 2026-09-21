@@ -30,7 +30,7 @@ from gemma.gm.typing import _common
 from gemma.gm.utils import _cache_helper
 import jax
 import jax.numpy as jnp
-from kauldron.ktyping import Bool, Int, PRNGKey, check_type, typechecked  # pylint: disable=g-multiple-import,g-importing-member
+from kauldron.ktyping import Bool, Float, Int, PRNGKey, check_type, typechecked  # pylint: disable=g-multiple-import,g-importing-member
 
 
 @flax.struct.dataclass(kw_only=True)
@@ -59,6 +59,8 @@ class SamplingState:
   last_token: Int['B']  # pyrefly: ignore[not-a-type, unknown-name]
   last_token_pos: Int['B']  # pyrefly: ignore[not-a-type, unknown-name]
   predicted_tokens: Int['B max_out_length']  # pyrefly: ignore[not-a-type]
+  predicted_top_logits: Float['B max_out_length top_k'] | None = None
+  predicted_top_indices: Int['B max_out_length top_k'] | None = None
   # TODO(epot): Better way to extract logits. This takes a lot of memory.
   # TODO(epot): Only keep the top-k logits instead? But sorting might increase
   # computation.
@@ -117,6 +119,7 @@ class SamplerLoop:
   sampling: _sampling.SamplingMethod
   cache_length: int
   special_tokens: type[_tokenizer.SpecialTokens]
+  top_k_logits: int = 0
 
   # @functools.partial(
   #     jax.jit,
@@ -248,7 +251,14 @@ class SamplerLoop:
 
     # Update the buffers to save the outputs.
     predicted_tokens = state.predicted_tokens.at[:, state.step].set(next_token)
-    # predicted_logits = state.predicted_logits.at[:, state.step].set(logits)
+
+    if self.top_k_logits > 0:
+      top_logits, top_indices = jax.lax.top_k(logits, k=self.top_k_logits)
+      predicted_top_logits = state.predicted_top_logits.at[:, state.step].set(top_logits)
+      predicted_top_indices = state.predicted_top_indices.at[:, state.step].set(top_indices)
+    else:
+      predicted_top_logits = state.predicted_top_logits
+      predicted_top_indices = state.predicted_top_indices
 
     # Check whether we have reached an end token.
     done = state.done | jnp.isin(next_token, jnp.asarray(self.end_tokens))
@@ -261,6 +271,8 @@ class SamplerLoop:
         # is still incremented, so we use previous `state.done`.
         last_token_pos=state.last_token_pos + ~state.done,
         predicted_tokens=predicted_tokens,
+        predicted_top_logits=predicted_top_logits,
+        predicted_top_indices=predicted_top_indices,
         # predicted_logits=predicted_logits,
         cache=out.cache,  # pyrefly: ignore[missing-attribute]
         rng=next_rng,

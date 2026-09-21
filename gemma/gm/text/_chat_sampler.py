@@ -122,9 +122,9 @@ class ChatSampler:
   )
   forbidden_tokens: Sequence[str | int] | None = None
   stop_tokens: Sequence[str | int] | None = None
-  # TODO(epot): Support and test rolling cache.
   # TODO(epot): Add a property to show how much of the cache is used.
   cache_length: int | None = 4096
+  rolling_cache_threshold: int | None = None
   max_out_length: int = 2048
 
   # Gemma 4-specific fields (ignored for non-Gemma4 models).
@@ -376,6 +376,24 @@ class ChatSampler:
         format=self.tokenizer.FORMAT,
         add_tool_response_tag_after_call=not is_legacy_tool_answer,
     )
+
+    # Rolling cache: if the cache is getting full, evict the oldest turn by
+    # discarding `last_state` and re-prefilling the truncated conversation.
+    if self.rolling_cache_threshold and last_state is not None:
+      # We check the cache info dynamically using a simple threshold.
+      # Because `used_cache_length` is a JAX array, we extract its value.
+      used_length = last_state.used_cache_length
+      if hasattr(used_length, 'item'):
+        used_length = used_length.item()
+      if used_length > self.rolling_cache_threshold:
+        while len(self.turns) >= 2 and used_length > self.rolling_cache_threshold:
+          self.turns = self.turns[2:]  # Evict oldest turn
+          # Break out of loop since we'll just rebuild state entirely.
+          break
+        last_state = None
+
+    if last_state is None and self.multi_turn and self.turns:
+      prompt_text = ''.join(t.text for t in self.turns) + prompt_text
 
     # --- Dispatch to the correct sampler ---
     out = self._sample(
