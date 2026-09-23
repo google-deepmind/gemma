@@ -495,8 +495,10 @@ def _needs_reconciliation(params: Params, metadata_tree: Params) -> bool:
         return True
       continue
     m_val = metadata_tree[k]
-    # Leaf-vs-dict mismatch.
+    # Leaf-vs-dict mismatch (in either direction).
     if not isinstance(p_val, dict) and isinstance(m_val, dict):
+      return True
+    if isinstance(p_val, dict) and not isinstance(m_val, dict):
       return True
     # Recurse into sub-dicts.
     if isinstance(p_val, dict) and isinstance(m_val, dict):
@@ -517,10 +519,13 @@ def _reconcile_tree(params: Params, metadata_tree: Params) -> Params:
   1. **Empty stubs**: LoRA wrappers (or other interceptors) may leave
      empty dict scopes in the params tree that don't exist in the
      checkpoint.  These are dropped.
-  2. **Leaf-vs-dict format**: ``nn.share_scope`` in Gemma4 ``FeedForward``
-     flattens ``{'w': array}`` to bare ``ArrayImpl`` during model init.
-     When the checkpoint stores ``{'w': array}``, the leaf is wrapped to
-     match.
+  2. **Leaf-vs-dict format**:
+     - ``nn.share_scope`` in Gemma4 ``FeedForward`` flattens ``{'w': array}``
+       to bare ``ArrayImpl`` during model init. When the checkpoint stores
+       ``{'w': array}``, the leaf is wrapped to match.
+     - Conversely, when model init retains a single-key dict (e.g. ``{'w': array}``)
+       but the checkpoint stores a bare ``ArrayImpl`` (e.g. at MLP linear layers),
+       the dict is unwrapped to match the checkpoint.
 
   Args:
     params: The model-init params tree (may contain stubs / format
@@ -555,8 +560,18 @@ def _reconcile_tree(params: Params, metadata_tree: Params) -> Params:
         result[k] = {inner_key: p_val}
       else:
         result[k] = p_val  # Fallback: keep as-is.
+    elif isinstance(p_val, dict) and not isinstance(m_val, dict):
+      # Model has dict ({'w': ...}), checkpoint has leaf (ArrayImpl).
+      # Unwrap the dict to match checkpoint format.
+      if len(p_val) == 1:
+        inner_val = next(iter(p_val.values()))
+        result[k] = inner_val
+      elif 'w' in p_val:
+        result[k] = p_val['w']
+      else:
+        result[k] = p_val
     else:
-      # Both leaves, or model has dict but checkpoint has leaf.
+      # Both leaves.
       result[k] = p_val
 
   # Keys in params but NOT in metadata are intentionally dropped.
