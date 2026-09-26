@@ -64,7 +64,7 @@ def get_config():
           model=gm.nn.Gemma3_4B(
               tokens="batch.input",
               # TODO(epot): At the moment, LoRA fine-tuning with multimodal
-              # is not supported. Willbe  fixed soon.
+              # is not supported. Will be fixed soon?
               text_only=True,
           ),
       ),
