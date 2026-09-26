@@ -138,9 +138,18 @@ def make_seq2seq_fields(
   sequence = np.concatenate([prompt, response])
 
   # Create the loss mask.
+  if len(prompt) > 0:
+    prompt_mask = np.zeros((len(prompt) - 1,), dtype=np.bool_)
+    response_mask = np.ones((len(response),), dtype=np.bool_)
+  else:
+    # If no prompt, all targets come from response (shifted by 1)
+    prompt_mask = np.zeros((0,), dtype=np.bool_)
+    # Ensure non-negative shape if response is also empty or length 1
+    response_mask = np.ones((max(0, len(response) - 1),), dtype=np.bool_)
+
   target_mask = np.concatenate([
-      np.zeros((len(prompt) - 1,), dtype=np.bool_),
-      np.ones((len(response),), dtype=np.bool_),
+      prompt_mask,
+      response_mask,
   ])
 
   return Seq2SeqFields(
