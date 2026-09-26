@@ -27,3 +27,6 @@ poetry.lock
 # Ignore generated docs
 docs/_build
 docs/api
+
+#Virtual Environment
+.venv/
