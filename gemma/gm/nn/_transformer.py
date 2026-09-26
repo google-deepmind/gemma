@@ -251,8 +251,10 @@ class Transformer(nn.Module):
 
     if return_last_only:
       last_input_token_idx = jnp.sum(inputs.inputs_mask, axis=-1) - 1
-      # TODO(epot): Use `jnp.take_along_axis`
-      x = x[jnp.arange(len(x)), last_input_token_idx, ...]
+      x = jnp.take_along_axis(
+          x, last_input_token_idx[:, None, None], axis=1
+      )
+      x = jnp.squeeze(x, axis=1)
     elif images is not None:
       # Remove the MM extra tokens inserted.
       # During fine-tuning, the prompt is always masked, and the model cannot
