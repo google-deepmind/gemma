@@ -140,7 +140,7 @@ class SampleFromPredictions:
       The denoised tokens after applying confidence-based selection and
       renoising non-selected positions.
     """
-    del current_noise_proportion, target_noise_proportion
+    del current_noise_proportion
 
     categorical_rng, noise_rng = jax.random.split(rng)
     denoiser_tokens = jax.random.categorical(
@@ -170,6 +170,8 @@ class SampleFromPredictions:
         .at[jnp.arange(batch_size)[:, None], sorted_index]
         .set(sorted_selection_mask)
     )
+    is_final_step = target_noise_proportion <= 0.0
+    selection_mask = selection_mask | is_final_step[:, None]
 
     # Renoise all non-selected tokens with uniform random tokens.
     # Selected positions get denoiser tokens.
