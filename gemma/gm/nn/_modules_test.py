@@ -167,7 +167,7 @@ def _get_attn_output(
       num_heads=num_kv_heads,
       head_dim=head_dim,
       batch_size=batch_size,
-      dtype=jnp.float32,
+      dtype=jnp.float32,  # pyrefly: ignore[bad-argument-type]
   )
   attn_mask = jnp.ones((batch_size, seq_len, cache_size))
 
@@ -255,7 +255,7 @@ def test_sliding_window():
       num_heads=num_heads,
       head_dim=head_dim,
       batch_size=batch_size,
-      dtype=jnp.float32,
+      dtype=jnp.float32,  # pyrefly: ignore[bad-argument-type]
   )
   attn_mask = jnp.ones((batch_size, seq_len, cache_size))
 
@@ -445,7 +445,7 @@ def test_block():
       num_heads=num_heads,
       head_dim=head_dim,
       batch_size=batch_size,
-      dtype=jnp.float32,
+      dtype=jnp.float32,  # pyrefly: ignore[bad-argument-type]
   )
 
   # Check that initial cache shape is correct.
@@ -498,7 +498,7 @@ def test_post_attention_norm_modifies_output():
       num_heads=num_heads,
       head_dim=head_dim,
       batch_size=batch_size,
-      dtype=jnp.float32,
+      dtype=jnp.float32,  # pyrefly: ignore[bad-argument-type]
   )
   attn_mask = jnp.ones((batch_size, 1, cache_size))
   normed_block = gm.nn.Block(
@@ -558,7 +558,7 @@ def test_post_ffw_norm_modifies_output():
       num_heads=num_heads,
       head_dim=head_dim,
       batch_size=batch_size,
-      dtype=jnp.float32,
+      dtype=jnp.float32,  # pyrefly: ignore[bad-argument-type]
   )
   attn_mask = jnp.ones((batch_size, 1, cache_size))
   normed_block = gm.nn.Block(

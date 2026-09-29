@@ -606,7 +606,7 @@ def _max_across_hosts(x: int) -> int:
     return x
   x = jnp.asarray([x] * jax.local_device_count())  # pyrefly: ignore[bad-assignment]
   x = _max_across_hosts_pmap(x)
-  return x[0]
+  return x[0]  # pyrefly: ignore[bad-index]
 
 
 @functools.partial(jax.pmap, axis_name='i')

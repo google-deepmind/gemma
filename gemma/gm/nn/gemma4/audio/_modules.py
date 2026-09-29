@@ -43,7 +43,7 @@ class ConformerConfig:
   conv_kernel_size: int = 5
   gradient_clipping: float = 10_000_000_000.0
   conf_reduction_factor: int = 1
-  param_dtype: jnp.dtype = jnp.float32
+  param_dtype: jnp.dtype = jnp.float32  # pyrefly: ignore[bad-assignment]
   compute_dtype: Optional[jnp.dtype] = None
 
 
@@ -57,8 +57,8 @@ class SubSamplingBlock(nn.Module):
   use_dense_bias: bool = False
   use_conv_bias: bool = False
   use_norm_scale: bool = True
-  compute_dtype: jnp.dtype = jnp.float32
-  param_dtype: jnp.dtype = jnp.float32
+  compute_dtype: jnp.dtype = jnp.float32  # pyrefly: ignore[bad-assignment]
+  param_dtype: jnp.dtype = jnp.float32  # pyrefly: ignore[bad-assignment]
 
   @typechecked
   @nn.compact
@@ -415,7 +415,7 @@ class LocalDotProductAttention(nn.Module):
   atten_right_context: int = 0
   attention_logits_soft_capping: float = 50.0
   block_size: int = 12
-  param_dtype: jnp.dtype = jnp.float32
+  param_dtype: jnp.dtype = jnp.float32  # pyrefly: ignore[bad-assignment]
   compute_dtype: Optional[jnp.dtype] = None
 
   @staticmethod
@@ -424,7 +424,7 @@ class LocalDotProductAttention(nn.Module):
       block_size: int,
       left_context: int,
       right_context: int,
-      padding_val: float | jnp.bool_ = 0.0,
+      padding_val: float | jnp.bool_ = 0.0,  # pyrefly: ignore[not-a-type]
   ) -> jnp.ndarray:
     """Extracts temporal context for every block.
 
@@ -500,7 +500,7 @@ class LocalDotProductAttention(nn.Module):
       cols: int,
       num_lower: int,
       num_upper: int,
-      out_dtype: jnp.dtype = jnp.float32,
+      out_dtype: jnp.dtype = jnp.float32,  # pyrefly: ignore[bad-function-definition]
       out_shape: Optional[tuple[int, ...]] = None,
   ) -> jnp.ndarray:
     """Matrix band part of ones."""
@@ -687,7 +687,7 @@ class TransformerXLRelativePositionEmbedding(nn.Module):
   atten_left_context: int
   atten_right_context: int = 0
   use_bias: bool = False  # True is not implemented
-  param_dtype: jnp.dtype = jnp.float32
+  param_dtype: jnp.dtype = jnp.float32  # pyrefly: ignore[bad-assignment]
   compute_dtype: Optional[jnp.dtype] = None
 
   def setup(self):
@@ -724,7 +724,7 @@ class TransformerXLRelativePositionEmbedding(nn.Module):
       channels: int,
       min_timescale: float = 1.0,
       max_timescale: float = 1.0e4,
-      dtype: jnp.dtype = jnp.float32,
+      dtype: jnp.dtype = jnp.float32,  # pyrefly: ignore[bad-function-definition]
   ) -> jnp.ndarray:
     """Sinusoidal position embeddings with explicit positions."""
     position = jnp.asarray(position, jnp.float32)

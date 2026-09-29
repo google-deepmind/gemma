@@ -21,7 +21,7 @@ import jax
 from jax import numpy as jnp
 import numpy as np
 
-i4 = ArrayAliasMeta(shape=None, dtype=jnp.int4)
+i4 = ArrayAliasMeta(shape=None, dtype=jnp.int4)  # pyrefly: ignore[bad-argument-type]
 
 
 def _dense_to_quantized(module):
@@ -39,9 +39,9 @@ def _dense_to_quantized(module):
 
 def _dense_to_int4(module):
   if isinstance(module, nn.Dense):
-    return peft.IntDense(wrapped=module, dtype=jnp.int4)
+    return peft.IntDense(wrapped=module, dtype=jnp.int4)  # pyrefly: ignore[bad-argument-type]
   if isinstance(module, nn.Einsum):
-    return peft.IntEinsum(wrapped=module, dtype=jnp.int4)
+    return peft.IntEinsum(wrapped=module, dtype=jnp.int4)  # pyrefly: ignore[bad-argument-type]
   else:
     return module
 

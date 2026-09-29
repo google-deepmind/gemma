@@ -262,6 +262,23 @@ class SamplerTest(parameterized.TestCase):
     )
     self.assertEqual(output.sampled_tokens.shape, (batch_size, canvas_length))
 
+  def test_sample_from_predictions_final_step(self):
+    """Tests that SampleFromPredictions commits all tokens on the final step."""
+    logits = jnp.zeros((1, 4, 32), dtype=jnp.float32)
+    logits = logits.at[:, :, 5].set(20.0)
+    sampler_fn = _sampler.SampleFromPredictions(
+        entropy_bound=0.0,  # Setting to 0.0 to accept no tokens.
+        text_vocab_size=32,
+    )
+    tokens = sampler_fn(
+        rng=jax.random.PRNGKey(0),
+        denoiser_logits=logits,
+        canvas=jnp.zeros((1, 4), dtype=jnp.int32),
+        current_noise_proportion=jnp.array([0.25]),
+        target_noise_proportion=jnp.array([0.0]),  # Final step.
+    )
+    np.testing.assert_array_equal(tokens, jnp.full((1, 4), 5, dtype=jnp.int32))
+
   @parameterized.named_parameters(
       dict(
           testcase_name='no_cache',

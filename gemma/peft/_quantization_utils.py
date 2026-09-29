@@ -122,7 +122,7 @@ def quantize(
         data[key],
         bitwidth=bitwidth,
         granularity=QuantizationGranularity.PER_CHANNEL,
-        dtype=dtype,
+        dtype=dtype,  # pyrefly: ignore[bad-argument-type]
         axis_to_reduce=_get_axis_to_reduce_from_weight_shape(  # pyrefly: ignore[bad-argument-type]
             data[key].shape, head_dim=head_dim, d_model=d_model
         ),
@@ -162,7 +162,7 @@ def uniform_quantize(
     *,
     bitwidth: int,
     granularity: QuantizationGranularity,
-    dtype: jnp.dtype = jnp.int4,
+    dtype: jnp.dtype = jnp.int4,  # pyrefly: ignore[bad-function-definition]
     axis_to_reduce: int | None = None,
 ) -> tuple[Array, Array]:
   """Applies uniform quantization to the given array.
