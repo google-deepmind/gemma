@@ -382,7 +382,14 @@ class DiffusionSampler(_sampler_loop.SamplerLoop):
       cache_layer = list(cache.values())[0]
       cache_length = cache_layer['k'].shape[1]
       samples_in_cache: Int['*B'] = cache_layer['end_index']  # pyrefly: ignore[not-a-type]
-      positions = samples_in_cache[:, None] + jnp.arange(canvas_length)[None, :]
+      if full_attention_mask is not None:
+        valid_prefix = (
+            jnp.arange(cache_length)[None, :] < samples_in_cache[:, None]
+        ) & full_attention_mask
+        unpadded_offset = jnp.sum(valid_prefix.astype(jnp.int32), axis=-1)
+      else:
+        unpadded_offset = samples_in_cache
+      positions = unpadded_offset[:, None] + jnp.arange(canvas_length)[None, :]
     else:
       cache_length = None
       samples_in_cache = None
