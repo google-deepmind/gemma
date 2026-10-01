@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "kind": "tokenizer",
+  "tokenizer": {
+    "version": 2,
+    "source": "gs://gemma-data/tokenizers/tokenizer_gemma2.model",
+    "sha256": "61a7b147390c64585d6c3543dd6fc636906c9af3865a5548f27f31aee1d4c8e2"
+  },
+  "cases": [
+    {
+      "name": "ascii",
+      "text": "Hello world!",
+      "token_ids": [4521, 2134, 235341],
+      "decoded_text": "Hello world!"
+    },
+    {
+      "name": "ascii_with_boundaries",
+      "text": "Hello world!",
+      "add_bos": true,
+      "add_eos": true,
+      "token_ids": [2, 4521, 2134, 235341, 1],
+      "decoded_text": "Hello world!"
+    },
+    {
+      "name": "unicode_latin",
+      "text": "café",
+      "token_ids": [81453],
+      "decoded_text": "café"
+    },
+    {
+      "name": "newline",
+      "text": "line one\nline two",
+      "token_ids": [703, 974, 108, 703, 1378],
+      "decoded_text": "line one\nline two"
+    },
+    {
+      "name": "math_spacing",
+      "text": "2 + 2 = 4",
+      "token_ids": [235284, 963, 235248, 235284, 589, 235248, 235310],
+      "decoded_text": "2 + 2 = 4"
+    },
+    {
+      "name": "unicode_cjk",
+      "text": "こんにちは世界",
+      "token_ids": [32789, 9979],
+      "decoded_text": "こんにちは世界"
+    }
+  ]
+}
