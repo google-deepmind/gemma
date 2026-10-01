@@ -70,6 +70,13 @@ class TopkSampling(SamplingMethod):
 
   @typechecked
   def get_next_tokens(self, logits: Float['*B V'], rng: PRNGKey) -> Int['*B']:  # pyrefly: ignore[not-a-type]
+    vocab_size = logits.shape[-1]
+    if not 1 <= self.k <= vocab_size:
+      raise ValueError(
+          f'`k` must be between 1 and the vocabulary size ({vocab_size}). Got:'
+          f' {self.k}'
+      )
+
     logits, batch_shape = enp.flatten(logits, '... V')
 
     batch_size = logits.shape[0]
