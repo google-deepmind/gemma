@@ -454,6 +454,91 @@ class SamplerTest(parameterized.TestCase):
     )
     np.testing.assert_array_equal(recorded_positions, expected_positions)
 
+  def test_append_tokens_to_cache_unpadded_positions(self):
+    """Tests that committing the canvas uses unpadded positions and mask."""
+    batch_size = 2
+    canvas_length = 4
+    cache_length = 10
+    vocab_size = _SMALL_CONFIG.num_embed
+
+    model = _models.DiffusionGemma_26B_A4B(
+        config=_SMALL_CONFIG,
+        self_conditioning_config=_SMALL_SC_CONFIG,
+    )
+    cache = _SMALL_CONFIG.init_cache(
+        batch_size=batch_size,
+        dtype=jnp.bfloat16,
+        cache_length=cache_length,
+    )
+    cache['layer_0']['end_index'] = jnp.array([5, 5], dtype=jnp.int32)
+
+    sampler = _sampler.DiffusionSampler(
+        model=model,
+        end_tokens=(99,),
+        forbidden_tokens=None,
+        sampling=_sampling.Greedy(),
+        cache_length=cache_length,
+        special_tokens=None,
+        diffusion_process=_sampler.DiffusionProcess(),
+        logit_shaper=_sampler.AnnealingTemperatureShaperConfig().make(),
+        sample_from_predictions=_sampler.SampleFromPredictions(
+            text_vocab_size=vocab_size,
+        ),
+        canvas_length=canvas_length,
+        max_denoising_steps=1,
+        text_vocab_size=vocab_size,
+    )
+
+    tokens = jnp.ones((batch_size, canvas_length), dtype=jnp.int32)
+    params = model.init(
+        rngs=jax.random.PRNGKey(0),
+        tokens=tokens,
+        cache=cache,
+        positions=jnp.broadcast_to(
+            jnp.arange(canvas_length)[None, :], (batch_size, canvas_length)
+        ),
+        attention_mask=jnp.ones(
+            (batch_size, canvas_length, cache_length), dtype=jnp.bool_
+        ),
+    )['params']
+
+    # Sequence 0 has 2 valid prompt tokens and 3 padding tokens.
+    full_attention_mask = jnp.array(
+        [
+            [1, 1, 0, 0, 0, 1, 1, 1, 1, 1],
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+        ],
+        dtype=jnp.bool_,
+    )
+
+    recorded = {}
+    original_apply = model.apply
+
+    def tracking_apply(*args, **kwargs):
+      recorded['positions'] = kwargs['positions']
+      recorded['attention_mask'] = kwargs['attention_mask']
+      return original_apply(*args, **kwargs)
+
+    with mock.patch.object(model, 'apply', new=tracking_apply):
+      with jax.disable_jit():
+        sampler.append_tokens_to_cache(
+            tokens=tokens,
+            cache=cache,
+            params=params,
+            full_attention_mask=full_attention_mask,
+        )
+
+    expected_positions = jnp.array(
+        [
+            [2, 3, 4, 5],
+            [5, 6, 7, 8],
+        ],
+        dtype=jnp.int32,
+    )
+    np.testing.assert_array_equal(recorded['positions'], expected_positions)
+    # Padding slots are masked out for every canvas token.
+    self.assertFalse(recorded['attention_mask'][0, :, 2:5].any())
+
   def test_append_tokens_to_cache(self):
     """Tests that append_tokens_to_cache correctly advances the cache index.
 
