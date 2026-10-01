@@ -23,9 +23,40 @@ import math
 import time
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-import jax
+from gemma.gm.text._systemone_debias import calibrate_and_score
+from gemma.gm.text._systemone_debias import compute_ece
+from gemma.gm.text._systemone_debias import compute_order_flip_rate
+from gemma.gm.text._systemone_debias import cyclic_shifts
+from gemma.gm.text._systemone_debias import fit_temperature
+from gemma.gm.text._systemone_debias import marginalize_cyclic_distributions
+from gemma.gm.text._systemone_debias import spread_order
+from gemma.gm.text._systemone_debias import TemperatureScaler
 import jax.numpy as jnp
 import numpy as np
+
+__all__ = [
+    "QuestionType",
+    "QuestionSpec",
+    "NoulResult",
+    "ChoiceResult",
+    "ScoreResult",
+    "DecisionResult",
+    "SystemOneResponse",
+    "SystemOneSampler",
+    "build_tree_attention_pack",
+    "format_noul_prompt",
+    "format_choice_prompt",
+    "format_score_prompt",
+    # Re-exported debiasing and calibration utilities
+    "spread_order",
+    "cyclic_shifts",
+    "marginalize_cyclic_distributions",
+    "compute_order_flip_rate",
+    "calibrate_and_score",
+    "TemperatureScaler",
+    "fit_temperature",
+    "compute_ece",
+]
 
 
 class QuestionType(enum.Enum):
@@ -46,6 +77,13 @@ class QuestionSpec:
   options: Optional[List[str]] = None  # Required for CHOICE
   score_range: Tuple[int, int] = (1, 5)  # Used for SCORE (inclusive)
   trailing_whitespace: bool = True  # Whether prompt template ends with ' '
+  marginalize: bool = False  # Enable cyclic-shift marginalization for CHOICE
+  num_shifts: Optional[int] = (
+      None  # Number of cyclic shifts (default: len(options))
+  )
+  check_flip_rate: bool = (
+      False  # Check order flip rate between original and reversed
+  )
 
   def __post_init__(self):
     if self.type == QuestionType.CHOICE:
@@ -64,13 +102,29 @@ class QuestionSpec:
             f"CHOICE question {self.id!r} options must be unique, got"
             f" {self.options}"
         )
-    elif self.type == QuestionType.SCORE:
-      min_v, max_v = self.score_range
-      if max_v <= min_v:
+      if self.num_shifts is not None and self.num_shifts < 1:
         raise ValueError(
-            f"SCORE question {self.id!r} requires max_v > min_v in"
-            f" score_range=(min_v, max_v), got {self.score_range}"
+            f"CHOICE question {self.id!r} requires num_shifts >= 1, got"
+            f" {self.num_shifts}"
         )
+    else:
+      if self.marginalize:
+        raise ValueError(
+            f"Question {self.id!r}: marginalize=True is only supported for"
+            " CHOICE questions."
+        )
+      if self.check_flip_rate:
+        raise ValueError(
+            f"Question {self.id!r}: check_flip_rate=True is only supported for"
+            " CHOICE questions."
+        )
+      if self.type == QuestionType.SCORE:
+        min_v, max_v = self.score_range
+        if max_v <= min_v:
+          raise ValueError(
+              f"SCORE question {self.id!r} requires max_v > min_v in"
+              f" score_range=(min_v, max_v), got {self.score_range}"
+          )
 
 
 @dataclasses.dataclass(frozen=True)
@@ -94,6 +148,9 @@ class ChoiceResult:
   confidence: float
   probabilities: Dict[str, float]  # Option string -> probability
   raw_entropy: float
+  order_flip_rate: Optional[float] = (
+      None  # Fraction of order changes that flip argmax
+  )
 
 
 @dataclasses.dataclass(frozen=True)
@@ -119,70 +176,18 @@ class SystemOneResponse:
   latency_ms: float
 
 
-# --- Jev Prompt Formatting Patterns ---
+# Choice option labels: ('A', 'B', ..., 'Z')
+_CHOICE_LABELS: Tuple[str, ...] = tuple(chr(65 + i) for i in range(26))
 
 
-def format_noul_prompt(
-    state: str,
-    question: str,
-    trailing_whitespace: bool = True,
-) -> Tuple[str, List[str]]:
-  """Standardizes on True / False target tokens."""
-  prompt = (
-      f"Context:\n{state}\n\nQuestion: {question}\nAnswer with True or"
-      " False.\nAnswer:"
-  )
-  if trailing_whitespace:
-    prompt += " "
-  return prompt, ["True", "False"]
-
-
-def format_choice_prompt(
-    state: str,
-    question: str,
-    options: Sequence[str],
-    trailing_whitespace: bool = True,
-) -> Tuple[str, List[str]]:
-  """Maps up to 26 options to single-letter index tokens.
-
-  Labels: ['A', 'B', 'C', ...]
-  """
-  option_lines = [f"{chr(65 + i)}: {opt}" for i, opt in enumerate(options)]
-  options_block = "\n".join(option_lines)
-  labels = [chr(65 + i) for i in range(len(options))]
-  prompt = (
-      f"Context:\n{state}\n\nQuestion: {question}\n{options_block}\nAnswer:"
-  )
-  if trailing_whitespace:
-    prompt += " "
-  return prompt, labels
-
-
-def format_score_prompt(
-    state: str,
-    question: str,
-    min_v: int,
-    max_v: int,
-    trailing_whitespace: bool = True,
-) -> Tuple[str, List[str]]:
-  """Maps discrete numeric ranges directly to digit tokens.
-
-  Labels: ['1', '2', '3', '4', '5']
-  """
-  labels = [str(v) for v in range(min_v, max_v + 1)]
-  prompt = (
-      f"Context:\n{state}\n\nQuestion: {question}\nRate from {min_v} to"
-      f" {max_v}.\nAnswer:"
-  )
-  if trailing_whitespace:
-    prompt += " "
-  return prompt, labels
+# --- Jev Prompt and Branch Formatting ---
 
 
 def _format_noul_branch(
     question: str,
     trailing_whitespace: bool = True,
 ) -> Tuple[str, List[str]]:
+  """Formats branch suffix for a binary (noul) question."""
   branch = f"Question: {question}\nAnswer with True or False.\nAnswer:"
   if trailing_whitespace:
     branch += " "
@@ -194,6 +199,7 @@ def _format_choice_branch(
     options: Sequence[str],
     trailing_whitespace: bool = True,
 ) -> Tuple[str, List[str]]:
+  """Formats branch suffix for a categorical (choice) question."""
   option_lines = [f"{chr(65 + i)}: {opt}" for i, opt in enumerate(options)]
   options_block = "\n".join(option_lines)
   labels = [chr(65 + i) for i in range(len(options))]
@@ -209,11 +215,51 @@ def _format_score_branch(
     max_v: int,
     trailing_whitespace: bool = True,
 ) -> Tuple[str, List[str]]:
+  """Formats branch suffix for an ordinal (score) question."""
   labels = [str(v) for v in range(min_v, max_v + 1)]
   branch = f"Question: {question}\nRate from {min_v} to {max_v}.\nAnswer:"
   if trailing_whitespace:
     branch += " "
   return branch, labels
+
+
+def format_noul_prompt(
+    state: str,
+    question: str,
+    trailing_whitespace: bool = True,
+) -> Tuple[str, List[str]]:
+  """Constructs full prompt and target tokens for a binary decision."""
+  branch, labels = _format_noul_branch(
+      question, trailing_whitespace=trailing_whitespace
+  )
+  return f"Context:\n{state}\n\n{branch}", labels
+
+
+def format_choice_prompt(
+    state: str,
+    question: str,
+    options: Sequence[str],
+    trailing_whitespace: bool = True,
+) -> Tuple[str, List[str]]:
+  """Constructs full prompt and letter labels for a categorical choice."""
+  branch, labels = _format_choice_branch(
+      question, options, trailing_whitespace=trailing_whitespace
+  )
+  return f"Context:\n{state}\n\n{branch}", labels
+
+
+def format_score_prompt(
+    state: str,
+    question: str,
+    min_v: int,
+    max_v: int,
+    trailing_whitespace: bool = True,
+) -> Tuple[str, List[str]]:
+  """Constructs full prompt and digit labels for an ordinal rating."""
+  branch, labels = _format_score_branch(
+      question, min_v, max_v, trailing_whitespace=trailing_whitespace
+  )
+  return f"Context:\n{state}\n\n{branch}", labels
 
 
 # --- Tokenizer and Token Mapping Utilities ---
@@ -286,39 +332,81 @@ def _resolve_candidate_tokens(
   return ids
 
 
-# --- Calibration & Entropy Mathematics ---
-
-
-def calibrate_and_score(
-    real_logits: jnp.ndarray,
-    null_logits: Optional[jnp.ndarray] = None,
-    temperature: float = 1.0,
-) -> Tuple[jnp.ndarray, float, float]:
-  """Computes calibrated probabilities, Shannon entropy, and confidence."""
-  # 1. Null Context Debias
-  if null_logits is not None:
-    calibrated_logits = real_logits - null_logits
+def _prepare_branch(
+    tokenizer: Any,
+    q: QuestionSpec,
+    options: Optional[Sequence[str]] = None,
+) -> Tuple[List[int], List[int], List[str]]:
+  """Formats, tokenizes, and resolves candidates for a question branch."""
+  if q.type == QuestionType.NOUL:
+    branch_text, labels = _format_noul_branch(
+        q.text, trailing_whitespace=q.trailing_whitespace
+    )
+  elif q.type == QuestionType.CHOICE:
+    opts = options if options is not None else q.options
+    assert opts is not None
+    branch_text, labels = _format_choice_branch(
+        q.text, opts, trailing_whitespace=q.trailing_whitespace
+    )
+  elif q.type == QuestionType.SCORE:
+    branch_text, labels = _format_score_branch(
+        q.text,
+        q.score_range[0],
+        q.score_range[1],
+        trailing_whitespace=q.trailing_whitespace,
+    )
   else:
-    calibrated_logits = real_logits
+    raise ValueError(f"Unsupported QuestionType: {q.type}")
 
-  # 2. Subspace Softmax with Temperature
-  probs = jax.nn.softmax(calibrated_logits / temperature, axis=-1)
+  q_ids = _encode(tokenizer, branch_text, add_bos=False)
+  cand_ids = _resolve_candidate_tokens(
+      tokenizer, labels, prefix_ends_with_space=q.trailing_whitespace
+  )
+  return q_ids, cand_ids, labels
 
-  # 3. Shannon Entropy: H(P) = -Sum(p * log2(p))
-  clipped_probs = jnp.clip(probs, 1e-12, 1.0)
-  entropy = -jnp.sum(probs * jnp.log2(clipped_probs))
 
-  # 4. Normalized Jev Confidence: 1.0 - (H(P) / log2(M))
-  num_options = probs.shape[-1]
-  if num_options > 1:
-    max_entropy = math.log2(num_options)
-    confidence = jnp.clip(1.0 - (entropy / max_entropy), 0.0, 1.0)
+def _resolve_choice_result(
+    q: QuestionSpec,
+    p_by_perm: Sequence[Sequence[float]] | np.ndarray,
+    perms: Sequence[Sequence[int]],
+) -> ChoiceResult:
+  """Constructs ChoiceResult from permutation distributions."""
+  assert q.options is not None
+  k = len(q.options)
+  p_by_perm_arr = np.asarray(p_by_perm, dtype=np.float64)
+
+  flip_rate = None
+  if q.marginalize:
+    probs = marginalize_cyclic_distributions(
+        p_by_perm_arr, perms, combine="logmean"
+    )
+    flip_rate = compute_order_flip_rate(p_by_perm_arr, perms)
+  elif q.check_flip_rate:
+    probs = p_by_perm_arr[0]
+    flip_rate = compute_order_flip_rate(p_by_perm_arr, perms)
   else:
-    confidence = 1.0
+    probs = p_by_perm_arr[0]
 
-  if isinstance(entropy, jax.core.Tracer):
-    return probs, entropy, confidence
-  return probs, float(entropy), float(confidence)
+  best_idx = int(np.argmax(probs))
+  selected_option = q.options[best_idx]
+  selected_label = _CHOICE_LABELS[best_idx]
+
+  eps = 1e-12
+  clipped_p = np.clip(probs, eps, 1.0)
+  entropy = -float(np.sum(probs * np.log2(clipped_p)))
+  max_entropy = math.log2(k) if k > 1 else 1.0
+  confidence = float(np.clip(1.0 - (entropy / max_entropy), 0.0, 1.0))
+  probs_dict = {opt: float(p) for opt, p in zip(q.options, probs)}
+
+  return ChoiceResult(
+      id=q.id,
+      value=selected_option,
+      selected_index=selected_label,
+      confidence=confidence,
+      probabilities=probs_dict,
+      raw_entropy=entropy,
+      order_flip_rate=flip_rate,
+  )
 
 
 # --- Tree Attention Packing Logic ---
@@ -328,6 +416,7 @@ def build_tree_attention_pack(
     state_ids: Sequence[int],
     questions_ids: Sequence[Sequence[int]],
     max_seq_len: Optional[int] = None,
+    pad_to_length: Optional[int] = None,
 ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
   """Constructs flattened tree inputs, positions, masks, and terminal indices.
 
@@ -335,10 +424,12 @@ def build_tree_attention_pack(
     state_ids: Token IDs of the shared context.
     questions_ids: List of token IDs for each independent question branch.
     max_seq_len: Optional maximum sequence length guard.
+    pad_to_length: Optional static padded sequence length to avoid JIT
+      recompiles.
 
   Returns:
-    input_ids: Shape [1, total_len]
-    positions: Shape [1, total_len]
+    input_ids: Shape [1, total_len] or [1, pad_to_length]
+    positions: Shape [1, total_len] or [1, pad_to_length]
     attention_mask: Shape [1, 1, total_len, total_len] (Flax boolean format)
     terminal_indices: Shape [num_questions]
   """
@@ -352,49 +443,55 @@ def build_tree_attention_pack(
         f" {max_seq_len}"
     )
 
+  if pad_to_length is not None and total_len > pad_to_length:
+    raise ValueError(
+        f"Total packed sequence length {total_len} exceeds pad_to_length"
+        f" {pad_to_length}"
+    )
+
   # 1. Flatten Input IDs
   flat_ids = list(state_ids)
   for q in questions_ids:
     flat_ids.extend(q)
-  input_ids = jnp.array([flat_ids], dtype=jnp.int32)
 
   # 2. Position IDs with Branching (each question branch restarts at s_len)
   positions_list = list(range(s_len))
   for q_len in q_lens:
     positions_list.extend(range(s_len, s_len + q_len))
-  positions = jnp.array([positions_list], dtype=jnp.int32)
 
-  # Validation confirming RoPE position tensors match expected branch offsets
   assert len(positions_list) == total_len, "Position list length mismatch"
-  curr_chk = s_len
-  for q_len in q_lens:
-    assert positions_list[curr_chk : curr_chk + q_len] == list(
-        range(s_len, s_len + q_len)
-    ), f"RoPE branch offset mismatch at offset {curr_chk}"
-    curr_chk += q_len
 
   # 3. 2D Attention Mask (total_len x total_len)
   mask = np.zeros((total_len, total_len), dtype=bool)
-
-  # Causal mask for shared state
   mask[:s_len, :s_len] = np.tril(np.ones((s_len, s_len), dtype=bool))
 
   curr_offset = s_len
   terminal_indices = []
   for q_len in q_lens:
     branch_end = curr_offset + q_len
-    # Attend to shared state
     mask[curr_offset:branch_end, :s_len] = True
-    # Causal attention within branch
     mask[curr_offset:branch_end, curr_offset:branch_end] = np.tril(
         np.ones((q_len, q_len), dtype=bool)
     )
     terminal_indices.append(branch_end - 1)
     curr_offset = branch_end
 
-  attention_mask = jnp.array(mask[None, None, :, :])
-  terminal_indices = jnp.array(terminal_indices, dtype=jnp.int32)
+  if pad_to_length is not None:
+    pad_len = pad_to_length - total_len
+    padded_flat_ids = flat_ids + [0] * pad_len
+    padded_positions = positions_list + [0] * pad_len
+    input_ids = jnp.array([padded_flat_ids], dtype=jnp.int32)
+    positions = jnp.array([padded_positions], dtype=jnp.int32)
 
+    padded_mask = np.zeros((pad_to_length, pad_to_length), dtype=bool)
+    padded_mask[:total_len, :total_len] = mask
+    attention_mask = jnp.array(padded_mask[None, None, :, :])
+  else:
+    input_ids = jnp.array([flat_ids], dtype=jnp.int32)
+    positions = jnp.array([positions_list], dtype=jnp.int32)
+    attention_mask = jnp.array(mask[None, None, :, :])
+
+  terminal_indices = jnp.array(terminal_indices, dtype=jnp.int32)
   return input_ids, positions, attention_mask, terminal_indices
 
 
@@ -411,12 +508,14 @@ class SystemOneSampler:
       tokenizer: Any,  # gm.text.Tokenizer
       default_temperature: float = 1.0,
       cache_null_priors: bool = True,
+      pad_to_length: Optional[int] = None,
   ):
     self.model = model
     self.params = params
     self.tokenizer = tokenizer
     self.default_temperature = default_temperature
     self.cache_null_priors = cache_null_priors
+    self.pad_to_length = pad_to_length
     self._null_cache: Dict[Tuple[int, ...], jnp.ndarray] = {}
 
   def evaluate_noul(
@@ -426,18 +525,16 @@ class SystemOneSampler:
       question_id: str = "q_noul",
       temperature: Optional[float] = None,
       calibrate: bool = True,
+      pad_to_length: Optional[int] = None,
   ) -> NoulResult:
     """Evaluates a single binary (noul) question against state."""
-    spec = QuestionSpec(
-        id=question_id,
-        text=question,
-        type=QuestionType.NOUL,
-    )
+    spec = QuestionSpec(id=question_id, text=question, type=QuestionType.NOUL)
     response = self.evaluate_systemone(
         state=state,
         questions=[spec],
         temperature=temperature,
         calibrate=calibrate,
+        pad_to_length=pad_to_length,
     )
     result = response.decisions[question_id]
     assert isinstance(result, NoulResult)
@@ -451,6 +548,11 @@ class SystemOneSampler:
       question_id: str = "q_choice",
       temperature: Optional[float] = None,
       calibrate: bool = True,
+      marginalize: bool = False,
+      num_shifts: Optional[int] = None,
+      check_flip_rate: bool = False,
+      trailing_whitespace: bool = True,
+      pad_to_length: Optional[int] = None,
   ) -> ChoiceResult:
     """Evaluates a single categorical (choice) question against state."""
     spec = QuestionSpec(
@@ -458,12 +560,17 @@ class SystemOneSampler:
         text=question,
         type=QuestionType.CHOICE,
         options=options,
+        trailing_whitespace=trailing_whitespace,
+        marginalize=marginalize,
+        num_shifts=num_shifts,
+        check_flip_rate=check_flip_rate,
     )
     response = self.evaluate_systemone(
         state=state,
         questions=[spec],
         temperature=temperature,
         calibrate=calibrate,
+        pad_to_length=pad_to_length,
     )
     result = response.decisions[question_id]
     assert isinstance(result, ChoiceResult)
@@ -477,6 +584,7 @@ class SystemOneSampler:
       question_id: str = "q_score",
       temperature: Optional[float] = None,
       calibrate: bool = True,
+      pad_to_length: Optional[int] = None,
   ) -> ScoreResult:
     """Evaluates an ordinal (score) question against state."""
     spec = QuestionSpec(
@@ -490,6 +598,7 @@ class SystemOneSampler:
         questions=[spec],
         temperature=temperature,
         calibrate=calibrate,
+        pad_to_length=pad_to_length,
     )
     result = response.decisions[question_id]
     assert isinstance(result, ScoreResult)
@@ -507,29 +616,7 @@ class SystemOneSampler:
     questions_ids = []
     cand_ids_list = []
     for q in questions:
-      if q.type == QuestionType.NOUL:
-        branch_text, labels = _format_noul_branch(
-            q.text, trailing_whitespace=q.trailing_whitespace
-        )
-      elif q.type == QuestionType.CHOICE:
-        assert q.options is not None
-        branch_text, labels = _format_choice_branch(
-            q.text, q.options, trailing_whitespace=q.trailing_whitespace
-        )
-      elif q.type == QuestionType.SCORE:
-        branch_text, labels = _format_score_branch(
-            q.text,
-            q.score_range[0],
-            q.score_range[1],
-            trailing_whitespace=q.trailing_whitespace,
-        )
-      else:
-        raise ValueError(f"Unknown question type: {q.type}")
-
-      q_ids = _encode(self.tokenizer, branch_text, add_bos=False)
-      cand_ids = _resolve_candidate_tokens(
-          self.tokenizer, labels, prefix_ends_with_space=q.trailing_whitespace
-      )
+      q_ids, cand_ids, _ = _prepare_branch(self.tokenizer, q)
       questions_ids.append(q_ids)
       cand_ids_list.append(cand_ids)
 
@@ -538,7 +625,10 @@ class SystemOneSampler:
     )
     input_ids, positions, attention_mask, terminal_indices = (
         build_tree_attention_pack(
-            state_ids, questions_ids, max_seq_len=max_seq_len
+            state_ids,
+            questions_ids,
+            max_seq_len=max_seq_len,
+            pad_to_length=self.pad_to_length,
         )
     )
 
@@ -560,7 +650,6 @@ class SystemOneSampler:
       attention_mask: jnp.ndarray,
   ) -> jnp.ndarray:
     """Executes a single forward pass without autoregressive loop."""
-    # Flax Transformer in gm.nn expects 3D mask [B, L, L] matching tokens [B, L]
     if attention_mask.ndim == 4:
       model_mask = jnp.squeeze(attention_mask, axis=1)
     else:
@@ -590,6 +679,7 @@ class SystemOneSampler:
       questions: List[QuestionSpec],
       temperature: Optional[float] = None,
       calibrate: bool = True,
+      pad_to_length: Optional[int] = None,
   ) -> SystemOneResponse:
     """Executes a single tree-attention forward pass for N mixed questions."""
     start_time = time.perf_counter()
@@ -602,48 +692,68 @@ class SystemOneSampler:
     state_prefix = f"Context:\n{state}\n\n"
     state_ids = _encode(self.tokenizer, state_prefix, add_bos=True)
 
-    # 2. Tokenize question branches and resolve candidates
+    # 2. Tokenize question branches and resolve candidate tokens
     questions_ids: List[List[int]] = []
-    cand_labels_list: List[List[str]] = []
-    cand_ids_list: List[List[int]] = []
+    question_dispatch: List[Dict[str, Any]] = []
 
     for q in questions:
-      if q.type == QuestionType.NOUL:
-        branch_text, labels = _format_noul_branch(
-            q.text, trailing_whitespace=q.trailing_whitespace
-        )
+      if q.type in (QuestionType.NOUL, QuestionType.SCORE):
+        q_ids, cand_ids, _ = _prepare_branch(self.tokenizer, q)
+        b_idx = len(questions_ids)
+        questions_ids.append(q_ids)
+        question_dispatch.append({
+            "spec": q,
+            "branch_indices": [b_idx],
+            "cand_ids": cand_ids,
+            "first_q_ids": q_ids,
+        })
+
       elif q.type == QuestionType.CHOICE:
-        if q.options is None:
-          raise ValueError(f"CHOICE question {q.id} missing options.")
-        branch_text, labels = _format_choice_branch(
-            q.text, q.options, trailing_whitespace=q.trailing_whitespace
-        )
-      elif q.type == QuestionType.SCORE:
-        branch_text, labels = _format_score_branch(
-            q.text,
-            q.score_range[0],
-            q.score_range[1],
-            trailing_whitespace=q.trailing_whitespace,
-        )
+        assert q.options is not None
+        k = len(q.options)
+        if q.marginalize:
+          p = min(k, q.num_shifts) if q.num_shifts is not None else k
+          perms = cyclic_shifts(k, max_permutations=p)
+        elif q.check_flip_rate:
+          perms = [list(range(k)), list(range(k - 1, -1, -1))]
+        else:
+          perms = [list(range(k))]
+
+        branch_indices: List[int] = []
+        cand_ids = None
+        first_q_ids = None
+        for perm in perms:
+          shifted_opts = [q.options[orig_idx] for orig_idx in perm]
+          q_ids, c_ids, _ = _prepare_branch(
+              self.tokenizer, q, options=shifted_opts
+          )
+          if cand_ids is None:
+            cand_ids = c_ids
+            first_q_ids = q_ids
+          branch_indices.append(len(questions_ids))
+          questions_ids.append(q_ids)
+
+        question_dispatch.append({
+            "spec": q,
+            "branch_indices": branch_indices,
+            "cand_ids": cand_ids,
+            "perms": perms,
+            "first_q_ids": first_q_ids,
+        })
       else:
         raise ValueError(f"Unsupported QuestionType: {q.type}")
-
-      q_ids = _encode(self.tokenizer, branch_text, add_bos=False)
-      cand_ids = _resolve_candidate_tokens(
-          self.tokenizer, labels, prefix_ends_with_space=q.trailing_whitespace
-      )
-
-      questions_ids.append(q_ids)
-      cand_labels_list.append(labels)
-      cand_ids_list.append(cand_ids)
 
     # 3. Build tree attention pack
     max_seq_len = getattr(self.model, "max_seq_len", None) or getattr(
         getattr(self.model, "config", None), "max_seq_len", None
     )
+    pad_len = pad_to_length if pad_to_length is not None else self.pad_to_length
     input_ids, positions, attention_mask, terminal_indices = (
         build_tree_attention_pack(
-            state_ids, questions_ids, max_seq_len=max_seq_len
+            state_ids,
+            questions_ids,
+            max_seq_len=max_seq_len,
+            pad_to_length=pad_len,
         )
     )
 
@@ -653,29 +763,27 @@ class SystemOneSampler:
     # 5. Terminal logit slicing, calibration, and result building
     decisions: Dict[str, DecisionResult] = {}
 
-    for i, q in enumerate(questions):
-      t_idx = int(terminal_indices[i])
-      cand_ids = cand_ids_list[i]
+    for entry in question_dispatch:
+      q = entry["spec"]
+      cand_ids = entry["cand_ids"]
       cand_indices = jnp.array(cand_ids, dtype=jnp.int32)
-
-      # Subspace logit slice at terminal token position
-      subspace_logits = logits[0, t_idx, cand_indices]
 
       # Context-free null debias if enabled
       null_logits = None
       if calibrate:
         cand_key = tuple(cand_ids)
-        q_key = tuple(questions_ids[i])
+        first_q_key = tuple(entry["first_q_ids"])
         if cand_key in self._null_cache:
           null_logits = self._null_cache[cand_key]
-        elif q_key in self._null_cache:
-          null_logits = self._null_cache[q_key]
-
-      probs, entropy, confidence = calibrate_and_score(
-          subspace_logits, null_logits=null_logits, temperature=temp
-      )
+        elif first_q_key in self._null_cache:
+          null_logits = self._null_cache[first_q_key]
 
       if q.type == QuestionType.NOUL:
+        t_idx = int(terminal_indices[entry["branch_indices"][0]])
+        subspace_logits = logits[0, t_idx, cand_indices]
+        probs, entropy, confidence = calibrate_and_score(
+            subspace_logits, null_logits=null_logits, temperature=temp
+        )
         p_true = float(probs[0])
         p_false = float(probs[1])
         decisions[q.id] = NoulResult(
@@ -687,19 +795,24 @@ class SystemOneSampler:
         )
 
       elif q.type == QuestionType.CHOICE:
-        assert q.options is not None
-        probs_dict = {opt: float(p) for opt, p in zip(q.options, probs)}
-        argmax_idx = int(jnp.argmax(probs))
-        decisions[q.id] = ChoiceResult(
-            id=q.id,
-            value=q.options[argmax_idx],
-            selected_index=cand_labels_list[i][argmax_idx],
-            confidence=confidence,
-            probabilities=probs_dict,
-            raw_entropy=entropy,
+        p_by_perm = []
+        for b_idx in entry["branch_indices"]:
+          t_idx = int(terminal_indices[b_idx])
+          subspace_logits = logits[0, t_idx, cand_indices]
+          p_s, _, _ = calibrate_and_score(
+              subspace_logits, null_logits=null_logits, temperature=temp
+          )
+          p_by_perm.append(p_s)
+        decisions[q.id] = _resolve_choice_result(
+            q, p_by_perm, perms=entry["perms"]
         )
 
       elif q.type == QuestionType.SCORE:
+        t_idx = int(terminal_indices[entry["branch_indices"][0]])
+        subspace_logits = logits[0, t_idx, cand_indices]
+        probs, entropy, confidence = calibrate_and_score(
+            subspace_logits, null_logits=null_logits, temperature=temp
+        )
         min_v, max_v = q.score_range
         values = jnp.arange(min_v, max_v + 1, dtype=jnp.float32)
         probs_f32 = jnp.asarray(probs, dtype=jnp.float32)

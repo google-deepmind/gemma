@@ -51,10 +51,19 @@ with _epy.lazy_api_imports(globals()):
   from gemma.gm.text._systemone_sampler import DecisionResult
   from gemma.gm.text._systemone_sampler import SystemOneResponse
   from gemma.gm.text._systemone_sampler import build_tree_attention_pack
-  from gemma.gm.text._systemone_sampler import calibrate_and_score
   from gemma.gm.text._systemone_sampler import format_noul_prompt
   from gemma.gm.text._systemone_sampler import format_choice_prompt
   from gemma.gm.text._systemone_sampler import format_score_prompt
+
+  # System One Debiasing & Calibration
+  from gemma.gm.text._systemone_debias import calibrate_and_score
+  from gemma.gm.text._systemone_debias import spread_order
+  from gemma.gm.text._systemone_debias import cyclic_shifts
+  from gemma.gm.text._systemone_debias import marginalize_cyclic_distributions
+  from gemma.gm.text._systemone_debias import compute_order_flip_rate
+  from gemma.gm.text._systemone_debias import TemperatureScaler
+  from gemma.gm.text._systemone_debias import fit_temperature
+  from gemma.gm.text._systemone_debias import compute_ece
 
   # Other utils
   # from gemma.gm.text import _template as template

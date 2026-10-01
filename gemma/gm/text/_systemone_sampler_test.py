@@ -388,6 +388,119 @@ class SystemOneSamplerTest(absltest.TestCase):
     )
     self.assertEqual(probs.shape, (2,))
 
+  def test_cyclic_shifts(self):
+    """Tests generation of cyclic permutation indices."""
+    shifts_3 = gm.text.cyclic_shifts(3)
+    self.assertEqual(shifts_3, [[0, 1, 2], [1, 2, 0], [2, 0, 1]])
+
+    shifts_4_max2 = gm.text.cyclic_shifts(4, max_permutations=2, spread=False)
+    self.assertEqual(shifts_4_max2, [[0, 1, 2, 3], [1, 2, 3, 0]])
+
+    shifts_4_spread = gm.text.cyclic_shifts(4, max_permutations=2, spread=True)
+    self.assertEqual(shifts_4_spread, [[0, 1, 2, 3], [2, 3, 0, 1]])
+
+  def test_marginalize_cyclic_distributions(self):
+    """Tests logmean marginalization removes position bias."""
+    perms = [[0, 1], [1, 0]]
+    p_by_perm = np.array([[0.8, 0.2], [0.8, 0.2]])
+    marg_probs = gm.text.marginalize_cyclic_distributions(
+        p_by_perm, perms, combine="logmean"
+    )
+    self.assertAlmostEqual(marg_probs[0], 0.5, delta=1e-5)
+    self.assertAlmostEqual(marg_probs[1], 0.5, delta=1e-5)
+
+  def test_compute_order_flip_rate(self):
+    """Tests computation of option order flip rate across permutations."""
+    perms = [[0, 1], [1, 0]]
+    p_flipped = np.array([[0.8, 0.2], [0.8, 0.2]])
+    flip_rate = gm.text.compute_order_flip_rate(p_flipped, perms)
+    self.assertEqual(flip_rate, 1.0)
+
+    p_consistent = np.array([[0.8, 0.2], [0.2, 0.8]])
+    flip_rate_consistent = gm.text.compute_order_flip_rate(p_consistent, perms)
+    self.assertEqual(flip_rate_consistent, 0.0)
+
+  def test_temperature_scaler_and_ece(self):
+    """Tests post-hoc temperature fitting and ECE reduction."""
+    np.random.seed(42)
+    labels = np.random.randint(0, 3, size=60)
+    overconfident_logits = np.random.randn(60, 3) * 6.0
+    exp_z = np.exp(overconfident_logits)
+    raw_probs = exp_z / exp_z.sum(axis=-1, keepdims=True)
+
+    raw_ece = gm.text.compute_ece(raw_probs, labels)
+    scaler = gm.text.TemperatureScaler.fit(raw_probs, labels)
+    cal_probs = scaler.apply(raw_probs)
+    cal_ece = gm.text.compute_ece(cal_probs, labels)
+
+    self.assertGreater(scaler.temperature, 1.0)
+    self.assertLess(cal_ece, raw_ece)
+
+  def test_tree_attention_cyclic_marginalization_end_to_end(self):
+    """Tests evaluate_choice with marginalize=True in a single pass."""
+    with mock.patch.object(
+        self.sampler, "_forward", wraps=self.sampler._forward
+    ) as mock_forward:
+      result = self.sampler.evaluate_choice(
+          state="state",
+          question="q2",
+          options=["A", "B", "C"],
+          marginalize=True,
+      )
+      self.assertEqual(mock_forward.call_count, 1)
+      self.assertIsInstance(result, gm.text.ChoiceResult)
+      self.assertIn(result.value, ["A", "B", "C"])
+      self.assertIsNotNone(result.order_flip_rate)
+      self.assertGreaterEqual(result.order_flip_rate, 0.0)
+      self.assertLessEqual(result.order_flip_rate, 1.0)
+
+  def test_choice_check_flip_rate(self):
+    """Tests evaluate_choice with check_flip_rate=True."""
+    with mock.patch.object(
+        self.sampler, "_forward", wraps=self.sampler._forward
+    ) as mock_forward:
+      result = self.sampler.evaluate_choice(
+          state="state",
+          question="q2",
+          options=["A", "B", "C"],
+          check_flip_rate=True,
+          marginalize=False,
+      )
+      self.assertEqual(mock_forward.call_count, 1)
+      self.assertIsInstance(result, gm.text.ChoiceResult)
+      self.assertIsNotNone(result.order_flip_rate)
+
+  def test_pad_to_length(self):
+    """Tests pad_to_length in build_tree_attention_pack and sampler."""
+    inp, pos, mask, terms = gm.text.build_tree_attention_pack(
+        state_ids=[1, 2],
+        questions_ids=[[3, 4], [5]],
+        pad_to_length=10,
+    )
+    self.assertEqual(inp.shape, (1, 10))
+    self.assertEqual(pos.shape, (1, 10))
+    self.assertEqual(mask.shape, (1, 1, 10, 10))
+    self.assertEqual(len(terms), 2)
+    # Mask padding region should be False
+    self.assertFalse(bool(mask[0, 0, 5, 5]))
+
+    # Exceeding pad_to_length raises ValueError
+    with self.assertRaises(ValueError):
+      gm.text.build_tree_attention_pack(
+          state_ids=[1, 2],
+          questions_ids=[[3, 4], [5]],
+          pad_to_length=3,
+      )
+
+    # Sampler with pad_to_length returns valid decisions
+    result = self.sampler.evaluate_choice(
+        state="state",
+        question="q2",
+        options=["A", "B", "C"],
+        pad_to_length=32,
+    )
+    self.assertIsInstance(result, gm.text.ChoiceResult)
+
 
 if __name__ == "__main__":
   absltest.main()

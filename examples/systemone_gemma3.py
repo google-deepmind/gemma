@@ -131,6 +131,7 @@ def main() -> None:
               "Account Access",
               "Software Bug",
           ],
+          marginalize=True,
       ),
       gm.text.QuestionSpec(
           id="q_urgency_rating",
@@ -179,6 +180,8 @@ def main() -> None:
       print(f"   Selected:      [{decision.selected_index}] {decision.value}")
       print(f"   Confidence:    {decision.confidence * 100:.2f}%")
       print(f"   Entropy:       {decision.raw_entropy:.4f} bits")
+      if decision.order_flip_rate is not None:
+        print(f"   Order Flip Rate: {decision.order_flip_rate * 100:.1f}%")
       print("   Probabilities:")
       for opt, prob in decision.probabilities.items():
         bar = "#" * int(prob * 20)

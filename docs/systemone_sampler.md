@@ -88,15 +88,56 @@ response = sampler.evaluate_systemone(
 )
 ```
 
+## Option-Order Bias & Cyclic Marginalization
+
+In multi-choice categorical questions ($K \ge 2$), models frequently exhibit **position / option-order bias** (e.g. favoring option A or the final option regardless of context). Changing or reversing the option order can alter the model's prediction on over 20% of items.
+
+While context-free null calibration fixes token frequency biases on binary decisions, it does not neutralize option-order bias. `SystemOneSampler` resolves order bias through **cyclic-shift marginalization**:
+
+1. Options are presented in $K$ cyclic permutations ($s = 0, \dots, K-1$).
+2. All $K$ permutations are evaluated in the **same single tree-attention forward pass ($O(1)$)**, sharing the same state prefix.
+3. Probabilities across permutations are marginalized using geometric mean (`logmean`):
+
+$$\log P(i) = \frac{1}{K} \sum_{s=0}^{K-1} \log P_s(i) - \text{const}$$
+
+```python
+# Enable cyclic-shift marginalization in single forward pass:
+result = sampler.evaluate_choice(
+    state="My order arrived with missing parts and a broken cable.",
+    question="Which department should handle this request?",
+    options=["Refunds", "Hardware Support", "Shipping", "General Inquiry"],
+    marginalize=True,
+)
+print(result.value)            # Order-invariant selected option
+print(result.order_flip_rate)  # Fraction of shifts with argmax disagreement
+```
+
+### Label-Free Flip Rate Diagnostic
+
+You can quantify how sensitive a question is to option ordering without any labeled data:
+
+```python
+# Evaluate original layout and reversed layout (2 branches in 1 pass):
+result = sampler.evaluate_choice(
+    state="My order arrived with missing parts...",
+    question="Which department should handle this request?",
+    options=["Refunds", "Hardware Support", "Shipping", "General Inquiry"],
+    check_flip_rate=True,
+)
+print(result.order_flip_rate)  # 0.0 = order-invariant, 1.0 = argmax flipped
+```
+
+A high flip rate indicates that cyclic marginalization will significantly boost accuracy on that task.
+
 ## Context-Free Null Calibration
 
-LLMs often exhibit token frequency and positional priors (e.g. favoring "True" over "False" or "A" over "B" regardless of context).
+LLMs often exhibit token frequency and semantic priors (e.g. favoring "True" over "False" or affirmative words regardless of context).
 
 `SystemOneSampler` eliminates this prior bias via context-free null calibration:
 
 $$z_{\text{cal}} = z_{\text{real}} - z_{\text{null}}$$
 
-Where $z_{\text{null}}$ represents the unnormalized logits evaluated against a null state (e.g. `"N/A"`).
+Where $z_{\text{null}}$ represents unnormalized logits evaluated against a null state (e.g. `"N/A"`).
 
 You can precompute null priors once at application startup to achieve maximum serving throughput:
 
@@ -104,15 +145,47 @@ You can precompute null priors once at application startup to achieve maximum se
 sampler.precompute_null_priors(questions)
 ```
 
-## Confidence Scoring
+## Confidence & Temperature Calibration
 
-Confidence is computed using normalized Shannon entropy:
+`SystemOneSampler` reports confidence using **normalized Shannon entropy**:
 
 $$H(P) = -\sum_{i=1}^K P_i \log_2(P_i)$$
 $$C = 1 - \frac{H(P)}{\log_2(K)}$$
 
 * $C = 1.0$: Deterministic certainty ($P_k = 1$).
 * $C = 0.0$: Maximum uncertainty / uniform distribution ($P_k = \frac{1}{K}$).
+
+Normalized entropy effectively ranks and orders items by certainty. However, at default $T = 1.0$, uncalibrated softmax logits can be overconfident in absolute probability terms.
+
+### Post-Hoc Temperature Scaling
+
+To calibrate probabilities and minimize Expected Calibration Error (ECE), fit a single scalar temperature on a small validation set using `gm.text.fit_temperature` or `gm.text.TemperatureScaler`:
+
+```python
+# 1. Measure raw Expected Calibration Error (ECE)
+raw_ece = gm.text.compute_ece(val_probs, val_labels)
+
+# 2. Fit scalar temperature minimizing negative log-likelihood (NLL)
+cal_temp = gm.text.fit_temperature(val_probs, val_labels)
+
+# 3. Supply calibrated temperature to sampler
+sampler = gm.text.SystemOneSampler(
+    model=model,
+    params=params,
+    tokenizer=tokenizer,
+    default_temperature=cal_temp,
+)
+```
+
+## Empirical Guidelines: When Corrections Help
+
+Based on multi-model benchmark ablations:
+
+| Decision Type | Primary Failure Mode | Recommended Correction | Empirical Impact |
+| :--- | :--- | :--- | :--- |
+| **NOUL (Binary)** | Label / Token frequency bias (e.g. True vs False) | `calibrate=True` (Null-context prior) | Substantial ECE reduction (+0.06 on injection gates); fixes skewed default marginals. |
+| **CHOICE (Multi-way)** | Option-order / Position bias (A vs B vs C) | `marginalize=True` (Cyclic shifts) | +7.3% to +8.7% accuracy improvement; cuts order flip rate from 0.23 down to 0.07. |
+| **SCORE (Ordinal)** | Asymmetric distribution skew | `calibrate=True` (Null-context prior) | Centers score distributions and improves expected value calibration. |
 
 ## Model Support
 
@@ -160,3 +233,4 @@ sampler = gm.text.SystemOneSampler(
 )
 ```
 
+See the complete runnable example in [`examples/systemone_gemma4.py`](https://github.com/google-deepmind/gemma/blob/main/examples/systemone_gemma4.py).
