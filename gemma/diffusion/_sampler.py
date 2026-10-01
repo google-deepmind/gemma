@@ -382,14 +382,12 @@ class DiffusionSampler(_sampler_loop.SamplerLoop):
       cache_layer = list(cache.values())[0]
       cache_length = cache_layer['k'].shape[1]
       samples_in_cache: Int['*B'] = cache_layer['end_index']  # pyrefly: ignore[not-a-type]
-      if full_attention_mask is not None:
-        valid_prefix = (
-            jnp.arange(cache_length)[None, :] < samples_in_cache[:, None]
-        ) & full_attention_mask
-        unpadded_offset = jnp.sum(valid_prefix.astype(jnp.int32), axis=-1)
-      else:
-        unpadded_offset = samples_in_cache
-      positions = unpadded_offset[:, None] + jnp.arange(canvas_length)[None, :]
+      positions = _make_canvas_positions(
+          canvas_length=canvas_length,
+          cache_length=cache_length,
+          samples_in_cache=samples_in_cache,
+          full_attention_mask=full_attention_mask,
+      )
     else:
       cache_length = None
       samples_in_cache = None
@@ -536,6 +534,7 @@ class DiffusionSampler(_sampler_loop.SamplerLoop):
         tokens=canvas,
         cache=cache,
         params=params,
+        full_attention_mask=state.full_attention_mask,
     )
 
     done = state.done | batch_has_stop_token
@@ -620,6 +619,7 @@ class DiffusionSampler(_sampler_loop.SamplerLoop):
       tokens: Tokens,  # pyrefly: ignore[not-a-type]
       cache: _config.Cache,
       params: _common.Params,
+      full_attention_mask: Bool['B CacheLength'] | None = None,
   ) -> _config.Cache:
     """Inserts tokens into the cache via a transformer forward pass.
 
@@ -631,6 +631,8 @@ class DiffusionSampler(_sampler_loop.SamplerLoop):
       tokens: Tokens to insert, shaped [batch_size, seq_len].
       cache: The current KV cache.
       params: Model parameters.
+      full_attention_mask: Optional mask of valid cache slots, used to skip
+        padding when computing positions and attention.
 
     Returns:
       The updated cache with the tokens inserted.
@@ -641,7 +643,12 @@ class DiffusionSampler(_sampler_loop.SamplerLoop):
     cache_layer = list(cache.values())[0]
     cache_length = cache_layer['k'].shape[1]
     samples_in_cache: Int['B'] = cache_layer['end_index']  # pyrefly: ignore[not-a-type, unknown-name]
-    positions = samples_in_cache[:, None] + jnp.arange(seq_len)[None, :]
+    positions = _make_canvas_positions(
+        canvas_length=seq_len,
+        cache_length=cache_length,
+        samples_in_cache=samples_in_cache,
+        full_attention_mask=full_attention_mask,
+    )
 
     attention_mask = _make_causal_attention_mask(
         batch_size=tokens.shape[0],
@@ -649,6 +656,8 @@ class DiffusionSampler(_sampler_loop.SamplerLoop):
         cache_length=cache_length,
         num_valid_cache_tokens=samples_in_cache,
     )
+    if full_attention_mask is not None:
+      attention_mask = attention_mask & full_attention_mask[:, None, :]
 
     output = self.model.apply(
         {'params': params},
@@ -659,6 +668,22 @@ class DiffusionSampler(_sampler_loop.SamplerLoop):
     )
 
     return output.cache  # pyrefly: ignore[missing-attribute]
+
+
+def _make_canvas_positions(
+    canvas_length: int,
+    cache_length: int,
+    samples_in_cache: Int['*B'],  # pyrefly: ignore[not-a-type]
+    full_attention_mask: Bool['*B CacheLength'] | None = None,  # pyrefly: ignore[not-a-type]
+) -> Int['*B CanvasLength']:  # pyrefly: ignore[not-a-type]
+  """Returns RoPE positions for the canvas, skipping padding in the cache."""
+  offset = samples_in_cache
+  if full_attention_mask is not None:
+    valid_prefix = (
+        jnp.arange(cache_length)[None, :] < samples_in_cache[:, None]
+    ) & full_attention_mask
+    offset = jnp.sum(valid_prefix.astype(jnp.int32), axis=-1)
+  return offset[:, None] + jnp.arange(canvas_length)[None, :]
 
 
 @typechecked
