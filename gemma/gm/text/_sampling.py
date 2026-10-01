@@ -91,6 +91,9 @@ class TopPSampling(SamplingMethod):
 
   @typechecked
   def get_next_tokens(self, logits: Float['... V'], rng: PRNGKey) -> Int['...']:  # pyrefly: ignore[bad-index, not-a-type]
+    if not 0.0 <= self.p <= 1.0:
+      raise ValueError(f'`p` must be between 0 and 1. Got: {self.p}')
+
     # temperature scaling
     logits = logits / self.temperature
 
