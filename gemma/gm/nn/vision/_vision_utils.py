@@ -139,7 +139,7 @@ class Encoder1DBlock(nn.Module):
     y = nn.Dropout(rate=self.dropout)(y, deterministic)
     x = x + y
     x = nn.with_logical_constraint(x, ("act_batch", "act_len", "act_emb"))
-    return x
+    return x  # pyrefly: ignore[bad-return]
 
 
 class Encoder(nn.Module):

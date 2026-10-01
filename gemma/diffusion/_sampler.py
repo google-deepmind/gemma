@@ -140,7 +140,7 @@ class SampleFromPredictions:
       The denoised tokens after applying confidence-based selection and
       renoising non-selected positions.
     """
-    del current_noise_proportion, target_noise_proportion
+    del current_noise_proportion
 
     categorical_rng, noise_rng = jax.random.split(rng)
     denoiser_tokens = jax.random.categorical(
@@ -170,6 +170,8 @@ class SampleFromPredictions:
         .at[jnp.arange(batch_size)[:, None], sorted_index]
         .set(sorted_selection_mask)
     )
+    is_final_step = target_noise_proportion <= 0.0
+    selection_mask = selection_mask | is_final_step[:, None]
 
     # Renoise all non-selected tokens with uniform random tokens.
     # Selected positions get denoiser tokens.
@@ -380,7 +382,14 @@ class DiffusionSampler(_sampler_loop.SamplerLoop):
       cache_layer = list(cache.values())[0]
       cache_length = cache_layer['k'].shape[1]
       samples_in_cache: Int['*B'] = cache_layer['end_index']  # pyrefly: ignore[not-a-type]
-      positions = samples_in_cache[:, None] + jnp.arange(canvas_length)[None, :]
+      if full_attention_mask is not None:
+        valid_prefix = (
+            jnp.arange(cache_length)[None, :] < samples_in_cache[:, None]
+        ) & full_attention_mask
+        unpadded_offset = jnp.sum(valid_prefix.astype(jnp.int32), axis=-1)
+      else:
+        unpadded_offset = samples_in_cache
+      positions = unpadded_offset[:, None] + jnp.arange(canvas_length)[None, :]
     else:
       cache_length = None
       samples_in_cache = None

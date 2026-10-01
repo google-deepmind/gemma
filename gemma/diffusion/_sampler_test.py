@@ -262,6 +262,23 @@ class SamplerTest(parameterized.TestCase):
     )
     self.assertEqual(output.sampled_tokens.shape, (batch_size, canvas_length))
 
+  def test_sample_from_predictions_final_step(self):
+    """Tests that SampleFromPredictions commits all tokens on the final step."""
+    logits = jnp.zeros((1, 4, 32), dtype=jnp.float32)
+    logits = logits.at[:, :, 5].set(20.0)
+    sampler_fn = _sampler.SampleFromPredictions(
+        entropy_bound=0.0,  # Setting to 0.0 to accept no tokens.
+        text_vocab_size=32,
+    )
+    tokens = sampler_fn(
+        rng=jax.random.PRNGKey(0),
+        denoiser_logits=logits,
+        canvas=jnp.zeros((1, 4), dtype=jnp.int32),
+        current_noise_proportion=jnp.array([0.25]),
+        target_noise_proportion=jnp.array([0.0]),  # Final step.
+    )
+    np.testing.assert_array_equal(tokens, jnp.full((1, 4), 5, dtype=jnp.int32))
+
   @parameterized.named_parameters(
       dict(
           testcase_name='no_cache',
@@ -345,6 +362,97 @@ class SamplerTest(parameterized.TestCase):
         rng=rng,
     )
     self.assertEqual(output.shape, (batch_size, canvas_length))
+
+  def test_sample_next_canvas_unpadded_positions(self):
+    """Tests that sample_next_canvas uses unpadded offsets for positions."""
+    batch_size = 2
+    canvas_length = 4
+    cache_length = 10
+    vocab_size = _SMALL_CONFIG.num_embed
+    embed_dim = _SMALL_CONFIG.embed_dim
+
+    model = _models.DiffusionGemma_26B_A4B(
+        config=_SMALL_CONFIG,
+        self_conditioning_config=_SMALL_SC_CONFIG,
+    )
+    cache = _SMALL_CONFIG.init_cache(
+        batch_size=batch_size,
+        dtype=jnp.bfloat16,
+        cache_length=cache_length,
+    )
+    cache['layer_0']['end_index'] = jnp.array([5, 5], dtype=jnp.int32)
+
+    sampler = _sampler.DiffusionSampler(
+        model=model,
+        end_tokens=(99,),
+        forbidden_tokens=None,
+        sampling=_sampling.Greedy(),
+        cache_length=cache_length,
+        special_tokens=None,
+        diffusion_process=_sampler.DiffusionProcess(),
+        logit_shaper=_sampler.AnnealingTemperatureShaperConfig().make(),
+        sample_from_predictions=_sampler.SampleFromPredictions(
+            text_vocab_size=vocab_size,
+        ),
+        canvas_length=canvas_length,
+        max_denoising_steps=1,
+        text_vocab_size=vocab_size,
+    )
+
+    rng = jax.random.PRNGKey(0)
+    params = model.init(
+        rngs=rng,
+        tokens=jnp.ones((batch_size, canvas_length), dtype=jnp.int32),
+        sc_embeddings=jnp.ones(
+            (batch_size, canvas_length, embed_dim), dtype=jnp.bfloat16
+        ),
+        attention_mask=jnp.ones(
+            (batch_size, canvas_length, canvas_length), dtype=jnp.bool_
+        ),
+        method=model.call_with_self_conditioning,
+    )['params']
+
+    # Sequence 0 has 2 valid prompt tokens and 3 padding tokens.
+    full_attention_mask = jnp.array(
+        [
+            [1, 1, 0, 0, 0, 1, 1, 1, 1, 1],
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+        ],
+        dtype=jnp.bool_,
+    )
+
+    recorded_positions = None
+    original_sample_step = _sampler.DiffusionSampler.sample_step
+
+    def tracking_sample_step(self_sampler, *args, **kwargs):
+      nonlocal recorded_positions
+      recorded_positions = kwargs['positions']
+      return original_sample_step(self_sampler, *args, **kwargs)
+
+    with mock.patch.object(
+        _sampler.DiffusionSampler,
+        'sample_step',
+        new=tracking_sample_step,
+    ):
+      with jax.disable_jit():
+        sampler.sample_next_canvas(
+            canvas_length=canvas_length,
+            max_denoising_steps=1,
+            batch_size=batch_size,
+            cache=cache,
+            params=params,
+            rng=rng,
+            full_attention_mask=full_attention_mask,
+        )
+
+    expected_positions = jnp.array(
+        [
+            [2, 3, 4, 5],
+            [5, 6, 7, 8],
+        ],
+        dtype=jnp.int32,
+    )
+    np.testing.assert_array_equal(recorded_positions, expected_positions)
 
   def test_append_tokens_to_cache(self):
     """Tests that append_tokens_to_cache correctly advances the cache index.
