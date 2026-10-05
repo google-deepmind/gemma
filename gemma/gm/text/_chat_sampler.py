@@ -116,7 +116,7 @@ class ChatSampler:
   params: _common.Params = dataclasses.field(repr=False)
   multi_turn: bool = False
   print_stream: bool | dialog.Stream = False
-  tokenizer: _tokenizer.Tokenizer = None  # pytype: disable=annotation-type-mismatch
+  tokenizer: _tokenizer.Tokenizer = None  # pyrefly: ignore[bad-assignment]
   sampling: _sampling.SamplingMethod = dataclasses.field(
       default_factory=_sampling.Greedy
   )
@@ -138,7 +138,7 @@ class ChatSampler:
   # Internal variables, but exposed for power users.
 
   # Last state of the sampler.
-  last_state: _sampler_loop.SamplingState = dataclasses.field(  # pytype: disable=annotation-type-mismatch
+  last_state: _sampler_loop.SamplingState = dataclasses.field(  # pyrefly: ignore[bad-assignment]
       default=None, repr=False
   )
   turns: list[_template.Turn] = dataclasses.field(default_factory=list)
@@ -247,7 +247,7 @@ class ChatSampler:
           sharding=sharding,
       )
     else:
-      return self.sampler.sample(  # pytype: disable=wrong-arg-types
+      return self.sampler.sample(  # pyrefly: ignore[no-matching-overload]
           prompt_text,
           images=images,
           sampling=sampling,
@@ -262,7 +262,7 @@ class ChatSampler:
       self,
       prompt: str | dialog.Conversation,
       *,
-      images: list[np.ndarray | Image.Image] | UInt8['N? H W C'] | None = None,  # pyrefly: ignore[not-a-type]
+      images: list[np.ndarray | Image.Image] | UInt8['N? H W C'] | None = None,
       audio: list[np.ndarray] | None = None,
       audio_lengths: list[int] | None = None,
       sampling: _sampling.SamplingMethod | None = None,
@@ -405,7 +405,7 @@ class ChatSampler:
     self.turns.append(_template.Prompt(prompt_text))
     self.turns.append(_template.Response(out.text))
     object.__setattr__(self, 'last_state', out.state)
-    return out.text  # pytype: disable=bad-return-type
+    return out.text
 
   def initialize_stream(
       self,

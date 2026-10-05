@@ -209,9 +209,9 @@ def _get_non_batch_dim_size(ann: TypeAlias) -> int | None:  # pyrefly: ignore[in
     else:
       return None
   elif _is_ktyping(ann):  # Leaf (ktyping)
-    return _non_batch_dim_from_ktyping(ann)  # pytype: disable=wrong-arg-types
+    return _non_batch_dim_from_ktyping(ann)
   elif _is_jaxtyping(ann):  # Leaf (Backward compatibility)
-    return _non_batch_dim_from_jaxtyping(ann)  # pytype: disable=wrong-arg-types
+    return _non_batch_dim_from_jaxtyping(ann)
   else:
     return None
 

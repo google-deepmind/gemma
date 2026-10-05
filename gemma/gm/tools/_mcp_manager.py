@@ -26,10 +26,10 @@ from etils import epy
 from gemma.gm.tools import _manager
 
 with epy.lazy_imports():
-  # pylint: disable=g-import-not-at-top # pytype: disable=import-error
-  import fastmcp
+  # pylint: disable=g-import-not-at-top
+  import fastmcp  # pyrefly: ignore[missing-import]
   import mcp
-  # pylint: enable=g-import-not-at-top # pytype: enable=import-error
+  # pylint: enable=g-import-not-at-top
 
 type FastMcpClientLike = (fastmcp.Client | fastmcp.FastMCP | str | Any)
 

@@ -27,9 +27,9 @@ import dialog
 from etils import epy
 
 with epy.lazy_imports():
-  # pylint: disable=g-import-not-at-top # pytype: disable=import-error
+  # pylint: disable=g-import-not-at-top
   import mcp
-  # pylint: enable=g-import-not-at-top # pytype: enable=import-error
+  # pylint: enable=g-import-not-at-top
 
 
 @dataclasses.dataclass(frozen=True, kw_only=True)

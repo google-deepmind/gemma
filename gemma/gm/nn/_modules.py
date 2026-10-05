@@ -36,11 +36,11 @@ LayerCache = dict[str, jax.Array]
 
 
 def create_sliding_mask(
-    positions: Int['B L'],  # pyrefly: ignore[not-a-type]
+    positions: Int['B L'],
     *,
     cache_positions: Int['B cache_len'] | None = None,
     sliding_window_size: int,
-) -> Bool['B L cache_len']:  # pyrefly: ignore[not-a-type]
+) -> Bool['B L cache_len']:
   """Create the sliding mask for local sliding attention."""
   if cache_positions is None:
     cache_positions = positions

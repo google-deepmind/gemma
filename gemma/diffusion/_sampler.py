@@ -65,7 +65,7 @@ class DiffusionProcess:
       batch_size: int,
       canvas_length: int,
       text_vocab_size: int,
-  ) -> Tokens:  # pyrefly: ignore[not-a-type]
+  ) -> Tokens:
     """Create an initial noisy canvas of random tokens for sampling."""
 
     return jax.random.randint(
@@ -78,10 +78,10 @@ class DiffusionProcess:
   def add_noise_to_tokens(
       self,
       rng: PRNGKey,
-      canvas_tokens: Tokens,  # pyrefly: ignore[not-a-type]
-      noise_proportion: Float['*B'],  # pyrefly: ignore[not-a-type]
+      canvas_tokens: Tokens,
+      noise_proportion: Float['*B'],
       text_vocab_size: int,
-  ) -> Tokens:  # pyrefly: ignore[not-a-type]
+  ) -> Tokens:
     """Adds noise to the tokens."""
     rng_mask, rng_tokens = jax.random.split(rng)
 
@@ -122,11 +122,11 @@ class SampleFromPredictions:
       self,
       *,
       rng: PRNGKey,
-      denoiser_logits: Logits,  # pyrefly: ignore[not-a-type]
-      canvas: Tokens,  # pyrefly: ignore[not-a-type]
-      current_noise_proportion: NoiseProportion,  # pyrefly: ignore[not-a-type]
-      target_noise_proportion: NoiseProportion,  # pyrefly: ignore[not-a-type]
-  ) -> Tokens:  # pyrefly: ignore[not-a-type]
+      denoiser_logits: Logits,
+      canvas: Tokens,
+      current_noise_proportion: NoiseProportion,
+      target_noise_proportion: NoiseProportion,
+  ) -> Tokens:
     """Returns the sample step output.
 
     Args:
@@ -199,21 +199,21 @@ class SampleStepOutput:
       this sampling step.
   """
 
-  sampled_tokens: Tokens  # pyrefly: ignore[not-a-type]
-  sc_embeddings: Embeddings  # pyrefly: ignore[not-a-type]
-  logits: Logits  # pyrefly: ignore[not-a-type]
-  modified_tokens_mask: Bool['*B L']  # pyrefly: ignore[not-a-type]
+  sampled_tokens: Tokens
+  sc_embeddings: Embeddings
+  logits: Logits
+  modified_tokens_mask: Bool['*B L']
 
 
 @flax.struct.dataclass
 class _WhileLoopCarry:
   """Carry state for the jax.lax.while_loop in sample_next_canvas."""
 
-  step: Int['']  # pyrefly: ignore[not-a-type]
-  canvas: Tokens  # pyrefly: ignore[not-a-type]
-  sc_embeddings: Embeddings  # pyrefly: ignore[not-a-type]
+  step: Int['']
+  canvas: Tokens
+  sc_embeddings: Embeddings
   rng: PRNGKey
-  done: Bool['B']  # pyrefly: ignore[not-a-type, unknown-name]
+  done: Bool['B']  # pyrefly: ignore[unknown-name]
 
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
@@ -263,9 +263,9 @@ class AnnealingTemperatureShaper:
   @typechecked
   def __call__(
       self,
-      logits: Float['*B L V'],  # pyrefly: ignore[not-a-type]
-      noise_proportion: Float['*B'],  # pyrefly: ignore[not-a-type]
-  ) -> Float['*B L V']:  # pyrefly: ignore[not-a-type]
+      logits: Float['*B L V'],
+      noise_proportion: Float['*B'],
+  ) -> Float['*B L V']:
 
     # Calculate temperature directly from noise_proportion.
     # noise_proportion goes from ~1 down to ~0.
@@ -293,12 +293,12 @@ class AnnealingTemperatureShaper:
 
 @typechecked
 def _truncate_canvas_at_stop_tokens(
-    canvas: Tokens,  # pyrefly: ignore[not-a-type]
+    canvas: Tokens,
     *,
     end_tokens: tuple[int, ...],
     canvas_length: int,
-    done: Bool['B'],  # pyrefly: ignore[not-a-type, unknown-name]
-) -> tuple[Tokens, Bool['B']]:  # pyrefly: ignore[not-a-type, unknown-name]
+    done: Bool['B'],  # pyrefly: ignore[unknown-name]
+) -> tuple[Tokens, Bool['B']]:  # pyrefly: ignore[unknown-name]
   """Replaces tokens after the first stop token with PAD_TOKEN."""
   end_tokens_arr = jnp.array(end_tokens, dtype=jnp.int32)
   is_stop_token = jnp.isin(canvas, end_tokens_arr)
@@ -357,7 +357,7 @@ class DiffusionSampler(_sampler_loop.SamplerLoop):
       params: _common.Params,
       rng: PRNGKey,
       full_attention_mask: Bool['*B CacheLength'] | None = None,
-  ) -> Tokens:  # pyrefly: ignore[not-a-type]
+  ) -> Tokens:
     """Samples a complete denoised canvas from an initial noisy canvas.
 
     This function performs a multi-step denoising process, starting from a
@@ -381,7 +381,7 @@ class DiffusionSampler(_sampler_loop.SamplerLoop):
     if cache is not None:
       cache_layer = list(cache.values())[0]
       cache_length = cache_layer['k'].shape[1]
-      samples_in_cache: Int['*B'] = cache_layer['end_index']  # pyrefly: ignore[not-a-type]
+      samples_in_cache: Int['*B'] = cache_layer['end_index']
       if full_attention_mask is not None:
         valid_prefix = (
             jnp.arange(cache_length)[None, :] < samples_in_cache[:, None]
@@ -432,7 +432,7 @@ class DiffusionSampler(_sampler_loop.SamplerLoop):
 
     embed_dim = cast(_config.TransformerConfig, self.model.config).embed_dim
 
-    def cond_fn(carry: _WhileLoopCarry) -> Bool['']:  # pyrefly: ignore[not-a-type]
+    def cond_fn(carry: _WhileLoopCarry) -> Bool['']:
       return jnp.logical_and(
           ~jnp.all(carry.done),
           carry.step < max_denoising_steps,
@@ -559,16 +559,16 @@ class DiffusionSampler(_sampler_loop.SamplerLoop):
   def sample_step(
       self,
       *,
-      canvas: Tokens,  # pyrefly: ignore[not-a-type]
-      sc_embeddings: Embeddings,  # pyrefly: ignore[not-a-type]
+      canvas: Tokens,
+      sc_embeddings: Embeddings,
       cache: _config.Cache | None,
       positions: Int['*B L'] | None,
       attention_mask: Bool['*B CanvasLength CachePlusCanvasLength'] | None,
       sliding_attention_mask: (
           Bool['*B CanvasLength CachePlusCanvasLength'] | None
       ) = None,
-      current_noise_proportion: NoiseProportion,  # pyrefly: ignore[not-a-type]
-      target_noise_proportion: NoiseProportion,  # pyrefly: ignore[not-a-type]
+      current_noise_proportion: NoiseProportion,
+      target_noise_proportion: NoiseProportion,
       params: _common.Params,
       rng: PRNGKey,
   ) -> SampleStepOutput:
@@ -617,7 +617,7 @@ class DiffusionSampler(_sampler_loop.SamplerLoop):
   def append_tokens_to_cache(
       self,
       *,
-      tokens: Tokens,  # pyrefly: ignore[not-a-type]
+      tokens: Tokens,
       cache: _config.Cache,
       params: _common.Params,
   ) -> _config.Cache:
@@ -640,7 +640,7 @@ class DiffusionSampler(_sampler_loop.SamplerLoop):
 
     cache_layer = list(cache.values())[0]
     cache_length = cache_layer['k'].shape[1]
-    samples_in_cache: Int['B'] = cache_layer['end_index']  # pyrefly: ignore[not-a-type, unknown-name]
+    samples_in_cache: Int['B'] = cache_layer['end_index']  # pyrefly: ignore[unknown-name]
     positions = samples_in_cache[:, None] + jnp.arange(seq_len)[None, :]
 
     attention_mask = _make_causal_attention_mask(
@@ -668,7 +668,7 @@ def _make_global_attention_mask(
     cache_length: int | None,
     num_valid_tokens: Int['*B'] | None,
     full_attention_mask: Bool['*B CacheLength'] | None = None,
-) -> Bool['*B CanvasLength CacheLength']:  # pyrefly: ignore[not-a-type]
+) -> Bool['*B CanvasLength CacheLength']:
   """Create attention mask for the diffusion sampler.
 
   The canvas has full self attention.  The cache is left aligned, right padded,
@@ -713,7 +713,7 @@ def _make_causal_attention_mask(
     canvas_length: int,
     cache_length: int | None,
     num_valid_cache_tokens: Int['B'] | None,  # pyrefly: ignore[unknown-name]
-) -> Bool['B SeqLen CacheLength']:  # pyrefly: ignore[not-a-type]
+) -> Bool['B SeqLen CacheLength']:
   """Create a causal attention mask for inserting tokens into the cache.
 
   Args:

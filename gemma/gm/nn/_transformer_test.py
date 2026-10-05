@@ -43,7 +43,7 @@ def _get_output(model: gm.nn.Transformer, **kwargs) -> tuple[gm.nn.Output, Any]:
     ],
 )
 def test_transformer(model_cls: type[gm.nn.Transformer]):
-  model = model_cls()  # pylint: disable=missing-kwoa  # pytype: disable=missing-parameter
+  model = model_cls()  # pylint: disable=missing-kwoa  # pyrefly: ignore[missing-argument]
   tokens = jnp.ones((BATCH_SIZE, SEQ_LEN), dtype=jnp.int32)
   out, _ = _get_output(model, tokens=tokens)
   assert out.logits.shape == (BATCH_SIZE, SEQ_LEN, model.config.num_embed)
@@ -51,7 +51,7 @@ def test_transformer(model_cls: type[gm.nn.Transformer]):
 
 def test_images():
 
-  model = gm.nn.Gemma3_4B()  # pylint: disable=missing-kwoa  # pytype: disable=missing-parameter
+  model = gm.nn.Gemma3_4B()  # pylint: disable=missing-kwoa
 
   tokens = jnp.ones((BATCH_SIZE, SEQ_LEN), dtype=jnp.int32)
   images = jnp.ones((BATCH_SIZE, NUM_IMAGES, 64, 64, 3), dtype=jnp.uint8)

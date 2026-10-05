@@ -45,10 +45,10 @@ class VisionBlock(nn.Module):
   @typechecked
   def __call__(
       self,
-      inputs: Float['B L D'],  # pyrefly: ignore[not-a-type]
+      inputs: Float['B L D'],
       attn_mask: Bool['B #L l'] | None,  # pyrefly: ignore[unknown-name]
       positions: Int['B L'] | Int['B L 2'],
-  ) -> tuple[Float['B L D'], None]:  # pyrefly: ignore[not-a-type]
+  ) -> tuple[Float['B L D'], None]:
     """Calls the block."""
     outputs = self.block(
         inputs=inputs, attn_mask=attn_mask, positions=positions  # pyrefly: ignore[bad-argument-type]
@@ -105,10 +105,10 @@ class VisionTransformer(nn.Module):
   @typechecked
   def __call__(
       self,
-      inputs: Float['B L D'],  # pyrefly: ignore[not-a-type]
-      input_mask: Bool['B L'],  # pyrefly: ignore[not-a-type]
+      inputs: Float['B L D'],
+      input_mask: Bool['B L'],
       positions_xy: Int['B L 2'] | None = None,
-  ) -> Float['B L D']:  # pyrefly: ignore[not-a-type]
+  ) -> Float['B L D']:
     assert positions_xy is not None
     attn_mask = input_mask[:, :, None] * input_mask[:, None, :]
     outputs = self.stacked_layers(

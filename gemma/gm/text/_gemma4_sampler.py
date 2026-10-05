@@ -67,7 +67,7 @@ class Gemma4Sampler:
 
   model: _transformer_like.TransformerLike
   params: _common.Params
-  tokenizer: _tokenizer.Tokenizer = None  # pytype: disable=annotation-type-mismatch
+  tokenizer: _tokenizer.Tokenizer = None  # pyrefly: ignore[bad-assignment]
   sampling: _sampling.SamplingMethod = dataclasses.field(
       default_factory=_sampling.Greedy
   )

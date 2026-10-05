@@ -68,9 +68,9 @@ class SelfConditioning(nn.Module):
   def __call__(
       self,
       *,
-      canvas_embeddings: Embeddings,  # pyrefly: ignore[not-a-type]
-      self_conditioning_signal: Embeddings,  # pyrefly: ignore[not-a-type]
-  ) -> Embeddings:  # pyrefly: ignore[not-a-type]
+      canvas_embeddings: Embeddings,
+      self_conditioning_signal: Embeddings,
+  ) -> Embeddings:
     normed = self.pre_norm(self_conditioning_signal)
     sc_signal = self.ffw(normed)
     combined = canvas_embeddings + sc_signal
@@ -83,11 +83,11 @@ class DiffusionMixin:
 
   @_jax_utils.flatten_unflatten_batch_dim()
   @typechecked
-  def call_with_self_conditioning(  # pytype: disable=signature-mismatch
+  def call_with_self_conditioning(
       self,
-      tokens: Int['*B L'],  # pyrefly: ignore[not-a-type]
+      tokens: Int['*B L'],
       *,
-      sc_embeddings: Embeddings,  # pyrefly: ignore[not-a-type]
+      sc_embeddings: Embeddings,
       images: UInt8['*B N H W C'] | UInt8['*B H W C'] | None = None,
       positions: Int['*B L_with_mm'] | None = None,
       cache: _config.Cache | None = None,
@@ -174,7 +174,7 @@ class DiffusionMixin:
       x = _token_utils.remove_mm_logits(
           logits=x,
           tokens=tokens,
-          num_tokens_per_image=self.config.vision_encoder.num_mm_tokens_per_image,  # pytype: disable=attribute-error
+          num_tokens_per_image=self.config.vision_encoder.num_mm_tokens_per_image,  # pyrefly: ignore[missing-attribute]
       )
 
     logits = self.embedder.decode(x)

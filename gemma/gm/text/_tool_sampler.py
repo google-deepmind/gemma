@@ -55,7 +55,7 @@ class ToolSampler(_chat_sampler.ChatSampler):
       self,
       prompt: str | dialog.Conversation,
       *,
-      images: list[np.ndarray | Image.Image] | UInt8['N? H W C'] | None = None,  # pyrefly: ignore[not-a-type]
+      images: list[np.ndarray | Image.Image] | UInt8['N? H W C'] | None = None,
       audio: list[np.ndarray] | None = None,
       audio_lengths: list[int] | None = None,
       sampling: _sampling.SamplingMethod | None = None,

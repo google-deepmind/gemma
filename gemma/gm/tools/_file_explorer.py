@@ -37,7 +37,7 @@ def file_explorer(
             )
         ),
     ],
-):  # pytype: disable=signature-mismatch
+):
   """File explorer tool."""
   path = epath.Path(path)  # pyrefly: ignore[bad-assignment]
   match method:

@@ -37,8 +37,8 @@ from sentencepiece import sentencepiece_model_pb2
 import sentencepiece as spm
 
 with epy.lazy_imports():
-  from plotly import graph_objects as go  # pylint: disable=g-import-not-at-top  # pytype: disable=import-error
-  import plotly.express as px  # pylint: disable=g-import-not-at-top  # pytype: disable=import-error
+  from plotly import graph_objects as go  # pylint: disable=g-import-not-at-top  # pyrefly: ignore[missing-import]
+  import plotly.express as px  # pylint: disable=g-import-not-at-top  # pyrefly: ignore[missing-import]
 
 
 _WHITESPACE_CHAR = '▁'  # Note this is NOT a undescore (▁ != _)

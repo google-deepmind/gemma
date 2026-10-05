@@ -190,7 +190,7 @@ class ChatSampler(gm.text.ChatSampler):
       sharding
   ):
     """Override to always use the diffusion sampler."""
-    return self.sampler.sample(  # pytype: disable=wrong-arg-types
+    return self.sampler.sample(  # pyrefly: ignore[no-matching-overload]
         prompt_text,
         images=images,
         sampling=sampling,

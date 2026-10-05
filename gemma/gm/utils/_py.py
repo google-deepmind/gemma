@@ -40,5 +40,5 @@ class FrozenDataclass:
 def _get_comparable_fields(obj):
   """Get the fields that are comparable."""
   return tuple(
-      getattr(obj, f.name) for f in dataclasses.fields(obj) if f.compare  # pytype: disable=wrong-arg-types
+      getattr(obj, f.name) for f in dataclasses.fields(obj) if f.compare
   )

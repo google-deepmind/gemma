@@ -116,9 +116,9 @@ class TransformerLike(Protocol):
 
   @typechecked
   @abc.abstractmethod
-  def __call__(  # pytype: disable=signature-mismatch
+  def __call__(
       self,
-      tokens: Int['*B L'],  # pyrefly: ignore[not-a-type]
+      tokens: Int['*B L'],
       *,
       images: UInt8['*B N H W C'] | UInt8['*B H W C'] | None = None,
       positions: Int['*B L_with_mm'] | None = None,
@@ -134,7 +134,7 @@ class TransformerLike(Protocol):
   def apply(
       self,
       variables: VariableDict,
-      tokens: Int['*B L'],  # pyrefly: ignore[not-a-type]
+      tokens: Int['*B L'],
       *,
       images: UInt8['*B N H W C'] | UInt8['*B H W C'] | None = None,
       cache: _config.Cache | None = None,

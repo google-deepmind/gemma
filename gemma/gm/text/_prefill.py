@@ -40,10 +40,10 @@ _PADDING_ID = 0
 class PrefillInput:
   """Input for the prefill phase."""
 
-  tokens: Int['B L']  # pyrefly: ignore[not-a-type]
+  tokens: Int['B L']
   images: UInt8['B N H W C'] | None
-  positions: Int['B L']  # pyrefly: ignore[not-a-type]
-  attention_mask: Bool['B L cache_length']  # pyrefly: ignore[not-a-type]
+  positions: Int['B L']
+  attention_mask: Bool['B L cache_length']
   cache: _cache_helper.Cache
 
 

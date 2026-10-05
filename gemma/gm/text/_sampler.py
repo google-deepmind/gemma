@@ -76,7 +76,7 @@ class SamplerOutput:
   #   """Logits of the predicted tokens."""
   #   return self._maybe_unbatch(self.state.predicted_logits)
 
-  def _maybe_unbatch(self, x: Array['B *d']) -> Float['*d']:  # pyrefly: ignore[not-a-type, unknown-name]
+  def _maybe_unbatch(self, x: Array['B *d']) -> Float['*d']:  # pyrefly: ignore[unknown-name]
     if isinstance(self.text, str):
       (x,) = x
     return x
@@ -127,7 +127,7 @@ class Sampler:
 
   model: _transformer_like.TransformerLike
   params: _common.Params
-  tokenizer: _tokenizer.Tokenizer = None  # pytype: disable=annotation-type-mismatch
+  tokenizer: _tokenizer.Tokenizer = None  # pyrefly: ignore[bad-assignment]
   sampling: _sampling.SamplingMethod = dataclasses.field(
       default_factory=_sampling.Greedy
   )
@@ -187,7 +187,7 @@ class Sampler:
       self,
       prompt: Sequence[str | dialog.Conversation],
       *,
-      images: Sequence[UInt8['N H W C']] | None = ...,  # pyrefly: ignore[not-a-type]
+      images: Sequence[UInt8['N H W C']] | None = ...,
       max_new_tokens: int | None = ...,
       stream: Literal[False] = ...,
       sampling: _sampling.SamplingMethod = ...,
@@ -357,13 +357,13 @@ class Sampler:
     )
 
     if stream:
-      return self._stream_decode_state(  # pytype: disable=bad-return-type
+      return self._stream_decode_state(
           state,  # pyrefly: ignore[bad-argument-type]
           return_state=return_state,
           has_batch_dim=has_batch_dim,
       )
     else:
-      return self._decode_state(  # pytype: disable=bad-return-type
+      return self._decode_state(
           state,  # pyrefly: ignore[bad-argument-type]
           predicted_tokens=state.predicted_tokens,  # pyrefly: ignore[missing-attribute]
           has_batch_dim=has_batch_dim,
@@ -421,7 +421,7 @@ class Sampler:
       *,
       add_bos: bool,
       pad_length: int | None = None,
-  ) -> Float['B L']:  # pyrefly: ignore[not-a-type]
+  ) -> Float['B L']:
     """Encode the prompts."""
     prompt = _normalize_prompt(prompt, format=self.tokenizer.FORMAT)
     tokens = [self.tokenizer.encode(p, add_bos=add_bos) for p in prompt]
@@ -441,7 +441,7 @@ class Sampler:
   def _decode_state(
       self,
       state: _sampler_loop.SamplingState,
-      predicted_tokens: Int['B L'],  # pyrefly: ignore[not-a-type]
+      predicted_tokens: Int['B L'],
       *,
       has_batch_dim: bool,
       return_state: bool,
@@ -478,7 +478,7 @@ class Sampler:
           state=state,
       )
     else:
-      return predicted_texts  # pytype: disable=bad-return-type
+      return predicted_texts
 
   def _stream_decode_state(
       self,
@@ -546,7 +546,7 @@ def _normalize_prompt(prompt: _Prompt, format: dialog.Format) -> list[str]:  # p
 
 
 def _normalize_images(
-    images: Sequence[UInt8['N? H W C']] | UInt8['N? H W C'] | None = None,  # pyrefly: ignore[not-a-type]
+    images: Sequence[UInt8['N? H W C']] | UInt8['N? H W C'] | None = None,
     *,
     has_batch_dim: bool,
 ) -> UInt8['B N H W C'] | None:
@@ -562,11 +562,11 @@ def _normalize_images(
   # TODO(epot): Supports sequences of images, rather than array. Need then
   # to resize and batch the images.
   if not has_batch_dim:
-    if len(images.shape) == 3:  # Add the `N` optional dimension   # pytype: disable=attribute-error
+    if len(images.shape) == 3:  # Add the `N` optional dimension  # pyrefly: ignore[missing-attribute]
       images = images[None, ...]  # pyrefly: ignore[bad-index]
     images = images[None, ...]  # Add the `B` dimension  # pyrefly: ignore[bad-index]
   else:
-    if len(images.shape) == 4:  # Add the `N` optional dimension   # pytype: disable=attribute-error
+    if len(images.shape) == 4:  # Add the `N` optional dimension  # pyrefly: ignore[missing-attribute]
       images = images[:, None, ...]  # pyrefly: ignore[bad-index]
   return images
 
