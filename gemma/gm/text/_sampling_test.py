@@ -15,6 +15,7 @@
 from gemma import gm
 import jax.numpy
 import numpy as np
+import pytest
 
 
 def test_greedy_sampling():
@@ -55,6 +56,16 @@ def test_topp_sampling():
   logits = jax.random.normal(rng, shape=(batch_size, vocab_size))
   tokens = sampling.get_next_tokens(logits, rng)
   assert tokens.shape == (batch_size,)
+
+
+@pytest.mark.parametrize('p', [-0.1, 1.1])
+def test_topp_sampling_rejects_invalid_p(p):
+  sampling = gm.text.TopPSampling(p=p)
+  rng = jax.random.PRNGKey(0)
+  logits = jax.random.normal(rng, shape=(2, 5))
+
+  with pytest.raises(ValueError, match='`p` must be between 0 and 1'):
+    sampling.get_next_tokens(logits, rng)
 
 
 def test_topp_sampling_with_skewed_logits():
