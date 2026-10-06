@@ -25,10 +25,10 @@ _IMAGE_STD = (127.5,) * 3
 
 
 def pre_process_image(
-    image: Float["H W C"],  # pyrefly: ignore[not-a-type]
+    image: Float["H W C"],
     *,
     image_shape: tuple[int, int, int],
-) -> Float["H W C"]:  # pyrefly: ignore[not-a-type]
+) -> Float["H W C"]:
   """Pre-process image.
 
   Performs a bi-linear resize (with anti-aliasing) and normalizes the image.
@@ -58,11 +58,11 @@ def pre_process_image(
 
 @typechecked
 def patchify_images(
-    images: Float["B H W C"],  # pyrefly: ignore[not-a-type]
+    images: Float["B H W C"],
     *,
     patch_size: tuple[int, int],
     padding: str = "VALID",
-) -> Float["B P D"]:  # pyrefly: ignore[not-a-type]
+) -> Float["B P D"]:
   """Extract patches from images.
 
   This function is a wrapper for jax.lax.conv_general_dilated_patches
@@ -98,8 +98,8 @@ def patchify_images(
 
 @typechecked
 def _normalize_images(
-    images: Float["H W C"],  # pyrefly: ignore[not-a-type]
-) -> Float["H W C"]:  # pyrefly: ignore[not-a-type]
+    images: Float["H W C"],
+) -> Float["H W C"]:
   """Normalize the image to zero mean and unit variance.
 
   In order to change the image mean and std, we need to change the _IMAGE_MEAN

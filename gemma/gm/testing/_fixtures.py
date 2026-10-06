@@ -19,7 +19,7 @@ from unittest import mock
 
 from etils import epath
 from gemma.gm.text import _tokenizer
-import pytest  # pytype: disable=import-error
+import pytest  # pyrefly: ignore[missing-import]
 
 
 @pytest.fixture(autouse=True, scope='module')

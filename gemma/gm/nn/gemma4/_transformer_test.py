@@ -45,14 +45,14 @@ def _get_output(
     ],
 )
 def test_transformer(model_cls: type[gt.Transformer]):
-  model = model_cls()  # pylint: disable=missing-kwoa  # pytype: disable=missing-parameter
+  model = model_cls()  # pylint: disable=missing-kwoa  # pyrefly: ignore[missing-argument]
   tokens = jnp.ones((BATCH_SIZE, SEQ_LEN), dtype=jnp.int32)
   out, _ = _get_output(model, tokens=tokens)
   assert out.logits.shape == (BATCH_SIZE, SEQ_LEN, model.config.num_embed)
 
 
 def test_text_only():
-  model = gemma4_models.Gemma4_31B(text_only=True)  # pylint: disable=missing-kwoa  # pytype: disable=missing-parameter
+  model = gemma4_models.Gemma4_31B(text_only=True)  # pylint: disable=missing-kwoa
   tokens = jnp.ones((BATCH_SIZE, SEQ_LEN), dtype=jnp.int32)
   out, params = _get_output(model, tokens=tokens)
   assert 'vision_encoder' not in params

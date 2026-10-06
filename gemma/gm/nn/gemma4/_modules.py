@@ -36,11 +36,11 @@ LayerCache = dict[str, jax.Array]
 
 
 def _create_sliding_mask(
-    positions: Int['B L'],  # pyrefly: ignore[not-a-type]
+    positions: Int['B L'],
     *,
     cache_positions: Int['B cache_len'] | None = None,
     sliding_window_size: int,
-) -> Bool['B L cache_len']:  # pyrefly: ignore[not-a-type]
+) -> Bool['B L cache_len']:
   """Create the sliding mask for local sliding attention."""
   if cache_positions is None:
     cache_positions = positions
@@ -137,7 +137,7 @@ class Embedder(nn.Module):
     return jnp.dot(x, self.input_embedding_table.T)
 
   @typechecked
-  def encode_logits(self, x: Float['*B L V']) -> Float['*B L D']:  # pyrefly: ignore[not-a-type]
+  def encode_logits(self, x: Float['*B L V']) -> Float['*B L D']:
     """Encodes the input logits.
 
     Converts the logits to probabilities and uses that as a weighted sum of the
@@ -681,7 +681,7 @@ class Block(nn.Module):
 
     # MoE branch (mlp in checkpoint)
     moe_in = self.pre_ffw_norm(attn_output)
-    moe_out = self.mlp(moe_in, unnormalized_x=attn_output)  # pytype: disable=wrong-keyword-args
+    moe_out = self.mlp(moe_in, unnormalized_x=attn_output)  # pyrefly: ignore[unexpected-keyword]
     if self.post_ffw1_norm is not None:
       moe_out = self.post_ffw1_norm(moe_out)
 

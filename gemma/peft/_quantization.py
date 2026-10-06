@@ -111,7 +111,7 @@ class SimulateQuantizedDense(nn.Module):
 
   @nn.compact
   def __call__(self, inputs: Array) -> Array:
-    kernel = self.param(  # pytype: disable=wrong-keyword-args
+    kernel = self.param(  # pyrefly: ignore[no-matching-overload]
         'kernel',
         self.wrapped.kernel_init,
         (inputs.shape[-1], self.wrapped.features),
@@ -124,7 +124,7 @@ class SimulateQuantizedDense(nn.Module):
     )
     y = inputs @ w
     if self.wrapped.use_bias:
-      b = self.param(  # pytype: disable=wrong-keyword-args
+      b = self.param(  # pyrefly: ignore[no-matching-overload]
           'bias',
           self.wrapped.bias_init,
           (self.wrapped.features,),
@@ -220,7 +220,7 @@ class IntDense(nn.Module):
 
   @nn.compact
   def __call__(self, inputs: Array) -> Array:
-    kernel = self.param(  # pytype: disable=wrong-keyword-args
+    kernel = self.param(
         'kernel',
         nn.initializers.ones_init(),
         (inputs.shape[-1], self.wrapped.features),
@@ -235,7 +235,7 @@ class IntDense(nn.Module):
     w = kernel.astype(self.wrapped.dtype) / scale
     y = inputs @ w
     if self.wrapped.use_bias:
-      b = self.param(  # pytype: disable=wrong-keyword-args
+      b = self.param(  # pyrefly: ignore[no-matching-overload]
           'bias',
           self.wrapped.bias_init,
           (self.wrapped.features,),

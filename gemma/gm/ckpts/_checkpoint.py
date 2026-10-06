@@ -62,7 +62,7 @@ class LoadCheckpoint(kd.ckpts.InitTransform):
   path: epath.PathLike
   quantize: bool = False
 
-  def transform(self, state: _StateT) -> _StateT:  # pytype: disable=signature-mismatch
+  def transform(self, state: _StateT) -> _StateT:  # pyrefly: ignore[bad-override]
     new_params = load_params(
         self.path, params=state.params, quantize=self.quantize
     )
@@ -364,7 +364,7 @@ def _flat_to_nested(params: Params) -> Params:
   if mm_params:
     mm_params = _flat_to_nested_single(mm_params, name='SigLiPFromPatches_0')
     # TODO(epot): More conversions needed.
-    transformer_params['vision_encoder'] = mm_params  # pytype: disable=unsupported-operands
+    transformer_params['vision_encoder'] = mm_params  # pyrefly: ignore[unsupported-operation]
   return transformer_params
 
 

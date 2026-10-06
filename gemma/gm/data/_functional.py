@@ -61,12 +61,12 @@ def pad(
 
 
 def _pad(
-    element: Array["sequence"],  # pyrefly: ignore[not-a-type, unknown-name]
+    element: Array["sequence"],  # pyrefly: ignore[unknown-name]
     *,
     max_length: int,
     fill_value: int,
     truncate: bool = False,
-) -> Array["max_length"]:  # pyrefly: ignore[not-a-type, unknown-name]
+) -> Array["max_length"]:  # pyrefly: ignore[unknown-name]
   """Inner padding implementation."""
   # Use `xnp` so it supports both `np` and `jnp`.
   xnp = enp.lazy.get_xnp(element, strict=False)
@@ -92,17 +92,17 @@ def _pad(
 class Seq2SeqFields:
   """Fields for next token prediction."""
 
-  input: Int["*b l"]  # pyrefly: ignore[not-a-type]
-  target: Int["*b l"]  # pyrefly: ignore[not-a-type]
-  target_mask: Bool["*b l"]  # pyrefly: ignore[not-a-type]
+  input: Int["*b l"]
+  target: Int["*b l"]
+  target_mask: Bool["*b l"]
 
 
 # Note: There's no `batch` dimension here. It wouldn't make much sense as
 # each example has a different length, so batching can only be applied
 # after the output is padded.
 def make_seq2seq_fields(
-    prompt: Int["prompt_len"],  # pyrefly: ignore[not-a-type, unknown-name]
-    response: Int["response_len"],  # pyrefly: ignore[not-a-type, unknown-name]
+    prompt: Int["prompt_len"],  # pyrefly: ignore[unknown-name]
+    response: Int["response_len"],  # pyrefly: ignore[unknown-name]
 ) -> Seq2SeqFields:
   """Create the model `input`, `target` and `loss_mask`.
 

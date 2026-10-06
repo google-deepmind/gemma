@@ -99,10 +99,10 @@ class _Inputs:
     per_layer_inputs: Optional per-layer inputs.
   """
 
-  embeddings: Float['B L D']  # pyrefly: ignore[not-a-type]
-  positions: Int['B L']  # pyrefly: ignore[not-a-type]
-  attention_mask: Bool['B L cache_length']  # pyrefly: ignore[not-a-type]
-  inputs_mask: Bool['B L']  # pyrefly: ignore[not-a-type]
+  embeddings: Float['B L D']
+  positions: Int['B L']
+  attention_mask: Bool['B L cache_length']
+  inputs_mask: Bool['B L']
   sliding_attention_mask: Bool['B L cache_length'] | None = None
   per_layer_inputs: Float['B L P'] | None = None
 
@@ -219,7 +219,7 @@ class Transformer(nn.Module):
       return self.config.vision_encoder
 
   # Calling `model.apply` on Colab makes the Kernel crash unless it is jitted.
-  @functools.partial(  # pyrefly: ignore[bad-specialization]
+  @functools.partial(
       nn.jit,
       static_argnames=(
           'self',
@@ -232,9 +232,9 @@ class Transformer(nn.Module):
   # function, the batch dimension is flattened to a single dimension.
   @_jax_utils.flatten_unflatten_batch_dim()
   @typechecked
-  def __call__(  # pytype: disable=signature-mismatch
+  def __call__(
       self,
-      tokens: Int['*B L'],  # pyrefly: ignore[not-a-type]
+      tokens: Int['*B L'],
       *,
       images: PreprocessedVisionInput | None = None,
       audio=None,  # raw waveform [batch, samples] or None
@@ -326,7 +326,7 @@ class Transformer(nn.Module):
       x = _token_utils.remove_mm_logits(
           logits=x,
           tokens=tokens,
-          num_tokens_per_image=self.config.vision_encoder.num_mm_tokens_per_image,  # pytype: disable=attribute-error
+          num_tokens_per_image=self.config.vision_encoder.num_mm_tokens_per_image,  # pyrefly: ignore[missing-attribute]
       )
 
     logits = self.embedder.decode(x)
@@ -343,7 +343,7 @@ class Transformer(nn.Module):
 
   def _apply_attention(
       self, inputs: _Inputs, cache: _config.Cache | None
-  ) -> tuple[Float['*B L D'], _config.Cache]:  # pyrefly: ignore[not-a-type]
+  ) -> tuple[Float['*B L D'], _config.Cache]:
     """Runs the transformer blocks.
 
     Args:
@@ -384,12 +384,12 @@ class Transformer(nn.Module):
           kv_shared_cache=kv_shared_cache,
           skip_sliding_mask=skip_sliding_mask,
       )
-      new_cache[layer_name] = layer_cache  # pytype: disable=container-type-mismatch
+      new_cache[layer_name] = layer_cache
 
     x = self.final_norm(x)
     return x, new_cache
 
-  @functools.partial(  # pyrefly: ignore[bad-specialization]
+  @functools.partial(
       nn.jit,
       static_argnames=(
           'self',

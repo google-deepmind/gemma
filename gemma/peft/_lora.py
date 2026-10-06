@@ -43,10 +43,10 @@ class LoRADenseAdapter(nn.Module):
 
   @nn.compact
   def __call__(self, inputs: Array) -> Array:
-    a = self.param(  # pytype: disable=wrong-keyword-args
+    a = self.param(  # pyrefly: ignore[no-matching-overload]
         'a', self.a_init, (inputs.shape[-1], self.rank), dtype=self.dtype
     )
-    b = self.param(  # pytype: disable=wrong-keyword-args
+    b = self.param(  # pyrefly: ignore[no-matching-overload]
         'b', self.b_init, (self.rank, self.features), dtype=self.dtype
     )
     return inputs @ a @ b
@@ -125,8 +125,8 @@ class LoRAEinsumAdapter(nn.Module):
     (lora_einsum_str, a_shape, b_shape) = out
 
     self._lora_einsum_str = lora_einsum_str
-    self._a = self.param('a', self.a_init, a_shape, dtype=self.dtype)  # pytype: disable=wrong-keyword-args
-    self._b = self.param('b', self.b_init, b_shape, dtype=self.dtype)  # pytype: disable=wrong-keyword-args
+    self._a = self.param('a', self.a_init, a_shape, dtype=self.dtype)  # pyrefly: ignore[no-matching-overload]
+    self._b = self.param('b', self.b_init, b_shape, dtype=self.dtype)  # pyrefly: ignore[no-matching-overload]
 
   def __call__(self, inputs: Array) -> Array:
     return jnp.einsum(self._lora_einsum_str, inputs, self._a, self._b)

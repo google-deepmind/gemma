@@ -81,10 +81,10 @@ class _Inputs:
     per_layer_inputs: Per-layer inputs, if used in model.
   """
 
-  embeddings: Float['B L D']  # pyrefly: ignore[not-a-type]
-  positions: Int['B L']  # pyrefly: ignore[not-a-type]
-  attention_mask: Bool['B L cache_length']  # pyrefly: ignore[not-a-type]
-  inputs_mask: Bool['B L']  # pyrefly: ignore[not-a-type]
+  embeddings: Float['B L D']
+  positions: Int['B L']
+  attention_mask: Bool['B L cache_length']
+  inputs_mask: Bool['B L']
   per_layer_inputs: Float['B L P'] | None = None
 
 
@@ -209,7 +209,7 @@ class Gemma3nTransformer(_transformer.Transformer):
       return self.config.vision_encoder
 
   # Calling `model.apply` on Colab makes the Kernel crash unless it is jitted.
-  @functools.partial(  # pyrefly: ignore[bad-specialization]
+  @functools.partial(
       nn.jit,
       static_argnames=(
           'self',
@@ -221,9 +221,9 @@ class Gemma3nTransformer(_transformer.Transformer):
   # function, the batch dimension is flattened to a single dimension.
   @_jax_utils.flatten_unflatten_batch_dim()
   @typechecked
-  def __call__(  # pytype: disable=signature-mismatch
+  def __call__(
       self,
-      tokens: Int['*B L'],  # pyrefly: ignore[not-a-type]
+      tokens: Int['*B L'],
       *,
       images: UInt8['*B N H W C'] | UInt8['*B H W C'] | None = None,
       # TODO(epot): Cleanup and simplify the API.
@@ -313,7 +313,7 @@ class Gemma3nTransformer(_transformer.Transformer):
             else None,
             kv_shared_cache=kv_shared_cache,  # pyrefly: ignore[unexpected-keyword]
         )
-        new_cache[layer_name] = layer_cache  # pytype: disable=container-type-mismatch
+        new_cache[layer_name] = layer_cache
 
       x = self._maybe_postprocess_embeddings_with_altup(x)
       x = self.final_norm(x)
@@ -329,7 +329,7 @@ class Gemma3nTransformer(_transformer.Transformer):
       x = _token_utils.remove_mm_logits(
           logits=x,
           tokens=tokens,
-          num_tokens_per_image=self.config.vision_encoder.num_mm_tokens_per_image,  # pytype: disable=attribute-error
+          num_tokens_per_image=self.config.vision_encoder.num_mm_tokens_per_image,  # pyrefly: ignore[missing-attribute]
       )
 
     logits = self.embedder.decode(x)
@@ -344,7 +344,7 @@ class Gemma3nTransformer(_transformer.Transformer):
         hidden_states=x if return_hidden_states else None,
     )
 
-  @functools.partial(  # pyrefly: ignore[bad-specialization]
+  @functools.partial(
       nn.jit,
       static_argnames=(
           'self',
@@ -373,7 +373,7 @@ class Gemma3nTransformer(_transformer.Transformer):
   def _encode_and_get_inputs(  # pyrefly: ignore[bad-override]
       self,
       *,
-      tokens: Int['B L_no_mm'],  # pyrefly: ignore[not-a-type]
+      tokens: Int['B L_no_mm'],
       images: UInt8['B H W C'] | UInt8['B N H W C'] | None = None,
       attention_mask: Bool['B L_no_mm cache_length'] | None = None,
       positions: Int['B L_no_mm'] | None = None,
@@ -444,10 +444,10 @@ class Gemma3nTransformer(_transformer.Transformer):
   def _merge_mm_embeddings(
       self,
       *,
-      tokens: Int['B L'],  # pyrefly: ignore[not-a-type]
-      embeddings: Float['B L D'],  # pyrefly: ignore[not-a-type]
-      images: UInt8['B N H W C'],  # pyrefly: ignore[not-a-type]
-  ) -> Float['B L D']:  # pyrefly: ignore[not-a-type]
+      tokens: Int['B L'],
+      embeddings: Float['B L D'],
+      images: UInt8['B N H W C'],
+  ) -> Float['B L D']:
     """Update the embeddings to include the vision embeddings."""
     # Encode the images
     soft_embeddings = self._encode_vision(images)
@@ -461,7 +461,7 @@ class Gemma3nTransformer(_transformer.Transformer):
 
     return merged_embeddings
 
-  def _encode_vision(self, images: UInt8['B N H W C']) -> Float['B N P D']:  # pyrefly: ignore[not-a-type]
+  def _encode_vision(self, images: UInt8['B N H W C']) -> Float['B N P D']:
     """Encode the images into the same space as the text embeddings."""
     assert self.vision_encoder is not None
     patches = self.vision_encoder.patchify_images(images)
@@ -493,9 +493,9 @@ class Gemma3nTransformer(_transformer.Transformer):
 
   def _maybe_preprocess_embeddings_with_altup(
       self,
-      x: Float['*B L D'],  # pyrefly: ignore[not-a-type]
+      x: Float['*B L D'],
       guard_against_excess_precision: bool = True,
-  ) -> Float['*B L D'] | List[Float['*B L D']]:  # pyrefly: ignore[not-a-type]
+  ) -> Float['*B L D'] | List[Float['*B L D']]:
     if self.config.use_altup:
       eq = '...F,FD->...D'
       target_magnitude = jnp.mean(x**2, axis=-1, keepdims=True) ** 0.5
@@ -510,8 +510,8 @@ class Gemma3nTransformer(_transformer.Transformer):
 
   def _maybe_postprocess_embeddings_with_altup(
       self,
-      x: Float['*B L D'] | List[Float['*B L D']],  # pyrefly: ignore[not-a-type]
-  ) -> Float['*B L D']:  # pyrefly: ignore[not-a-type]
+      x: Float['*B L D'] | List[Float['*B L D']],
+  ) -> Float['*B L D']:
     if self.config.use_altup:
       eq = '...F,FD->...D'
       target_magnitude = jnp.mean(x[0]**2, axis=-1, keepdims=True) ** 0.5
@@ -520,12 +520,12 @@ class Gemma3nTransformer(_transformer.Transformer):
         new_magnitude = jnp.mean(x[i]**2, axis=-1, keepdims=True) ** 0.5
         x[i] *= target_magnitude / jnp.maximum(new_magnitude, 1e-12)
       x = jnp.mean(jnp.stack(x, axis=0), axis=0)
-    return x  # pytype: disable=bad-return-type
+    return x
 
 
 def _make_dummy_images(
     vision_encoder: gemma_vision.SigLiPFromPatches,
-) -> Float['B L P D']:  # pyrefly: ignore[not-a-type]
+) -> Float['B L P D']:
   """Make dummy images for initializing the vision encoder."""
   return jnp.zeros(
       (1, 1, vision_encoder.image_height, vision_encoder.image_width, 3),

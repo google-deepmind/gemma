@@ -26,10 +26,10 @@ from grain import python as grain
 from kauldron import kd
 
 with epy.lazy_imports():
-    # pylint: disable=g-import-not-at-top   # pytype: disable=import-error
+    # pylint: disable=g-import-not-at-top
   import pyarrow as pa
   import pyarrow.parquet as pq
-    # pylint: enable=g-import-not-at-top   # pytype: disable=import-error
+    # pylint: enable=g-import-not-at-top
 
 # TODO(epot): Move to kd.data.py (or `kd.contrib` ?)
 
@@ -67,5 +67,5 @@ class Parquet(kd.data.py.DataSourceBase):
   path: epath.PathLike | list[epath.PathLike]
 
   @functools.cached_property
-  def data_source(self) -> grain.RandomAccessDataSource:
+  def data_source(self) -> grain.RandomAccessDataSource:  # pyrefly: ignore[bad-override]
     return ParquetDataSource(path=self.path)

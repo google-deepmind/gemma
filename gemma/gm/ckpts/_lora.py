@@ -39,7 +39,7 @@ class SkipLoRA(kd.ckpts.InitTransform):
 
   wrapped: kd.ckpts.InitTransform
 
-  def transform(self, state: _StateT) -> _StateT:  # pytype: disable=signature-mismatch
+  def transform(self, state: _StateT) -> _StateT:  # pyrefly: ignore[bad-override]
     # Remove the LoRA weights from the params structure so it can be restored
     original_params, lora_params = peft.split_params(state.params)  # pyrefly: ignore[bad-argument-type]
 
