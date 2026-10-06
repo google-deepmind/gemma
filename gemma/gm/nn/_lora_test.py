@@ -265,3 +265,15 @@ def test_reconcile_unwraps_dict_to_leaf():
   assert result['mlp']['gating_einsum'] is arr
   assert result['mlp']['linear'] is arr
 
+
+def test_reconcile_keeps_multikey_dict_on_leaf_mismatch():
+  """Multi-key dict is preserved as-is rather than silently dropping sibling keys."""
+  w = np.zeros(4)
+  b = np.ones(4)
+  params = {'mlp': {'linear': {'w': w, 'b': b}}}
+  metadata = {'mlp': {'linear': None}}
+  result = _checkpoint._reconcile_tree(params, metadata)
+
+  assert result['mlp']['linear'] == {'w': w, 'b': b}
+
+

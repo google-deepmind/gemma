@@ -562,14 +562,13 @@ def _reconcile_tree(params: Params, metadata_tree: Params) -> Params:
         result[k] = p_val  # Fallback: keep as-is.
     elif isinstance(p_val, dict) and not isinstance(m_val, dict):
       # Model has dict ({'w': ...}), checkpoint has leaf (ArrayImpl).
-      # Unwrap the dict to match checkpoint format.
+      # Unwrap single-key dicts to match checkpoint format. For multi-key
+      # dicts, keep as-is to avoid silently dropping sibling parameters.
       if len(p_val) == 1:
         inner_val = next(iter(p_val.values()))
         result[k] = inner_val
-      elif 'w' in p_val:
-        result[k] = p_val['w']
       else:
-        result[k] = p_val
+        result[k] = p_val  # Fallback: keep as-is on structure mismatch.
     else:
       # Both leaves.
       result[k] = p_val
