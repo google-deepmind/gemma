@@ -19,6 +19,17 @@ from gemma.gm.text import _sampler_loop
 import jax
 import jax.numpy as jnp
 import numpy as np
+import pytest
+
+
+def test_normalize_token_error_message_includes_token():
+  # A string that does not map to a single token id should raise an error that
+  # names the offending token. Regression test for the message previously being
+  # a plain (non-f) string, which emitted the literal `{token!r}` instead.
+  tokenizer = mock.MagicMock()
+  tokenizer.encode.return_value = [1, 2]  # Not a single token id.
+  with pytest.raises(ValueError, match=r"Invalid token: 'multi_token'"):
+    _sampler._normalize_token(tokenizer, 'multi_token')
 
 
 def test_end_tokens_mask():
