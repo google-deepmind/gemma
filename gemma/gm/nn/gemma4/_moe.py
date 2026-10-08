@@ -50,7 +50,9 @@ def _expert_dispatch(
   num_experts = expert_weights.shape[2]
 
   expert_choices_flat = expert_choices.ravel()  # [G * S * K]
-  xs_order = expert_choices_flat.argsort()
+  sorted_expert_choices, xs_order = jax.lax.sort_key_val(
+      expert_choices_flat, jnp.arange(expert_choices_flat.shape[0])
+  )
   xs_reverse_argsort = xs_order.argsort()
   xs_indices = jnp.repeat(jnp.arange(batch_size), k)[xs_order]
   sorted_xs = x[xs_indices, :]
@@ -71,6 +73,7 @@ def _expert_dispatch(
       sorted_xs,
       xs_reverse_argsort,
       xs_combine_weights,
+      sorted_expert_choices,
   )
 
 
@@ -174,6 +177,7 @@ class MoE(nn.Module):
         sorted_xs,  # [B D], where B=k*G*S.
         xs_reverse_argsort,
         xs_combine_weights,
+        _,
     ) = _expert_dispatch(x, expert_choices, expert_weights)
 
     group_ends = jnp.cumsum(xs_tokens_per_expert[:self.num_experts])
@@ -321,6 +325,7 @@ class MoERagged(nn.Module):
         sorted_xs,
         xs_reverse_argsort,
         xs_combine_weights,
+        expert_indices,
     ) = _expert_dispatch(x, expert_choices, expert_weights)
 
     # Prepare gating weights: [E, 2, H, F] -> [E, F, 2, H] -> [E, F, 2*H]
@@ -340,9 +345,8 @@ class MoERagged(nn.Module):
     )
 
     # Split and Apply GELU
-    gate_out = gate_out.reshape(gate_out.shape[0], 2, self.hidden_dim)
-    x1 = gate_out[:, 0, :]
-    x2 = gate_out[:, 1, :]
+    x1 = gate_out[:, :self.hidden_dim]
+    x2 = gate_out[:, self.hidden_dim:]
     activation = nn.gelu(x1) * x2  # [B_total, H]
 
     # Ragged dot for linear projection
@@ -354,12 +358,6 @@ class MoERagged(nn.Module):
     )
 
     # Apply per-expert output scaling.
-    # Map each token to its expert index and scale accordingly.
-    expert_indices = jnp.repeat(
-        jnp.arange(self.num_experts),
-        xs_tokens_per_expert,
-        total_repeat_length=expert_outputs.shape[0],
-    )
     per_expert = self.per_expert_scale.astype(expert_outputs.dtype)
     expert_outputs = expert_outputs * per_expert[expert_indices, None]
 
