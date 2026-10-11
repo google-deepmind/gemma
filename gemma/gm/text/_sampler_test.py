@@ -16,9 +16,11 @@ from unittest import mock
 from gemma import gm
 from gemma.gm.text import _sampler
 from gemma.gm.text import _sampler_loop
+from gemma.gm.text import _tokenizer
 import jax
 import jax.numpy as jnp
 import numpy as np
+import pytest
 
 
 def test_end_tokens_mask():
@@ -145,3 +147,51 @@ def test_chat_sampler_non_gemma4_dispatch():
     assert isinstance(output, str)
   # Verify sampler.sample was called (not gemma4_sampler.sample).
   mock_sample.assert_called_once()
+
+
+class _Gemma2DummyTokenizer(gm.testing.DummyTokenizer):
+  """Dummy tokenizer exposing Gemma2 special tokens (no tool-response tokens)."""
+
+  special_tokens = _tokenizer._Gemma2SpecialTokens  # pylint: disable=protected-access
+
+
+def _make_sampler(tokenizer):
+  model = gm.testing.DummyGemma()
+  params = model.init(
+      jax.random.PRNGKey(0),
+      jnp.zeros((5,), dtype=jnp.int32),
+  )['params']
+  return gm.text.Sampler(
+      model=model,  # pyrefly: ignore[bad-argument-type]
+      params=params,
+      tokenizer=tokenizer,
+      cache_length=128,
+      max_out_length=128,
+      pad_length=None,
+  )
+
+
+def test_sampler_loop_gemma2_tokenizer_without_tool_response_token():
+  tokenizer = _Gemma2DummyTokenizer()
+  assert not hasattr(tokenizer.special_tokens, 'BEGIN_OF_TOOL_RESPONSE')
+  sampler = _make_sampler(tokenizer)
+  loop = sampler._initialize_sampler_loop(gm.text.Greedy())  # pylint: disable=protected-access
+  assert loop.end_tokens[:2] == (
+      tokenizer.special_tokens.EOS,
+      tokenizer.special_tokens.END_OF_TURN,
+  )
+
+
+def test_sampler_loop_gemma3_tokenizer_keeps_tool_response_end_token():
+  tokenizer = gm.testing.DummyTokenizer()
+  sampler = _make_sampler(tokenizer)
+  loop = sampler._initialize_sampler_loop(gm.text.Greedy())  # pylint: disable=protected-access
+  assert (
+      tokenizer.special_tokens.BEGIN_OF_TOOL_RESPONSE in loop.end_tokens
+  )
+
+
+def test_normalize_token_error_message_contains_token_value():
+  tokenizer = gm.testing.DummyTokenizer()
+  with pytest.raises(ValueError, match='Hello world'):
+    _sampler._normalize_token(tokenizer, 'Hello world')  # pylint: disable=protected-access
