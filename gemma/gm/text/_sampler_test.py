@@ -14,6 +14,7 @@
 
 from unittest import mock
 from gemma import gm
+from gemma.gm.text import _gemma4_sampler
 from gemma.gm.text import _sampler
 from gemma.gm.text import _sampler_loop
 import jax
@@ -55,6 +56,50 @@ def test_sampler():
       pad_length=None,
   )
   sampler.sample('Hello world')
+
+
+def test_gemma4_sampler_logs_only_cache_exhaustion():
+  sampler = gm.text.Gemma4Sampler(
+      model=gm.testing.DummyGemma(),  # pyrefly: ignore[bad-argument-type]
+      params={},
+      tokenizer=gm.testing.DummyTokenizer(),
+      cache_length=8,
+      max_out_length=8,
+      pad_length=None,
+  )
+  cases = (
+      (True, [False], 2, 4, True),
+      (True, [True], 2, 4, False),
+      (True, [False], 4, 4, False),
+  )
+
+  with (
+      mock.patch.object(_gemma4_sampler._prefill, 'prefill'),
+      mock.patch.object(_sampler_loop.SamplerLoop, 'sample') as sample,
+      mock.patch.object(_gemma4_sampler.kd.utils.status, 'log') as status_log,
+  ):
+    for cache_full, done, step, max_new_tokens, should_log in cases:
+      state = mock.Mock(
+          cache_info=mock.Mock(is_full=jnp.asarray(cache_full)),
+          done=jnp.asarray(done),
+          step=jnp.asarray(step),
+          predicted_tokens=jnp.asarray([[5]]),
+      )
+      sample.return_value = state
+
+      output = sampler.sample(
+          'Hello', max_new_tokens=max_new_tokens, return_state=True
+      )
+
+      assert output.text == 'hello'
+      assert output.state is state
+      if should_log:
+        status_log.assert_called_once_with(
+            'Gemma 4 generation stopped: KV cache full (cache_length=8).'
+        )
+      else:
+        status_log.assert_not_called()
+      status_log.reset_mock()
 
 
 def test_chat_sampler_gemma4_dispatch():

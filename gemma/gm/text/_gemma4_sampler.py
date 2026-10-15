@@ -248,6 +248,15 @@ class Gemma4Sampler:
         stream=False,
     )
 
+    # Log only cache-caused truncation, not normal or token-limit stops.
+    if (
+        state.cache_info.is_full.item()
+        and not jnp.all(state.done).item()
+        and state.step.item() < max_new_tokens.item()
+    ):
+      reason = f"KV cache full (cache_length={self.cache_length})."
+      kd.utils.status.log(f"Gemma 4 generation stopped: {reason}")
+
     predicted_tokens = state.predicted_tokens  # pyrefly: ignore[missing-attribute]
     if jax.process_count() > 1:
       predicted_tokens = kd.sharding.with_sharding_constraint(
