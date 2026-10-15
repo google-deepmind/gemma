@@ -44,6 +44,12 @@ def get_lora_einsum_str_and_shapes(
   # e.g. split `'BTNH,NHD->BTD'` into `('BTNH', 'NHD', 'BTD')`.
   inputs, weights, outputs = _split_einsum_str(einsum_str)
 
+  if len(weights_shape) != len(weights):
+    raise ValueError(
+        '`weights_shape` should match the weight dimensions in `einsum_str`. '
+        f'Got shape {tuple(weights_shape)} for weight operand {weights!r}.'
+    )
+
   # Extract the inputs dimensions which will be reduced and the outputs
   # dimensions.
   # Example: BTNH,NHD->BTD
