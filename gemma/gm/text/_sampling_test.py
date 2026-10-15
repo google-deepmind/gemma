@@ -15,6 +15,7 @@
 from gemma import gm
 import jax.numpy
 import numpy as np
+import pytest
 
 
 def test_greedy_sampling():
@@ -45,6 +46,16 @@ def test_topk_sampling():
   logits = jax.random.normal(rng, shape=(batch_size, vocab_size))
   tokens = sampling.get_next_tokens(logits, rng)
   assert tokens.shape == (batch_size,)
+
+
+@pytest.mark.parametrize('k', [0, -1, 6])
+def test_topk_sampling_rejects_invalid_k(k):
+  sampling = gm.text.TopkSampling(k=k)
+  rng = jax.random.PRNGKey(0)
+  logits = jax.random.normal(rng, shape=(2, 5))
+
+  with pytest.raises(ValueError, match='`k` must be between 1'):
+    sampling.get_next_tokens(logits, rng)
 
 
 def test_topp_sampling():
