@@ -95,6 +95,16 @@ class Gemma4Sampler:
           _tokenizer.Tokenizer.from_version(self.model.INFO.tokenizer_version),
       )
 
+    if (
+        self.model.INFO.tokenizer_version
+        and self.tokenizer.VERSION
+        and self.model.INFO.tokenizer_version != self.tokenizer.VERSION
+    ):
+      raise ValueError(
+          'Incompatible model and tokenizer: '
+          f'Got {type(self.model).__name__} and {type(self.tokenizer).__name__}'
+      )
+
   def sample(
       self,
       prompt: str | Sequence[str],
