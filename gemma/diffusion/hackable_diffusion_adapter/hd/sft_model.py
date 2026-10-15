@@ -87,6 +87,30 @@ class SFTInferenceFn(inference.InferenceFn):
 ################################################################################
 
 
+def _selected_canvas_token_indices(
+    selected_canvas_idx: jnp.ndarray,
+    canvas_size: int,
+) -> jnp.ndarray:
+  """Returns absolute canvas-token indices for each selected canvas."""
+  return (
+      selected_canvas_idx[:, None] * canvas_size
+      + jnp.arange(canvas_size)[None, :]
+  )
+
+
+def _gather_selected_canvas(
+    values: jnp.ndarray,
+    selected_canvas_idx: jnp.ndarray,
+    canvas_size: int,
+) -> jnp.ndarray:
+  """Gathers one contiguous canvas from each batch element."""
+  token_indices = _selected_canvas_token_indices(
+      selected_canvas_idx, canvas_size
+  )
+  batch_indices = jnp.arange(values.shape[0])[:, None]
+  return values[batch_indices, token_indices]
+
+
 def sft_decode(
     gemma_network: Any,
     *,
@@ -103,15 +127,22 @@ def sft_decode(
     sc_logits: jnp.ndarray | None = None,
     is_training: bool = True,
 ) -> hd_typing.TargetInfoTree:
-  """Runs the SFT decoder pass: denoise canvases using the prefilled KV cache.
+  """Runs the SFT decoder pass for only the selected noisy canvas.
 
-  Builds an attention mask where each canvas token attends to the prompt plus
-  all canvases up to and including the selected canvas.
+  The encoder cache contains the prompt and clean response canvases, with its
+  write cursor moved to the start of the selected canvas. Decode only
+  ``canvas_size`` queries so the selected noisy canvas overwrites exactly its
+  own cache slots rather than wrapping into future canvases or the prompt.
+
+  For compatibility with the surrounding loss pipeline, full-response inputs
+  are accepted and the selected logits are scattered back into a full-length
+  tensor before returning. Callers that already pass a selected canvas receive
+  the selected-canvas output directly.
 
   Args:
     gemma_network: The Gemma backbone wrapper (bound or unbound).
-    xt: Noised canvas tokens.
-    time: Diffusion time.
+    xt: Noised selected canvas or full response tokens.
+    time: Diffusion time aligned with ``xt``.
     kv_cache: Prefilled KV cache.
     positions: Full-sequence positions.
     prompt_mask: Non-pad prompt mask.
@@ -126,6 +157,35 @@ def sft_decode(
   Returns:
     Denoiser output dict (e.g., ``{'logits': logits}``).
   """
+  if xt.shape[1] not in (canvas_size, total_canvas_len):
+    raise ValueError(
+        'SFT decoder input length must equal canvas_size or total_canvas_len;'
+        f' got {xt.shape[1]} for canvas_size={canvas_size} and'
+        f' total_canvas_len={total_canvas_len}.'
+    )
+
+  full_response_input = xt.shape[1] == total_canvas_len
+  if full_response_input:
+    selected_xt = _gather_selected_canvas(
+        xt, selected_canvas_idx, canvas_size
+    )
+    if time.ndim >= 2 and time.shape[1] == total_canvas_len:
+      selected_time = _gather_selected_canvas(
+          time, selected_canvas_idx, canvas_size
+      )
+    else:
+      selected_time = time
+    if sc_logits is not None and sc_logits.shape[1] == total_canvas_len:
+      selected_sc_logits = _gather_selected_canvas(
+          sc_logits, selected_canvas_idx, canvas_size
+      )
+    else:
+      selected_sc_logits = sc_logits
+  else:
+    selected_xt = xt
+    selected_time = time
+    selected_sc_logits = sc_logits
+
   attn_mask = mask_helpers.create_decoder_attention_mask(
       prompt_mask=prompt_mask,
       canvas_mask=canvas_mask,
@@ -133,27 +193,49 @@ def sft_decode(
       prompt_len=prompt_len,
       total_canvas_len=total_canvas_len,
       canvas_size=canvas_size,
-      num_queries=total_canvas_len,
+      num_queries=canvas_size,
   )
 
-  # Build canvas positions.
-  canvas_positions = positions[:, prompt_len:]
+  # Select the absolute positions belonging to the active canvas.
+  all_canvas_positions = positions[
+      :, prompt_len : prompt_len + total_canvas_len
+  ]
+  canvas_positions = _gather_selected_canvas(
+      all_canvas_positions, selected_canvas_idx, canvas_size
+  )
 
-  # Build conditioning dict.
   conditioning = {
       'kv_cache': kv_cache,
       'positions': canvas_positions,
       'attention_mask': attn_mask,
   }
-  if sc_logits is not None:
-    conditioning['sc_logits'] = sc_logits
+  if selected_sc_logits is not None:
+    conditioning['sc_logits'] = selected_sc_logits
 
-  return gemma_network(
-      xt=xt,
-      time=time,
+  output = gemma_network(
+      xt=selected_xt,
+      time=selected_time,
       conditioning=conditioning,
       is_training=is_training,
   )
+
+  if not full_response_input:
+    return output
+
+  # The existing loss pipeline operates on full response tensors. Scatter the
+  # selected-canvas predictions back into that layout; non-selected positions
+  # are ignored by target_mask.
+  selected_logits = output['logits']
+  full_logits = jnp.zeros(
+      (selected_logits.shape[0], total_canvas_len) + selected_logits.shape[2:],
+      dtype=selected_logits.dtype,
+  )
+  token_indices = _selected_canvas_token_indices(
+      selected_canvas_idx, canvas_size
+  )
+  batch_indices = jnp.arange(selected_logits.shape[0])[:, None]
+  full_logits = full_logits.at[batch_indices, token_indices].set(selected_logits)
+  return {**output, 'logits': full_logits}
 
 
 def sft_encode(
