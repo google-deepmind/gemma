@@ -134,7 +134,7 @@ class ToolSampler(_chat_sampler.ChatSampler):
         else:
           is_legacy_tool_answer = False
 
-        tool_answer = dialog.Conversation(dialog.Model(tool_answer))
+        tool_answer = dialog.Conversation(dialog.Model(tool_answer))  # pyrefly: ignore[bad-argument-type]
         if stream:
           text = tool_answer.as_text(
               add_tool_response_tag_after_call=not is_legacy_tool_answer
