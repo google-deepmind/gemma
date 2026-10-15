@@ -40,6 +40,28 @@ DiffusionNetwork = diffusion_network.DiffusionNetwork
 DiffusionGemmaModel = gemma_diffusion.DiffusionGemma_26B_A4B
 
 
+def _prepare_self_conditioning_embeddings(
+    embedder,
+    sc_logits,
+    sc_mask,
+    *,
+    batch_size,
+    canvas_length,
+    vocab_size,
+    dtype,
+):
+  """Convert logits while preserving exact-zero self-conditioning states."""
+  if sc_logits is None:
+    sc_logits = jnp.zeros((batch_size, canvas_length, vocab_size), dtype=dtype)
+    return jnp.zeros_like(embedder.encode_logits(sc_logits))
+  sc_embeddings = embedder.encode_logits(sc_logits)
+  if sc_mask is not None:
+    sc_embeddings = jnp.where(
+        sc_mask, sc_embeddings, jnp.zeros_like(sc_embeddings)
+    )
+  return sc_embeddings
+
+
 # pytype: disable=bad-return-type
 # pytype: disable=signature-mismatch
 
@@ -222,17 +244,23 @@ class WrappedDiffusionGemmaNetwork(nn.Module):
     # The HD pipeline passes the self-conditioning signal as raw logits
     # (shape [B, L, V]) under the key 'sc_logits' in the conditioning dict.
     sc_logits = conditioning.get('sc_logits', None)
-    if sc_logits is None:
-      sc_logits = jnp.zeros(
-          (batch_size, canvas_length, vocab_size), dtype=dtype
-      )
+    sc_mask = conditioning.get('sc_mask', None)
 
     positions = conditioning.get('positions', None)
     kv_cache = conditioning.get('kv_cache', None)
     attention_mask = conditioning.get('attention_mask', None)
 
-    # We keep this call to maintain the param init behavior.
-    sc_embeddings = self.gemma_model.embedder.encode_logits(sc_logits)
+    # Keep encode_logits in the path for parameter initialization while
+    # preserving DiffusionGemma's exact-zero self-conditioning state.
+    sc_embeddings = _prepare_self_conditioning_embeddings(
+        self.gemma_model.embedder,
+        sc_logits,
+        sc_mask,
+        batch_size=batch_size,
+        canvas_length=canvas_length,
+        vocab_size=vocab_size,
+        dtype=dtype,
+    )
 
     transformer_output = self.gemma_model.call_with_self_conditioning(
         tokens=tokens,

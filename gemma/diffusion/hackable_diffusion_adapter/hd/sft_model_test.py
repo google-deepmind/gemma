@@ -73,6 +73,48 @@ def _make_gemma_network():
   )
 
 
+class _ConstantEmbedder:
+
+  def encode_logits(self, logits):
+    return jnp.ones((*logits.shape[:-1], 4), dtype=logits.dtype)
+
+
+class SelfConditioningEmbeddingTest(absltest.TestCase):
+
+  def test_missing_logits_produce_exact_zero_embeddings(self):
+    embeddings = hd_gemma_network._prepare_self_conditioning_embeddings(
+        _ConstantEmbedder(),
+        None,
+        None,
+        batch_size=2,
+        canvas_length=3,
+        vocab_size=5,
+        dtype=jnp.float32,
+    )
+    np.testing.assert_array_equal(
+        embeddings, jnp.zeros((2, 3, 4), dtype=jnp.float32)
+    )
+
+  def test_mask_zeros_only_disabled_examples(self):
+    logits = jnp.zeros((2, 3, 5), dtype=jnp.float32)
+    mask = jnp.array([True, False])[:, None, None]
+    embeddings = hd_gemma_network._prepare_self_conditioning_embeddings(
+        _ConstantEmbedder(),
+        logits,
+        mask,
+        batch_size=2,
+        canvas_length=3,
+        vocab_size=5,
+        dtype=jnp.float32,
+    )
+    np.testing.assert_array_equal(
+        embeddings[0], jnp.ones((3, 4), dtype=jnp.float32)
+    )
+    np.testing.assert_array_equal(
+        embeddings[1], jnp.zeros((3, 4), dtype=jnp.float32)
+    )
+
+
 def _sft_encode(
     gemma_network,
     *,
@@ -704,6 +746,7 @@ class SFTInferenceFnTest(absltest.TestCase):
         'positions': canvas_positions,
         'attention_mask': attn_mask,
         'sc_logits': sc_logits,
+        'sc_mask': jnp.array(False),
     }
 
     # Extract gemma_network params from the wrapper's variables.
