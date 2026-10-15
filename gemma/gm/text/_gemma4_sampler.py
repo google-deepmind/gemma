@@ -219,12 +219,13 @@ class Gemma4Sampler:
         audio_soft_token_counts=tuple(audio_soft_token_counts),
     )
 
-    if max_new_tokens and max_new_tokens > self.max_out_length:
+    if max_new_tokens is not None and max_new_tokens > self.max_out_length:
       raise ValueError(
           "max_new_tokens should be smaller or equal to max_out_length. Got:"
           f" {max_new_tokens} / {self.max_out_length}"
       )
-    max_new_tokens = max_new_tokens or self.max_out_length
+    if max_new_tokens is None:
+      max_new_tokens = self.max_out_length
     max_new_tokens = jnp.asarray(max_new_tokens)  # pyrefly: ignore[bad-assignment]
 
     sampler = _sampler_loop.SamplerLoop(
