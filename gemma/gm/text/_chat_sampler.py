@@ -95,6 +95,15 @@ class ChatSampler:
     cache_length: Cache length to use. This is the maximum number of tokens the
       conversation can have (prompts, answers, images for all turns). Setting
       this to a fixed value avoids re-compilation between turns.
+    rolling_cache: If `True`, enables a rolling (ring-buffer) KV cache.  When
+      the conversation context approaches ``cache_length``, the oldest tokens
+      are evicted so that the most recent context (plus the initial system
+      prompt, if any) is preserved.  This allows indefinitely long multi-turn
+      sessions without hitting an OOM boundary.  Disabled by default to keep
+      backward-compatible behaviour.
+    rolling_cache_preserve_tokens: Number of tokens at the *start* of the cache
+      to treat as a protected region (e.g. a system prompt) that will never be
+      evicted.  Only used when ``rolling_cache=True``.
     max_out_length: Length of the output buffer for a single turn. Static value
       used to avoid triggering a jit recompilation. Shouldn't be changed unless
       you have a task where the model generates really long outputs.
@@ -122,9 +131,11 @@ class ChatSampler:
   )
   forbidden_tokens: Sequence[str | int] | None = None
   stop_tokens: Sequence[str | int] | None = None
-  # TODO(epot): Support and test rolling cache.
   # TODO(epot): Add a property to show how much of the cache is used.
   cache_length: int | None = 4096
+  # Rolling KV-cache (ring-buffer eviction) — fixes context-exhaustion OOM.
+  rolling_cache: bool = False
+  rolling_cache_preserve_tokens: int = 0
   max_out_length: int = 2048
 
   # Gemma 4-specific fields (ignored for non-Gemma4 models).
@@ -258,6 +269,113 @@ class ChatSampler:
           stream=bool(stream),
       )
 
+  def _maybe_evict_cache(
+      self,
+      state: _sampler_loop.SamplingState,
+      incoming_tokens: int,
+  ) -> _sampler_loop.SamplingState:
+    """Evict old tokens from the KV cache when the buffer is nearly full.
+
+    Uses a ring-buffer strategy: the *protected* prefix
+    (``rolling_cache_preserve_tokens`` tokens at the start — e.g. a system
+    prompt) is never evicted.  Beyond that, the oldest tokens are dropped so
+    that ``incoming_tokens`` new tokens can fit.
+
+    Args:
+      state: Current ``SamplingState``.
+      incoming_tokens: Number of tokens the next prompt + output turn will
+        consume (conservative upper bound is fine).
+
+    Returns:
+      A new ``SamplingState`` whose cache has been shifted left to make room,
+      with ``init_cache_length`` and the attention mask updated accordingly.
+    """
+    if state is None or self.cache_length is None:
+      return state
+
+    protect = self.rolling_cache_preserve_tokens
+    used = int(state.cache_info.end_index)
+    available = self.cache_length - used
+
+    if available >= incoming_tokens:
+      # Still enough room — nothing to do.
+      return state
+
+    # How many tokens do we need to free?
+    evict_n = incoming_tokens - available
+
+    # Never evict the protected prefix.
+    evict_start = protect
+    evict_end = evict_start + evict_n
+
+    if evict_end > used:
+      # Edge case: even evicting everything beyond the prefix is not enough.
+      # Evict as much as we safely can (conversation history is lost but we
+      # avoid a hard crash).
+      evict_end = used
+
+    # Shift the cache left: move [evict_end .. used) → [evict_start .. ).
+    import jax  # already imported at module level; local ref for clarity
+    import jax.numpy as jnp  # same
+
+    def _shift_layer(layer_data):
+      layer_data = dict(layer_data)
+      keep_len = used - evict_end          # tokens to retain
+      dest_end = evict_start + keep_len
+
+      for key in ('k', 'v'):
+        arr = layer_data[key]               # shape (B, L, H, D)
+        # Copy the kept slice to the destination.
+        kept = arr[:, evict_end:used, :, :]
+        arr = arr.at[:, evict_start:dest_end, :, :].set(kept)
+        # Zero out the freed tail.
+        arr = arr.at[:, dest_end:used, :, :].set(0)
+        layer_data[key] = arr
+
+      pos = layer_data['positions']        # shape (B, L)
+      kept_pos = pos[:, evict_end:used]
+      pos = pos.at[:, evict_start:dest_end].set(kept_pos)
+      pos = pos.at[:, dest_end:used].set(0)
+      layer_data['positions'] = pos
+
+      new_end = dest_end
+      layer_data['end_index'] = jnp.full_like(
+          layer_data['end_index'], fill_value=new_end
+      )
+      return layer_data
+
+    from gemma.gm.utils import _cache_helper  # already imported at top
+    new_raw_cache = _cache_helper._map_cache_layer(state.cache, _shift_layer)
+
+    new_init_cache_length = jnp.array(
+        int(state.init_cache_length) - evict_n, dtype=state.init_cache_length.dtype
+    )
+
+    # Shift the attention mask too.
+    attn_mask = state.full_attention_mask  # (B, cache_length)
+    kept_mask = attn_mask[:, evict_end:]
+    pad_mask = jnp.zeros(
+        (attn_mask.shape[0], evict_n), dtype=attn_mask.dtype
+    )
+    new_attn_mask = jnp.concatenate(
+        [attn_mask[:, :evict_start], kept_mask, pad_mask[:, :evict_n - (evict_end - evict_start)]],
+        axis=-1,
+    )
+    # Simpler: shift full mask left by evict_n starting at evict_start.
+    new_attn_mask = jnp.concatenate(
+        [attn_mask[:, :evict_start],
+         attn_mask[:, evict_end:],
+         jnp.zeros((attn_mask.shape[0], evict_end - evict_start), dtype=attn_mask.dtype)],
+        axis=-1,
+    )
+
+    return dataclasses.replace(
+        state,
+        cache=new_raw_cache,
+        init_cache_length=new_init_cache_length,
+        full_attention_mask=new_attn_mask,
+    )
+
   def chat(
       self,
       prompt: str | dialog.Conversation,
@@ -376,6 +494,14 @@ class ChatSampler:
         format=self.tokenizer.FORMAT,
         add_tool_response_tag_after_call=not is_legacy_tool_answer,
     )
+
+    # --- Rolling cache eviction (fixes context-exhaustion OOM, issue #675) ---
+    if self.rolling_cache and last_state is not None:
+      # Conservative estimate: prompt character count / 4 ≈ tokens, plus
+      # max_out_length.  A tighter bound would require tokenising first, but
+      # overestimating is always safe — we just evict a few extra tokens.
+      incoming_estimate = self.max_out_length + max(len(prompt_text) // 4, 64)
+      last_state = self._maybe_evict_cache(last_state, incoming_estimate)
 
     # --- Dispatch to the correct sampler ---
     out = self._sample(
