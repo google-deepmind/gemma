@@ -129,8 +129,7 @@ class _Gemma3SpecialTokens(SpecialTokens, enum.IntEnum):
   START_OF_IMAGE = 255999  # '<start_of_image>'
   END_OF_IMAGE = 256000  # <end_of_image>
 
-  # Tool tokens
-  BEGIN_OF_TOOL_RESPONSE = 50
+  # No tool tokens: id 50 is `<unused44>`, available through `custom_tokens`.
 
 
 class _Gemma4SpecialTokens(SpecialTokens, enum.IntEnum):

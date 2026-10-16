@@ -378,7 +378,14 @@ class Sampler:
         end_tokens=(
             self.tokenizer.special_tokens.EOS,
             self.tokenizer.special_tokens.END_OF_TURN,
-            self.tokenizer.special_tokens.BEGIN_OF_TOOL_RESPONSE,
+            # Only Gemma4 has a `<|tool_response>` token.
+            *(
+                (self.tokenizer.special_tokens.BEGIN_OF_TOOL_RESPONSE,)
+                if hasattr(
+                    self.tokenizer.special_tokens, 'BEGIN_OF_TOOL_RESPONSE'
+                )
+                else ()
+            ),
             *self._normalized_stop_tokens,
         ),
         forbidden_tokens=self._normalized_forbidden_tokens,
