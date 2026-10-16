@@ -43,7 +43,7 @@ def make_attention_layers_types(
 
 
 class QueryPreAttentionNormalisation(enum.Enum):
-  """Initialization strategy."""
+  """Query pre-attention scaling strategy."""
 
   # Whether to scale the query by 1/sqrt(head_dim)
   BY_ONE_OVER_SQRT_HEAD_DIM = enum.auto()
