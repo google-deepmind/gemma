@@ -17,6 +17,10 @@ For examples and use cases, see our
 report issues and feedback in
 [our GitHub](https://github.com/google-deepmind/gemma/issues).
 
+### Prerequisites
+
+* **Python 3.11 or higher:** This library requires modern Python components (e.g. Kauldron and JAX). Using an older Python version (**3.10 or lower**) will cause `pip` to install an unrelated "gemma" package from 2020, resulting in `ImportError: cannot import name 'gm'`.
+
 ### Installation
 
 1.  Install JAX for CPU, GPU or TPU. Follow the instructions on
