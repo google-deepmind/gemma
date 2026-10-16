@@ -34,7 +34,7 @@ class WrapperModule(nn.Module):
   @nn.compact
   def __call__(self, *args: Any, **kwargs: Any) -> Any:
     # Create an extra param.
-    self.param('extra_param', lambda _: jnp.zeros(()))
+    self.param('extra_param', nn.initializers.zeros, ())
 
     # Wrapped the output, using the features as key to ensure we captured the
     # correct module.
