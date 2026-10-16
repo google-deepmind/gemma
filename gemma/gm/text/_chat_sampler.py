@@ -430,7 +430,13 @@ class ChatSampler:
   @property
   def conversation(self) -> dialog.Conversation:
     """Returns the conversation."""
-    return dialog.Conversation(''.join(t.text for t in self.turns))
+    text = ''.join(t.text for t in self.turns)
+    if self.tokenizer.FORMAT is not dialog.Format.GEMMA4:
+      # Turns are stored formatted with the tokenizer's legacy format (e.g.
+      # `<start_of_turn>` tags for Gemma 2/3/3n), but `dialog.Conversation`
+      # only parses the canonical `<|turn>` tags.
+      text = self.tokenizer.FORMAT.to_gemma4(text)
+    return dialog.Conversation(text)
 
 
 # Legacy Gemma 3 tokens to detect in user prompts.
