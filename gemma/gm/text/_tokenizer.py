@@ -327,7 +327,7 @@ class Tokenizer:
     for i, token in self.custom_tokens.items():
       if i < 0 or i > 98:
         raise ValueError(
-            f'Custom token id {i} for {token!r} is not in [1, 98].'
+            f'Custom token id {i} for {token!r} is not in [0, 98].'
         )
 
       # Update the piece
@@ -335,7 +335,7 @@ class Tokenizer:
       if piece.piece != f'<unused{i}>':
         raise AssertionError(
             f'Expected custom token id {i} for {token!r} to be `<unused{i}>`,'
-            f' but was {piece.piece}. This indicates the voab file'
+            f' but was {piece.piece}. This indicates the vocab file'
             " isn't as expected."
         )
       piece.piece = token
