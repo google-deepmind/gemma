@@ -11,17 +11,17 @@ Diffusion Supervised Fine-Tuning (SFT)** adapter library.
 The project is structured as a standard Python/JAX package.
 
 *   **`configs/`**: Kauldron config files defining task hyperparameters, datasets, losses, optimizers, and evaluators.
-    *   [`sft_sudoku.py`](gemma/diffusion/hackable_diffusion_adapter/configs/sft_sudoku.py): LoRA-based SFT training for the Sudoku puzzle solving task.
-    *   [`sft_sudoku_full.py`](gemma/diffusion/hackable_diffusion_adapter/configs/sft_sudoku_full.py): Full weight SFT training for the Sudoku puzzle solving task (no LoRA).
-    *   [`sft_pubmedqa.py`](gemma/diffusion/hackable_diffusion_adapter/configs/sft_pubmedqa.py): LoRA-based SFT training for the PubMedQA long-answer task.
+    *   [`sft_sudoku.py`](configs/sft_sudoku.py): LoRA-based SFT training for the Sudoku puzzle solving task.
+    *   [`sft_sudoku_full.py`](configs/sft_sudoku_full.py): Full weight SFT training for the Sudoku puzzle solving task (no LoRA).
+    *   [`sft_pubmedqa.py`](configs/sft_pubmedqa.py): LoRA-based SFT training for the PubMedQA long-answer task.
 *   **`data/`**: Dataset loading, custom pipelines, and preprocessing transforms.
-    *   [`data.py`](gemma/diffusion/hackable_diffusion_adapter/data/data.py): Common transforms (e.g. `CanvasChunker` for localized diffusion).
+    *   [`data.py`](data/data.py): Common transforms (e.g. `CanvasChunker` for localized diffusion).
 *   **`hd/`**: Core modeling, network layers, and state handling.
-    *   [`sft_model.py`](gemma/diffusion/hackable_diffusion_adapter/hd/sft_model.py): Core `SFTDiffusion` class managing the hybrid AR prefill and localized diffusion denoising steps.
-    *   [`lora.py`](gemma/diffusion/hackable_diffusion_adapter/hd/lora.py): PEFT LoRA wrappers.
-    *   [`mask_helpers.py`](gemma/diffusion/hackable_diffusion_adapter/hd/mask_helpers.py): Right-pad causal/block masks and cursor tracking.
+    *   [`sft_model.py`](hd/sft_model.py): Core `SFTDiffusion` class managing the hybrid AR prefill and localized diffusion denoising steps.
+    *   [`lora.py`](hd/lora.py): PEFT LoRA wrappers.
+    *   [`mask_helpers.py`](hd/mask_helpers.py): Right-pad causal/block masks and cursor tracking.
 *   **`eval/`**: Custom evaluation metrics designed to avoid TPU/GPU OOM issues.
-    *   [`sudoku_eval.py`](gemma/diffusion/hackable_diffusion_adapter/eval/sudoku_eval.py): Unified host-side `SudokuAllMetrics` evaluation.
+    *   [`sudoku_eval.py`](eval/sudoku_eval.py): Unified host-side `SudokuAllMetrics` evaluation.
 
 ---
 
@@ -197,7 +197,7 @@ env XLA_FLAGS="--xla_disable_hlo_passes=constant_folding" \
 ### Available Evaluators
 
 Evaluators are generated automatically by
-[`ar_eval.make_ar_evals`](gemma/diffusion/hackable_diffusion_adapter/eval/ar_eval.py).
+[`ar_eval.make_ar_evals`](eval/ar_eval.py).
 The naming convention is:
 
 *   `sample_ar_steps{N}` — AR sampling with `N` denoising steps
