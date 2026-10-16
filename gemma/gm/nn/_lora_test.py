@@ -247,3 +247,33 @@ def test_reconcile_full_gemma4_like_tree():
   assert result['layer_0']['attn']['q_einsum'] == {'w': arr}
   assert result['embedder'] == {'input_embedding': arr}
 
+
+def test_needs_reconciliation_true_for_dict_to_leaf_mismatch():
+  """Model has {'w': ...}, checkpoint has bare leaf."""
+  params = {'mlp': {'linear': {'w': np.zeros(4)}}}
+  metadata = {'mlp': {'linear': None}}
+  assert _checkpoint._needs_reconciliation(params, metadata)
+
+
+def test_reconcile_unwraps_dict_to_leaf():
+  """Single-key dict is unwrapped to match checkpoint leaf format."""
+  arr = np.zeros(4)
+  params = {'mlp': {'gating_einsum': {'w': arr}, 'linear': {'linear': arr}}}
+  metadata = {'mlp': {'gating_einsum': None, 'linear': None}}
+  result = _checkpoint._reconcile_tree(params, metadata)
+
+  assert result['mlp']['gating_einsum'] is arr
+  assert result['mlp']['linear'] is arr
+
+
+def test_reconcile_keeps_multikey_dict_on_leaf_mismatch():
+  """Multi-key dict is preserved as-is rather than silently dropping sibling keys."""
+  w = np.zeros(4)
+  b = np.ones(4)
+  params = {'mlp': {'linear': {'w': w, 'b': b}}}
+  metadata = {'mlp': {'linear': None}}
+  result = _checkpoint._reconcile_tree(params, metadata)
+
+  assert result['mlp']['linear'] == {'w': w, 'b': b}
+
+
