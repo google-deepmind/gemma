@@ -94,7 +94,7 @@ class SamplerOutput:
     """Predicted tokens."""
     return self._maybe_unbatch(self.state.predicted_tokens)
 
-  def _maybe_unbatch(self, x: Array['B *d']) -> Float['*d']:  # pyrefly: ignore[unknown-name]
+  def _maybe_unbatch(self, x: Array['B *d']) -> Array['*d']:  # pyrefly: ignore[unknown-name]
     if isinstance(self.text, str):
       (x,) = x
     return x
