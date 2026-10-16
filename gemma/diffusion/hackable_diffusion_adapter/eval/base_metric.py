@@ -76,6 +76,7 @@ class BaseSimpleTextMetric(BaseTextMetric):
 
     def compute(self) -> float:
       """Detokenize and score all accumulated examples on host."""
+      from absl import logging
       final = self.finalize()
       tokens_np = np.asarray(final.tokens)
       gt_np = np.asarray(final.ground_truth)
@@ -84,6 +85,8 @@ class BaseSimpleTextMetric(BaseTextMetric):
       gt_texts = self.parent.decode_batch(gt_np)
 
       num_examples = len(gen_texts)
+      print(f"Jetski BaseSimpleTextMetric.compute: final.tokens shape={final.tokens.shape}", flush=True)
+      print(f"Jetski BaseSimpleTextMetric.compute: num_examples={num_examples}", flush=True)
       if num_examples == 0:
         return 0.0
       total = sum(

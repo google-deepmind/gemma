@@ -76,7 +76,7 @@ class Bagz(kd_base.DataSourceBase):
 
   def ds_for_current_process(self, rng: random.PRNGKey) -> grain.MapDataset:
     ds = grain.MapDataset.source(self.data_source)
-    ds = ds.seed(rng.as_seed())
+    ds = ds.seed(random.random_seed(rng))
 
     # Slice the dataset before sharding
     if self.slice_start != 0 or self.slice_stop is not None:
@@ -88,7 +88,9 @@ class Bagz(kd_base.DataSourceBase):
 
     # Global shuffle
     if self.shuffle:
-      ds = ds.shuffle(seed=rng.fold_in("shuffle").as_seed())
+      ds = ds.shuffle(
+          seed=random.random_seed(random.fold_in_str(rng, "shuffle"))
+      )
     return ds
 
 
