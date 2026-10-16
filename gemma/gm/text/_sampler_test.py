@@ -145,3 +145,26 @@ def test_chat_sampler_non_gemma4_dispatch():
     assert isinstance(output, str)
   # Verify sampler.sample was called (not gemma4_sampler.sample).
   mock_sample.assert_called_once()
+
+
+def test_end_tokens_exclude_custom_tokens():
+  # Id 50 is `<|tool_response>` only in the Gemma4 vocab. In Gemma3 it is
+  # `<unused44>`, which users can claim through `custom_tokens`.
+  tokenizer = gm.text.Gemma3Tokenizer(custom_tokens={44: '<custom_tok>'})
+  sampler = gm.text.Sampler(
+      model=gm.testing.DummyGemma(),  # pyrefly: ignore[bad-argument-type]
+      params={},
+      tokenizer=tokenizer,
+  )
+  loop = sampler._initialize_sampler_loop(gm.text.Greedy())
+  assert tokenizer.encode('<custom_tok>')[0] not in loop.end_tokens
+
+
+def test_end_tokens_gemma2():
+  sampler = gm.text.Sampler(
+      model=gm.testing.DummyGemma(),  # pyrefly: ignore[bad-argument-type]
+      params={},
+      tokenizer=gm.text.Gemma2Tokenizer(),
+  )
+  loop = sampler._initialize_sampler_loop(gm.text.Greedy())
+  assert loop.end_tokens == (1, 107)

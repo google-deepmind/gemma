@@ -129,8 +129,7 @@ class _Gemma3SpecialTokens(SpecialTokens, enum.IntEnum):
   START_OF_IMAGE = 255999  # '<start_of_image>'
   END_OF_IMAGE = 256000  # <end_of_image>
 
-  # Tool tokens
-  BEGIN_OF_TOOL_RESPONSE = 50
+  # No tool tokens: id 50 is `<unused44>`, available through `custom_tokens`.
 
 
 class _Gemma4SpecialTokens(SpecialTokens, enum.IntEnum):
@@ -143,6 +142,8 @@ class _Gemma4SpecialTokens(SpecialTokens, enum.IntEnum):
   MASK = 4
   START_OF_TURN = 105  # <|turn>
   END_OF_TURN = 106  # <turn|>
+
+  CUSTOM = 6  # <unused0>
 
   # Multimodal tokens (Gemma4 only)
   IMAGE_PLACEHOLDER = 258880  # <|image|>
@@ -323,6 +324,7 @@ class Tokenizer:
     """Update the custom tokens of the proto."""
     proto = sentencepiece_model_pb2.ModelProto()
     proto.ParseFromString(serialized_proto)
+    piece_ids = None  # Only built if a piece is not at `CUSTOM + i`.
 
     for i, token in self.custom_tokens.items():
       if i < 0 or i > 98:
@@ -331,13 +333,20 @@ class Tokenizer:
         )
 
       # Update the piece
+      # `<unusedXX>` is usually at `CUSTOM + i`, but not always (e.g. Gemma3n
+      # has `<ctrlXX>` at 7-104 and `<unused1>` at 256001), so fall back to a
+      # lookup by name.
       piece = proto.pieces[self.special_tokens.CUSTOM + i]
       if piece.piece != f'<unused{i}>':
-        raise AssertionError(
-            f'Expected custom token id {i} for {token!r} to be `<unused{i}>`,'
-            f' but was {piece.piece}. This indicates the voab file'
-            " isn't as expected."
-        )
+        if piece_ids is None:
+          piece_ids = {p.piece: id_ for id_, p in enumerate(proto.pieces)}
+        if f'<unused{i}>' not in piece_ids:
+          raise AssertionError(
+              f'Expected custom token id {i} for {token!r} to be'
+              f" `<unused{i}>`, but it isn't in the vocab. This indicates the"
+              " vocab file isn't as expected."
+          )
+        piece = proto.pieces[piece_ids[f'<unused{i}>']]
       piece.piece = token
 
       # Update the user_defined_symbols
