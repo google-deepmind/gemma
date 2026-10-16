@@ -260,6 +260,12 @@ class Gemma4Sampler:
     if not has_batch_dim:
       (predicted_texts,) = predicted_texts
 
+    if state.cache_info.is_full.item():
+      kd.utils.status.log(
+          'Cache is full! Try increasing `Gemma4Sampler.cache_length`. Current:'
+          f' {self.cache_length}'
+      )
+
     if return_state:
       return _sampler.SamplerOutput(
           text=predicted_texts,
