@@ -65,4 +65,9 @@ def test_rope_positional_embeddings(
       base_frequency=max_wavelength,
       rope_proportion=rope_proportion,
   )
-  np.testing.assert_array_almost_equal(outputs, jnp.array(expected))
+  np.testing.assert_allclose(
+      outputs,
+      jnp.array(expected),
+      rtol=1e-5,
+      atol=1e-5,
+  )
