@@ -1,0 +1,14 @@
+{
+    "mcpServers": {
+        "gemma-gateway": {
+            "command": "python",
+            "args": [
+                "./examples/gemma3-mcp-agent/server.py"
+            ],
+            "env": {
+                "OLLAMA_URL": "http://localhost:11434/api/generate",
+                "GEMMA_MODEL": "gemma3"
+            }
+        }
+    }
+}
