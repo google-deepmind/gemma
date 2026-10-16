@@ -18,7 +18,9 @@ from gemma import gm
 from gemma.gm.text import _prefill
 from gemma.gm.text import _sampler_loop
 from gemma.gm.text import _turn_utils
+from gemma.gm.utils import _cache_helper
 from gemma.gm.utils import _types
+from gemma.gm.vision import _token_utils
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -159,3 +161,98 @@ def test_full_attention_mask():
       ],
   )
 
+
+def test_full_attention_mask_with_audio():
+  placeholder = _token_utils.AUDIO_SOFT_TOKEN_PLACEHOLDER
+
+  tokens = jnp.array(
+      [[
+          1,
+          2,
+          placeholder,
+          placeholder,
+          placeholder,
+          placeholder,
+          3,
+          4,
+          placeholder,
+          placeholder,
+          placeholder,
+          placeholder,
+          5,
+      ]],
+      dtype=jnp.int32,
+  )
+
+  input_ = _types.Input(
+      text=tokens,
+      images=None,
+      config=_types.InputConfig(
+          support_images=True,
+          num_tokens_per_image=100,
+          special_tokens=gm.text.Gemma3Tokenizer.special_tokens,
+      ),
+  )
+
+  audio_lengths = jnp.array([[961, 1601]], dtype=jnp.int32)
+
+  mask = _prefill._make_full_attention_mask(
+      input=input_,
+      prev_turns=_turn_utils.PrevTurns(last_state=None),
+      cache_length=20,
+      audio_lengths=audio_lengths,
+      audio_seq_length=4,
+  )
+
+  expected_mask = jnp.array(
+      [[
+          True,
+          True,
+          True,
+          True,
+          False,
+          False,
+          True,
+          True,
+          True,
+          True,
+          True,
+          False,
+          True,
+          True,
+          True,
+          True,
+          True,
+          True,
+          True,
+          True,
+      ]],
+      dtype=jnp.bool_,
+  )
+
+  np.testing.assert_array_equal(mask, expected_mask)
+
+  dummy_cache = _cache_helper.Cache({
+      'layer_0': {
+          'k': jnp.zeros((1, 20, 8, 128)),
+          'v': jnp.zeros((1, 20, 8, 128)),
+          'positions': jnp.zeros((1, 20)),
+          'end_index': jnp.zeros((1,)),
+      }
+  })
+
+  init_state = _prefill._make_init_state(
+      input=input_,
+      max_out_length=10,
+      new_used_cache_length=input_.length_with_mm - 1,
+      prev_turns=_turn_utils.PrevTurns(last_state=None),
+      cache=dummy_cache,
+      rng=jax.random.PRNGKey(0),
+      audio_lengths=audio_lengths,
+      audio_seq_length=4,
+  )
+
+  # The last token position should be 9 (12 - 3 padded audio tokens)
+  assert init_state.last_token_pos == 9
+  # The init cache length should be 12 (13 - 1)
+  assert init_state.init_cache_length == 12
