@@ -463,12 +463,27 @@ class Transformer(nn.Module):
       sliding_attention_mask = None
       if self.config.use_bidirectional_attention == 'vision':
         bidirectional_mask = tokens == _token_utils.SOFT_TOKEN_PLACEHOLDER
-        sliding_attention_mask = (
+        sliding_bidir_mask = (
             _attention_mask.make_causal_bidirectional_attention_mask(
                 inputs_mask,
                 bidirectional_mask=bidirectional_mask,
             )
         )
+        # For multi-turn with cache: expand the sliding mask to cover
+        # cached history tokens. History portion uses the same causal
+        # mask as attention_mask (those tokens are already in the KV
+        # cache and _create_sliding_mask will apply the window).
+        if (
+            attention_mask is not None
+            and attention_mask.shape[-1] > sliding_bidir_mask.shape[-1]
+        ):
+          hist_width = attention_mask.shape[-1] - sliding_bidir_mask.shape[-1]
+          hist_mask = attention_mask[:, :, :hist_width]
+          sliding_attention_mask = jnp.concatenate(
+              [hist_mask, sliding_bidir_mask], axis=-1
+          )
+        else:
+          sliding_attention_mask = sliding_bidir_mask
 
       if self.config.per_layer_input_dim:
         per_layer_inputs = self.embedder.encode_per_layer_input(
