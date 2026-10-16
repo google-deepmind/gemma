@@ -378,7 +378,8 @@ class Sampler:
         end_tokens=(
             self.tokenizer.special_tokens.EOS,
             self.tokenizer.special_tokens.END_OF_TURN,
-            self.tokenizer.special_tokens.BEGIN_OF_TOOL_RESPONSE,
+            # Some models don't have tool use; for example gemma 2
+            *(getattr(self.tokenizer.special_tokens, "BEGIN_OF_TOOL_RESPONSE", ())),
             *self._normalized_stop_tokens,
         ),
         forbidden_tokens=self._normalized_forbidden_tokens,
