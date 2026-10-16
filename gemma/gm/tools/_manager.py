@@ -129,9 +129,16 @@ def _normalize_response(
   if response.structuredContent is not None:
     return response
 
-  # Assume the response is a single text block.
-  assert len(response.content) == 1
-  assert response.content[0].type == 'text'
+  if len(response.content) != 1:
+    raise ValueError(
+        f'Expected a single content block in the tool response, got'
+        f' {len(response.content)}: {response.content!r}'
+    )
+  if response.content[0].type != 'text':
+    raise ValueError(
+        f'Expected a text content block in the tool response, got'
+        f' type {response.content[0].type!r}: {response.content[0]!r}'
+    )
 
   content = response.content[0].text
   if response.isError:
