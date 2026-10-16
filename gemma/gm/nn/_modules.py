@@ -210,31 +210,26 @@ class Attention(nn.Module):
 
     # Cache is left aligned.
     # Save the KV values to the cache.
+    # Use per-batch indices (matching Gemma 4) so rows with different
+    # `end_index` values update independent cache slots. Using only
+    # `end_index[0]` incorrectly writes every batch row at the same offset.
     if cache is not None:
-      end_index = cache['end_index'][0]
+      end_index = cache['end_index']
       cache_size = cache['v'].shape[1]
-      update_index = end_index % cache_size
-      slice_indices = (0, update_index, 0, 0)
+      seq_len = x.shape[1]
+      # [batch_size, seq_len]
+      indices = (end_index[:, None] + jnp.arange(seq_len)[None, :]) % cache_size
+      batch_indices = jnp.arange(x.shape[0])[:, None]
 
       # [batch_size, cache_size, num_heads, head_dim]
-      value_proj = jax.lax.dynamic_update_slice(
-          cache['v'],
-          value_proj,
-          slice_indices,
-      )
+      value_proj = cache['v'].at[batch_indices, indices].set(value_proj)
 
       # [batch_size, cache_size, num_heads, head_dim]
-      key_proj = jax.lax.dynamic_update_slice(
-          cache['k'],
-          key_proj,
-          slice_indices,
-      )
+      key_proj = cache['k'].at[batch_indices, indices].set(key_proj)
 
       # [batch_size, cache_size]
-      cache_positions = jax.lax.dynamic_update_slice(
-          cache['positions'],
-          segment_pos,
-          slice_indices[:2],
+      cache_positions = (
+          cache['positions'].at[batch_indices, indices].set(segment_pos)
       )
 
     if self.use_gqa:
