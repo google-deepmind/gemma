@@ -42,7 +42,7 @@ class FormatText(kd.data.ElementWiseTransform):
 
   Attributes:
     template: The template containing the `{text}` placeholder. Note that the
-      template is detented (but not stripped).
+      template is dedented (but not stripped).
   """
 
   template: str
