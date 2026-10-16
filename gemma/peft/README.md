@@ -176,7 +176,18 @@ assert lora == {
 }
 ```
 
-To fuse the LoRA params:
+To fuse the LoRA params into the base weights (for LoRA-free inference):
+
+```python
+# Fold `a @ b` into `kernel` / `w` (adapters are kept for reversibility).
+fused_params = peft.fuse_params(params)
+
+# Optional: drop the adapter branch and load into a non-LoRA model.
+fused_params, _ = peft.split_params(fused_params)
+
+# Reverse a previous fuse while adapters are still present:
+params = peft.unfuse_params(peft.fuse_params(params))
+```
 
 *   `peft.fuse_params`: Fuse the LoRA params into the original params weights.
-*   `peft.unfuse_params`: Reverse of `fuse_params`, recover the LoRA params.
+*   `peft.unfuse_params`: Reverse of `fuse_params`, subtract the LoRA delta.
