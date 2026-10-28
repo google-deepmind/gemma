@@ -372,15 +372,17 @@ class Sampler:
 
   def _initialize_sampler_loop(self, sampling) -> _sampler_loop.SamplerLoop:
     """Initializes the sampler loop."""
+    end_tokens = [
+        self.tokenizer.special_tokens.EOS,
+        self.tokenizer.special_tokens.END_OF_TURN,
+    ]
+    if hasattr(self.tokenizer.special_tokens, 'BEGIN_OF_TOOL_RESPONSE'):
+      end_tokens.append(self.tokenizer.special_tokens.BEGIN_OF_TOOL_RESPONSE)
+    end_tokens.extend(self._normalized_stop_tokens)
     return _sampler_loop.SamplerLoop(
         # Static attributes. Changing those will trigger a recompilation.
         model=self.model,
-        end_tokens=(
-            self.tokenizer.special_tokens.EOS,
-            self.tokenizer.special_tokens.END_OF_TURN,
-            self.tokenizer.special_tokens.BEGIN_OF_TOOL_RESPONSE,
-            *self._normalized_stop_tokens,
-        ),
+        end_tokens=tuple(end_tokens),
         forbidden_tokens=self._normalized_forbidden_tokens,
         sampling=sampling,
         cache_length=self.cache_length,
