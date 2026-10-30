@@ -32,7 +32,7 @@ _GetItem = _Slice | tuple[_Slice, ...]
 class Cache:
   """Wrapper around the cache to support easy slicing.
 
-  Rational: During prefill, the model expects the cache to be of the same size
+  Rationale: During prefill, the model expects the cache to be of the same size
   as the prompt length. So we slice the cache to match the prompt length.
   During sampling, the full cache is passed and updated in place.
   """
