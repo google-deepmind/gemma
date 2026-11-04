@@ -46,7 +46,7 @@ class PrevTurns:
     if self.last_state is None:
       return 0
     else:
-      return int(self.last_state.used_cache_length) + 1
+      return int(self.last_state.used_cache_length)
 
   @typechecked
   def make_prefill_attention_mask(
