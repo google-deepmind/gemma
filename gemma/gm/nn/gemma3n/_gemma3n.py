@@ -64,7 +64,7 @@ def _get_gemma3n_config(
     num_unshared_kv_layers: int = 20,
 ) -> _config.TransformerConfig:
   return _config.TransformerConfig(
-      final_logit_softcap=None,
+      final_logit_softcap=30.0,
       num_embed=262_144,
       embed_dim=2048,
       hidden_dim=hidden_dim,
