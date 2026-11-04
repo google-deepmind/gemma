@@ -91,6 +91,25 @@ jobs:
     - name: Set up Cloud SDK
       if: steps.check_version.outputs.should_publish == 'true'
       uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f
+    - name: Clean up stale releases from staging repo
+      run: |
+        # clean up stale releases from staging repo
+        packages=$(gcloud artifacts packages list \
+            --project="oss-exit-gate-prod" \
+            --location="us" \
+            --repository="gemma--pypi" \
+            --format="value(name)" 2>/dev/null)
+
+        echo "${packages}" | xargs -r -I {} sh -c '
+            package_name=$(basename "{}")
+            echo "Deleting package: $package_name..."
+            gcloud artifacts packages delete "{}" \
+                --project="\'"oss-exit-gate-prod"\'" \
+                --location="\'"us"\'" \
+                --repository="\'gemma--pypi\'" \
+                --quiet
+        '
+
     - name: Stage to OSS Exit Gate and upload manifest
       if: steps.check_version.outputs.should_publish == 'true'
       run: |
