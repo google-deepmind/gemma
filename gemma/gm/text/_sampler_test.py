@@ -16,6 +16,7 @@ from unittest import mock
 from gemma import gm
 from gemma.gm.text import _sampler
 from gemma.gm.text import _sampler_loop
+from gemma.gm.text import _tokenizer
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -145,3 +146,29 @@ def test_chat_sampler_non_gemma4_dispatch():
     assert isinstance(output, str)
   # Verify sampler.sample was called (not gemma4_sampler.sample).
   mock_sample.assert_called_once()
+
+
+def test_gemma3_end_tokens_have_no_tool_response_token():
+  # Id 50 is <unused44> in Gemma3 (and may be claimed as a custom token), not a
+  # tool token. Stopping on it silently truncated generation.
+  tokens = _sampler_loop.build_end_tokens(_tokenizer._Gemma3SpecialTokens, ())
+  assert tokens == (
+      _tokenizer._Gemma3SpecialTokens.EOS,
+      _tokenizer._Gemma3SpecialTokens.END_OF_TURN,
+  )
+  assert 50 not in tokens
+
+
+def test_gemma4_end_tokens_keep_tool_response_token():
+  tokens = _sampler_loop.build_end_tokens(_tokenizer._Gemma4SpecialTokens, ())
+  assert tokens == (
+      _tokenizer._Gemma4SpecialTokens.EOS,
+      _tokenizer._Gemma4SpecialTokens.END_OF_TURN,
+      _tokenizer._Gemma4SpecialTokens.BEGIN_OF_TOOL_RESPONSE,
+  )
+  assert 50 in tokens
+
+
+def test_end_tokens_keep_custom_stop_tokens():
+  tokens = _sampler_loop.build_end_tokens(_tokenizer._Gemma3SpecialTokens, (999, 998))
+  assert tokens[-2:] == (999, 998)
