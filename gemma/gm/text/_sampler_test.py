@@ -172,3 +172,7 @@ def test_gemma4_end_tokens_keep_tool_response_token():
 def test_end_tokens_keep_custom_stop_tokens():
   tokens = _sampler_loop.build_end_tokens(_tokenizer._Gemma3SpecialTokens, (999, 998))
   assert tokens[-2:] == (999, 998)
+
+def test_gemma3_special_tokens_do_not_expose_a_tool_token():
+  # Locks the fix at the enum level: id 50 must not exist for Gemma3 at all.
+  assert not hasattr(_tokenizer._Gemma3SpecialTokens, "BEGIN_OF_TOOL_RESPONSE")
