@@ -83,11 +83,8 @@ class Sampler(gm.text.Sampler):
 
     return _sampler.DiffusionSampler(
         model=self.model,
-        end_tokens=(
-            self.tokenizer.special_tokens.EOS,
-            self.tokenizer.special_tokens.END_OF_TURN,
-            self.tokenizer.special_tokens.BEGIN_OF_TOOL_RESPONSE,
-            *self._normalized_stop_tokens,
+        end_tokens=_sampler_loop.build_end_tokens(
+            self.tokenizer.special_tokens, self._normalized_stop_tokens
         ),
         forbidden_tokens=self._normalized_forbidden_tokens,
         sampling=sampling,

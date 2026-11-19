@@ -129,8 +129,8 @@ class _Gemma3SpecialTokens(SpecialTokens, enum.IntEnum):
   START_OF_IMAGE = 255999  # '<start_of_image>'
   END_OF_IMAGE = 256000  # <end_of_image>
 
-  # Tool tokens
-  BEGIN_OF_TOOL_RESPONSE = 50
+  # No tool tokens: id 50 is `<unused44>` in the Gemma3 vocabulary. It is a
+  # tool token only in Gemma4, whose enum defines BEGIN_OF_TOOL_RESPONSE.
 
 
 class _Gemma4SpecialTokens(SpecialTokens, enum.IntEnum):
