@@ -103,7 +103,7 @@ def aspect_ratio_preserving_resize(
 
   pil_image = Image.fromarray(image)
   pil_image = pil_image.resize(
-      (target_width, target_height), resample=Image.BICUBIC
+      (target_width, target_height), resample=Image.BICUBIC  # pyrefly: ignore[missing-attribute]
   )
   return np.array(pil_image)
 
