@@ -641,3 +641,6 @@ def test_post_ffw_norm_modifies_output():
   # Normed and unnormed outputs should not be equal.
   with np.testing.assert_raises(AssertionError):
     np.testing.assert_array_almost_equal(normed_output, unnormed_output)
+
+
+
