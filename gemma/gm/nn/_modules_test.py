@@ -71,7 +71,38 @@ def test_embedder_decode():
   np.testing.assert_array_equal(output, jnp.array(expected))
 
 
-# TODO(mblondel): Add tests for `encode_vision` here.
+def test_embedder_encode_vision():
+  vocab_size = 10
+  embed_dim = 4
+  vision_proj_dim = 6
+  embedder = gm.nn.Embedder(
+      vocab_size=vocab_size,
+      embed_dim=embed_dim,
+      vision_proj_dim=vision_proj_dim,
+  )
+  vision_tokens = jnp.ones((2, 3, vision_proj_dim))
+
+  variables = embedder.init(
+      jax.random.PRNGKey(0),
+      vision_tokens,
+      method=gm.nn.Embedder.encode_vision,
+  )
+
+  params = variables['params']
+  assert params['mm_input_projection']['w'].shape == (
+      vision_proj_dim,
+      embed_dim,
+  )
+  assert params['mm_soft_embedding_norm']['scale'].shape == (
+      vision_proj_dim,
+  )
+
+  output = embedder.apply(
+      variables,
+      vision_tokens,
+      method=gm.nn.Embedder.encode_vision,
+  )
+  assert output.shape == (2, 3, embed_dim)
 
 
 def test_sliding_mask():
