@@ -483,6 +483,15 @@ class Gemma4Tokenizer(Tokenizer):
 
   special_tokens = _Gemma4SpecialTokens
 
+  FORBIDDEN_TOKENS = (
+      special_tokens.IMAGE_PLACEHOLDER,
+      special_tokens.START_OF_IMAGE,
+      special_tokens.END_OF_IMAGE,
+      special_tokens.AUDIO_PLACEHOLDER,
+      special_tokens.START_OF_AUDIO,
+      special_tokens.END_OF_AUDIO,
+  )
+
   VERSION = 4
   FORMAT: ClassVar[dialog.Format] = dialog.Format.GEMMA4
 
