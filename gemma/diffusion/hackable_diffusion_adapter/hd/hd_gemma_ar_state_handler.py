@@ -49,20 +49,21 @@ class PropagateSelfConditioningFn(hd.sampling.UpdateConditioningFn):
 
   def __call__(
       self,
-      conditioning: Conditioning,
+      conditioning: Conditioning | None,
       step_carry: DiffusionStep,
   ) -> Conditioning:
     """Update conditioning based on the current diffusion step.
 
     Args:
-      conditioning: The current conditioning dict.
+      conditioning: The current conditioning dict, or `None`.
       step_carry: The current diffusion step state.
 
     Returns:
       The updated conditioning dict.
     """
-    conditioning["sc_logits"] = step_carry.aux["logits"]
-    return conditioning
+    updated = dict(conditioning) if conditioning is not None else {}
+    updated["sc_logits"] = step_carry.aux["logits"]
+    return updated
 
 
 ################################################################################
@@ -171,7 +172,7 @@ class GemmaARStateHandler(ar_diffusion_sampler.ARStateHandler):
       self,
       *,
       batch_size: int,
-      conditioning: Conditioning,
+      conditioning: Conditioning | None,
       canvas_length: int,
       max_num_canvases: int,
   ) -> ar_diffusion_sampler.SamplerState:
@@ -185,7 +186,15 @@ class GemmaARStateHandler(ar_diffusion_sampler.ARStateHandler):
 
     Returns:
       The initial AR diffusion sampler state dict.
+
+    Raises:
+      ValueError: If `conditioning` is `None`.
     """
+    if conditioning is None:
+      raise ValueError(
+          "`conditioning` is required by `GemmaARStateHandler.init_ar_state`"
+          " (`prompt_tokens` and `prompt_lengths` must be provided)."
+      )
     ##########################################################################
     # Extract pre-tokenized prompt tokens and lengths from conditioning.
     ##########################################################################
