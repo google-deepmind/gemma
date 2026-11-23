@@ -27,6 +27,10 @@ report issues and feedback in
     pip install gemma
     ```
 
+    On Windows, `seqio` is not installed because its `tensorflow-text`
+    dependency is unavailable. Gemma's diffusion text evaluation metrics
+    require `seqio` and should be run on a platform where it can be installed.
+
 ### Examples
 
 Here is a minimal example to have a multi-turn, multi-modal conversation with

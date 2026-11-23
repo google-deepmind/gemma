@@ -19,15 +19,19 @@ from __future__ import annotations
 import abc
 import dataclasses
 import functools
+from typing import TYPE_CHECKING
+
 import flax.struct
 import jax.numpy as jnp
 from kauldron import kd
 import numpy as np
-import seqio
 
 _GEMMA4_TOKENIZER_PATH = (
     "gs://gemma-data/tokenizers/tokenizer_gemma4.model"
 )
+
+if TYPE_CHECKING:
+  import seqio
 
 
 @dataclasses.dataclass(kw_only=True, frozen=True)
@@ -38,6 +42,15 @@ class BaseTokenizerMetric(kd.metrics.Metric, abc.ABC):
 
   @functools.cached_property
   def tokenizer(self) -> seqio.vocabularies.SentencePieceVocabulary:
+    try:
+      import seqio
+    except ModuleNotFoundError as e:
+      if e.name not in ("seqio", "tensorflow_text"):
+        raise
+      raise ImportError(
+          "seqio and tensorflow-text are required for Gemma's diffusion text "
+          "evaluation metrics. Install them in a supported environment."
+      ) from e
     return seqio.vocabularies.SentencePieceVocabulary(self.tokenizer_path)
 
   def _squeeze_3d(self, x: jnp.ndarray) -> jnp.ndarray:

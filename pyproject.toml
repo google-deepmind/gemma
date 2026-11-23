@@ -49,7 +49,7 @@ dependencies = [
     "optax",
     "sacrebleu",
     "sentencepiece",
-    "seqio",
+    "seqio ; sys_platform != 'win32'",
     "treescope",
     "tensorflow-cpu",
     # tool use
