@@ -25,6 +25,7 @@ from kauldron import typing
 from kauldron.typing import Bool, Float  # pylint: disable=g-multiple-import,g-importing-member
 import numpy as np
 
+
 ClippedEinsum = _layers.ClippedEinsum
 typechecked = typing.typechecked
 
@@ -42,7 +43,6 @@ class ConformerConfig:
   conv_kernel_size: int = 5
   gradient_clipping: float = 10_000_000_000.0
   conf_reduction_factor: int = 1
-  use_key_scale: bool = True
   param_dtype: jnp.dtype = jnp.float32  # pyrefly: ignore[bad-assignment]
   compute_dtype: Optional[jnp.dtype] = None
 
@@ -238,7 +238,6 @@ class AttentionBlock(nn.Module):
         atten_left_context=self.config.atten_left_context,
         atten_right_context=self.config.atten_right_context,
         model_dims=self.config.model_dims,
-        use_key_scale=self.config.use_key_scale,
         param_dtype=self.config.param_dtype,
         compute_dtype=self.config.compute_dtype,
         name='self_atten',
@@ -416,7 +415,6 @@ class LocalDotProductAttention(nn.Module):
   atten_right_context: int = 0
   attention_logits_soft_capping: float = 50.0
   block_size: int = 12
-  use_key_scale: bool = True
   param_dtype: jnp.dtype = jnp.float32  # pyrefly: ignore[bad-assignment]
   compute_dtype: Optional[jnp.dtype] = None
 
@@ -578,11 +576,10 @@ class LocalDotProductAttention(nn.Module):
     )
     q *= query_scale * jax.nn.softplus(per_dim_scale.astype(q.dtype))
 
-    if self.use_key_scale:
-      key_scale = jnp.array(
-          r_softplus_0 * jax.nn.softplus(jnp.ones(())), dtype=k.dtype
-      )
-      k *= key_scale
+    key_scale = jnp.array(
+        r_softplus_0 * jax.nn.softplus(jnp.ones(())), dtype=k.dtype
+    )
+    k *= key_scale
 
     q = q.astype('float32')
     k = k.astype('float32')
