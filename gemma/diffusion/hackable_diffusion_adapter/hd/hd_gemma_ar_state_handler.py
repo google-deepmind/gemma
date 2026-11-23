@@ -15,12 +15,12 @@
 """Gemma-specific AR state handler and helpers for autoregressive diffusion."""
 
 import dataclasses
-from typing import Any
+from typing import Any, TypeAlias
 
 from gemma.diffusion.hackable_diffusion_adapter.hd import hd_gemma_network
 from gemma.diffusion.hackable_diffusion_adapter.hd import mask_helpers
 from hackable_diffusion import hd
-from hackable_diffusion.lib import hd_typing
+from hackable_diffusion.lib import hd_api
 from hackable_diffusion.lib.sampling import ar_diffusion_sampler
 import jax.numpy as jnp
 from kauldron import kd
@@ -33,10 +33,9 @@ from kauldron.ktyping import typechecked  # pylint: disable=g-importing-member
 ################################################################################
 
 PAD_TOKEN = 0
-Tokens = Int["*B L"]
-Conditioning = hd_typing.Conditioning
-DataArray = hd_typing.DataArray
-DiffusionStep = hd.sampling.DiffusionStep
+Tokens: TypeAlias = Int["*B L"]
+Batch: TypeAlias = hd_api.Batch
+Conditioning: TypeAlias = hd_api.Conditioning
 
 
 ################################################################################
@@ -44,25 +43,26 @@ DiffusionStep = hd.sampling.DiffusionStep
 ################################################################################
 
 
-class PropagateSelfConditioningFn(hd.sampling.UpdateConditioningFn):
+class PropagateSelfConditioningFn(hd.sampling.UpdateConditioningFn[Batch]):
   """Propagates self-conditioning from the previous step to the current step."""
 
   def __call__(
       self,
-      conditioning: Conditioning,
-      step_carry: DiffusionStep,
+      conditioning: Conditioning | None,
+      step_carry: hd.sampling.DiffusionStep[Batch],
   ) -> Conditioning:
     """Update conditioning based on the current diffusion step.
 
     Args:
-      conditioning: The current conditioning dict.
+      conditioning: The current conditioning dict, or `None`.
       step_carry: The current diffusion step state.
 
     Returns:
       The updated conditioning dict.
     """
-    conditioning["sc_logits"] = step_carry.aux["logits"]
-    return conditioning
+    updated = dict(conditioning) if conditioning is not None else {}
+    updated["sc_logits"] = step_carry.aux["logits"]
+    return updated
 
 
 ################################################################################
@@ -145,7 +145,7 @@ class GemmaARStateHandler(ar_diffusion_sampler.ARStateHandler):
   def encoder_fn(
       self,
       x: Tokens,
-      conditioning_embeddings: hd_typing.Conditioning,
+      conditioning_embeddings: Conditioning,
   ):
     """Runs the Gemma encoder forward pass on the given tokens.
 
@@ -171,7 +171,7 @@ class GemmaARStateHandler(ar_diffusion_sampler.ARStateHandler):
       self,
       *,
       batch_size: int,
-      conditioning: Conditioning,
+      conditioning: Conditioning | None,
       canvas_length: int,
       max_num_canvases: int,
   ) -> ar_diffusion_sampler.SamplerState:
@@ -185,7 +185,15 @@ class GemmaARStateHandler(ar_diffusion_sampler.ARStateHandler):
 
     Returns:
       The initial AR diffusion sampler state dict.
+
+    Raises:
+      ValueError: If `conditioning` is `None`.
     """
+    if conditioning is None:
+      raise ValueError(
+          "`conditioning` is required by `GemmaARStateHandler.init_ar_state`"
+          " (`prompt_tokens` and `prompt_lengths` must be provided)."
+      )
     ##########################################################################
     # Extract pre-tokenized prompt tokens and lengths from conditioning.
     ##########################################################################
@@ -275,7 +283,7 @@ class GemmaARStateHandler(ar_diffusion_sampler.ARStateHandler):
 
   def update_ar_state(
       self,
-      canvas_last_step: DiffusionStep,
+      canvas_last_step: hd.sampling.DiffusionStep[Batch],
       sampler_state: ar_diffusion_sampler.SamplerState,
   ) -> ar_diffusion_sampler.SamplerState:
     """Post-processes a sampled canvas and updates the sampler state.
@@ -365,7 +373,7 @@ class GemmaARStateHandler(ar_diffusion_sampler.ARStateHandler):
   def finalize_ar_state(
       self,
       sampler_state: ar_diffusion_sampler.SamplerState,
-  ) -> DataArray:
+  ) -> hd_api.Data[Batch]:
     """Extracts the generated tokens, excluding the prompt prefix.
 
     Args:

@@ -14,13 +14,12 @@
 
 """Wrapper for Gemma Diffusion model into hackable diffusion."""
 
-from typing import Any
+from typing import Any, TypeAlias
 
 import flax.linen as nn
 from gemma.diffusion import _models as gemma_diffusion
 from gemma.diffusion.hackable_diffusion_adapter.hd import mask_helpers
-from hackable_diffusion.lib import diffusion_network
-from hackable_diffusion.lib import hd_typing
+from hackable_diffusion.lib import hd_api
 
 import jax
 import jax.numpy as jnp
@@ -29,13 +28,8 @@ import jax.numpy as jnp
 # MARK: Type Aliases
 ################################################################################
 
-Conditioning = hd_typing.Conditioning
-DataArray = hd_typing.DataArray
-TimeArray = hd_typing.TimeArray
-TargetInfo = hd_typing.TargetInfo
-
-
-DiffusionNetwork = diffusion_network.DiffusionNetwork
+Batch: TypeAlias = hd_api.Batch
+Conditioning: TypeAlias = hd_api.Conditioning
 
 DiffusionGemmaModel = gemma_diffusion.DiffusionGemma_26B_A4B
 
@@ -154,9 +148,9 @@ class WrappedDiffusionGemmaNetwork(nn.Module):
   def encoder_call(
       self,
       *,
-      x: DataArray,
+      x: hd_api.Data[Batch],
       conditioning_embeddings: dict[str, Any],
-  ) -> DataArray:
+  ) -> Any:
     """Calls the Gemma encoder.
 
     Args:
@@ -187,11 +181,11 @@ class WrappedDiffusionGemmaNetwork(nn.Module):
   def __call__(
       self,
       *,
-      time: TimeArray,
-      xt: DataArray,
+      time: hd_api.Time[Batch],
+      xt: hd_api.Data[Batch],
       conditioning: Conditioning | None,
       is_training: bool = True,
-  ) -> TargetInfo:
+  ) -> hd_api.TargetInfo[Batch]:
     """Runs the diffusion denoiser forward pass.
 
     Args:

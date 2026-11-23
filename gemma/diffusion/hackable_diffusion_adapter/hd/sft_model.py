@@ -15,14 +15,14 @@
 """Custom network, model and losses for DiffusionGemma SFT."""
 
 import dataclasses
-from typing import Any
+from typing import Any, TypeAlias
 
 import flax
 import flax.linen as nn
 from gemma.diffusion.hackable_diffusion_adapter.hd import hd_gemma_ar_state_handler
 from gemma.diffusion.hackable_diffusion_adapter.hd import hd_gemma_network
 from gemma.diffusion.hackable_diffusion_adapter.hd import mask_helpers
-from hackable_diffusion.lib import hd_typing
+from hackable_diffusion.lib import hd_api
 from hackable_diffusion.lib import inference
 from hackable_diffusion.lib import sampling
 import jax
@@ -35,10 +35,11 @@ CheckpointedEvaluator = _checkpointed_evaluator.CheckpointedEvaluator
 
 
 PAD_TOKEN = 0
+Batch: TypeAlias = hd_api.Batch
 
 
 @dataclasses.dataclass(kw_only=True, frozen=True)
-class SFTInferenceFn(inference.InferenceFn):
+class SFTInferenceFn(inference.InferenceFn[Batch]):
   """Inference function that applies the Gemma network for denoising."""
 
   gemma_network: Any
@@ -46,10 +47,10 @@ class SFTInferenceFn(inference.InferenceFn):
 
   def __call__(
       self,
-      time: hd_typing.TimeArray,
-      xt: hd_typing.DataArray,
-      conditioning: hd_typing.Conditioning | None,
-  ) -> hd_typing.TargetInfo:
+      time: hd_api.Time[Batch],
+      xt: hd_api.Data[Batch],
+      conditioning: hd_api.Conditioning | None,
+  ) -> hd_api.TargetInfo[Batch]:
     """Evaluates the denoiser backbone at the given diffusion time and state.
 
     Args:
@@ -90,8 +91,8 @@ class SFTInferenceFn(inference.InferenceFn):
 def sft_decode(
     gemma_network: Any,
     *,
-    xt: hd_typing.DataArray,
-    time: hd_typing.TimeArray,
+    xt: hd_api.Data[Batch],
+    time: hd_api.Time[Batch],
     kv_cache: Any,
     positions: jnp.ndarray,
     prompt_mask: jnp.ndarray,
@@ -102,7 +103,7 @@ def sft_decode(
     canvas_size: int,
     sc_logits: jnp.ndarray | None = None,
     is_training: bool = True,
-) -> hd_typing.TargetInfoTree:
+) -> hd_api.TargetInfo[Batch]:
   """Runs the SFT decoder pass: denoise canvases using the prefilled KV cache.
 
   Builds an attention mask where each canvas token attends to the prompt plus
@@ -449,7 +450,7 @@ class GemmaKDARSampler(sampling.AutoregressiveDiffusionSampler):
 class GemmaSamplingEvaluator(CheckpointedEvaluator):
   """Custom SamplingEvaluator for DiffusionGemma SFT."""
 
-  canvas_sampler: sampling.SampleFn | None = None
+  canvas_sampler: sampling.SampleFn[Batch] | None = None
   ar_diffusion_sampler: GemmaKDARSampler | None = None
   num_batches: int | None
 
@@ -474,7 +475,7 @@ class GemmaSamplingEvaluator(CheckpointedEvaluator):
 
   def _make_inference_fn(
       self, model: nn.Module, context: kd.train.Context
-  ) -> inference.InferenceFn:
+  ) -> inference.InferenceFn[Batch]:
     """Build an ``SFTInferenceFn`` from the model and context.
 
     Args:
