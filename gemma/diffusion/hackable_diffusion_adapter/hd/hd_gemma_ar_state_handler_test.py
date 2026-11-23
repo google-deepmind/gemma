@@ -748,8 +748,31 @@ class PropagateSelfConditioningFnTest(absltest.TestCase):
     self.assertEqual(res["sc_logits"].tolist(), [1, 2])
     self.assertEqual(res["other"], 1)
 
+  def test_call_with_none_conditioning(self):
+    fn = hd_gemma_ar_state_handler.PropagateSelfConditioningFn()
+    step_carry = mock.MagicMock()
+    step_carry.aux = {"logits": jnp.array([3, 4])}
+
+    res = fn(None, step_carry)
+    self.assertEqual(res["sc_logits"].tolist(), [3, 4])
+
 
 class GemmaARStateHandlerTest(absltest.TestCase):
+
+  def test_init_ar_state_raises_when_conditioning_is_none(self):
+    handler = hd_gemma_ar_state_handler.GemmaARStateHandler(
+        gemma_network=mock.MagicMock(),
+        gemma_params=None,
+        end_tokens=(1,),
+        pad_token=0,
+    )
+    with self.assertRaisesRegex(ValueError, "conditioning"):
+      handler.init_ar_state(
+          batch_size=2,
+          conditioning=None,
+          canvas_length=4,
+          max_num_canvases=2,
+      )
 
   def test_update_from_context(self):
     handler = hd_gemma_ar_state_handler.GemmaARStateHandler(
