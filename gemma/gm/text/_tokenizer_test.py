@@ -25,3 +25,17 @@ def test_pickle():
   tokenizer.encode('Hello world!')  # Trigger the lazy-loading of the tokenizer.
 
   pickle.dumps(tokenizer)
+
+
+def test_gemma4_forbidden_tokens():
+  tokenizer = gm.text.Gemma4Tokenizer
+  special_tokens = tokenizer.special_tokens
+
+  assert tokenizer.FORBIDDEN_TOKENS == (
+      special_tokens.IMAGE_PLACEHOLDER,
+      special_tokens.START_OF_IMAGE,
+      special_tokens.END_OF_IMAGE,
+      special_tokens.AUDIO_PLACEHOLDER,
+      special_tokens.START_OF_AUDIO,
+      special_tokens.END_OF_AUDIO,
+  )

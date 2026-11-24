@@ -38,6 +38,21 @@ def test_end_tokens_mask():
   np.testing.assert_array_equal(out, expected)
 
 
+def test_normalize_token_error_includes_invalid_token():
+  tokenizer = mock.Mock()
+  tokenizer.encode.return_value = [1, 2]
+
+  try:
+    _sampler._normalize_token(tokenizer, 'hello world')
+  except ValueError as error:
+    assert str(error) == (
+        "Invalid token: 'hello world'. `stop_token`s and `forbidden_token`s"
+        ' must map to single token ids in the vocab.'
+    )
+  else:
+    raise AssertionError('Expected invalid multi-token input to raise.')
+
+
 def test_sampler():
   model = gm.testing.DummyGemma()
   params = model.init(
