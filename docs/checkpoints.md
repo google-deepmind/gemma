@@ -1,5 +1,9 @@
 # Checkpoints
 
+For a comparison of the language coverage and evaluation information published
+for each model family, see the
+[multilingual capability matrix](multilingual.md).
+
 ## Kaggle Hub
 
 Gemma models are available on Kaggle Hub for various formats:
