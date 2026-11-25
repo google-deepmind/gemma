@@ -63,3 +63,43 @@ def test_model_initialization_and_shape():
   assert padding_mask.shape == (batch_size, expected_seq_len)  # pyrefly: ignore[missing-attribute]
   assert padding_mask.dtype == jnp.bool_  # pyrefly: ignore[missing-attribute]
   assert not jnp.any(jnp.isnan(output))
+
+
+def test_use_key_scale_toggle_and_missing_config_attr():
+  x = jax.random.normal(jax.random.PRNGKey(0), (1, 1600))
+  seq_len = jnp.array([1600], dtype=jnp.int32)
+
+  cfg_true = audio_modules.ConformerConfig(
+      num_layers=1,
+      model_dims=32,
+      lm_model_dims=64,
+      atten_num_heads=2,
+      use_key_scale=True,
+  )
+  cfg_false = audio_modules.ConformerConfig(
+      num_layers=1,
+      model_dims=32,
+      lm_model_dims=64,
+      atten_num_heads=2,
+      use_key_scale=False,
+  )
+  model_true = audio_model.AudioTokenizer(config=cfg_true)
+  model_false = audio_model.AudioTokenizer(config=cfg_false)
+  variables = model_true.init(jax.random.PRNGKey(1), x, seq_len)
+
+  out_true, _ = model_true.apply(variables, x, seq_len)
+  out_false, _ = model_false.apply(variables, x, seq_len)
+  assert not jnp.allclose(out_true, out_false)
+
+  class _ConfigWithoutUseKeyScale:
+
+    def __init__(self, base: audio_modules.ConformerConfig):
+      for field in base.__dataclass_fields__:
+        if field != 'use_key_scale':
+          setattr(self, field, getattr(base, field))
+
+  model_default = audio_model.AudioTokenizer(
+      config=_ConfigWithoutUseKeyScale(cfg_true)  # pyrefly: ignore[bad-argument-type]
+  )
+  out_default, _ = model_default.apply(variables, x, seq_len)
+  assert jnp.allclose(out_default, out_true)

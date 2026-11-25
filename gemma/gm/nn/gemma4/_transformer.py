@@ -134,8 +134,8 @@ class Transformer(nn.Module):
   def __post_init__(self):
     super().__post_init__()
 
-  def setup(self):
-    self.embedder = _modules.Embedder(
+  def _make_embedder(self) -> _modules.Embedder:
+    return _modules.Embedder(
         vocab_size=self.config.num_embed,
         embed_dim=self.config.embed_dim,
         vision_proj_dim=self.config.vision_encoder.d_model
@@ -147,6 +147,9 @@ class Transformer(nn.Module):
         if self.config.audio_encoder
         else None,
     )
+
+  def setup(self):
+    self.embedder = self._make_embedder()
 
     self.kv_cache_sharing_patterns = _config.create_kv_cache_sharing_patterns(
         self.config.kv_cache_sharing_config,
@@ -497,7 +500,17 @@ class Transformer(nn.Module):
 
     if self.vision_encoder is not None and self.is_initializing():
       dummy_patches, dummy_positions = _make_dummy_images(self.vision_encoder)
-      _ = self.vision_encoder(dummy_patches, dummy_positions)
+      dummy_vision = self.vision_encoder(dummy_patches, dummy_positions)[0][0]
+      _ = self.embedder.encode_vision(dummy_vision[:, None, :, :])
+
+    if (
+        not getattr(self, 'text_only', False)
+        and getattr(self, 'audio_encoder', None) is not None
+        and self.is_initializing()
+    ):
+      dummy_audio = jnp.zeros((1, 1, 1600), dtype=jnp.float32)
+      dummy_lengths = jnp.array([[1600]], dtype=jnp.int32)
+      _ = self._encode_audio(dummy_audio, dummy_lengths, (1,))
 
     if positions is None:
       positions = inputs.positions
