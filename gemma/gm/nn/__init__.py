@@ -18,7 +18,6 @@
 
 from etils import epy as _epy
 
-
 with _epy.lazy_api_imports(globals()):
   # ****************************************************************************
   # Gemma models
