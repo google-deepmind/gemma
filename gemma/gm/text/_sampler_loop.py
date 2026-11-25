@@ -16,7 +16,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 import dataclasses
 import functools
 
@@ -31,6 +31,24 @@ from gemma.gm.utils import _cache_helper
 import jax
 import jax.numpy as jnp
 from kauldron.ktyping import Bool, Int, PRNGKey, check_type, typechecked  # pylint: disable=g-multiple-import,g-importing-member
+
+
+def build_end_tokens(
+    special_tokens: _tokenizer.SpecialTokens,
+    stop_tokens: Iterable[int],
+) -> tuple[int, ...]:
+  """Build the sampler end tokens for any Gemma vocabulary.
+
+  Only Gemma4 has a real `BEGIN_OF_TOOL_RESPONSE`. Older vocabularies assign that
+  id to an ordinary (or user-claimed custom) token, so adding it as an end token
+  silently stops generation.
+  """
+  tokens = [special_tokens.EOS, special_tokens.END_OF_TURN]
+  tool_response = getattr(special_tokens, "BEGIN_OF_TOOL_RESPONSE", None)
+  if tool_response is not None:
+    tokens.append(tool_response)
+  tokens.extend(stop_tokens)
+  return tuple(tokens)
 
 
 @flax.struct.dataclass(kw_only=True)
