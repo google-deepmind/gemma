@@ -4,6 +4,10 @@
 [![PyPI version](https://badge.fury.io/py/gemma.svg)](https://badge.fury.io/py/gemma)
 [![Documentation Status](https://readthedocs.org/projects/gemma-llm/badge/?version=latest)](https://gemma-llm.readthedocs.io/en/latest/?badge=latest)
 
+<p align="center">
+  <b>English</b> · <a href="https://github.com/google-deepmind/gemma/blob/main/README.zh.md">简体中文</a>
+</p>
+
 [Gemma](https://ai.google.dev/gemma) is a family of open-weights Large Language
 Model (LLM) by [Google DeepMind](https://deepmind.google/), based on Gemini
 research and technology.
