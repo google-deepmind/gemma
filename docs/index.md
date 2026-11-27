@@ -14,6 +14,7 @@
     colab_lora_finetuning
     peft
     checkpoints
+    multilingual
     research
 
 .. toctree::
