@@ -468,13 +468,13 @@ def _print_stream(
   text_tokens = []
 
   for state in out:
-    print_(stream, state.text)  # pyrefly: ignore[bad-argument-type]
-
-    text_tokens.append(state.text)
     if (
         state.text == '<end_of_turn>' or state.text == '<turn|>'
     ):  # Last token is not printed.
       continue
+    print_(stream, state.text)  # pyrefly: ignore[bad-argument-type]
+
+    text_tokens.append(state.text)
   out = dataclasses.replace(state, text=''.join(text_tokens))  # pylint: disable=undefined-variable,undefined-loop-variable  # pyrefly: ignore[bad-assignment]
   return out  # pyrefly: ignore[bad-return]
 
