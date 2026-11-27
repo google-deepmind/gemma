@@ -24,7 +24,7 @@ from kauldron import konfig
 # pylint: disable=g-import-not-at-top
 with konfig.imports():
   from gemma.diffusion import _models
-  from gemma.diffusion import _paths  # pytlint: disable=unused-import
+  from gemma.diffusion import _paths  # pylint: disable=unused-import
   from gemma.diffusion.hackable_diffusion_adapter.data.sudoku import sudoku_data
   from gemma.diffusion.hackable_diffusion_adapter.eval import sudoku_eval
   from gemma.diffusion.hackable_diffusion_adapter.hd import gemma_checkpointer
