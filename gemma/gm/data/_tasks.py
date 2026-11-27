@@ -80,7 +80,7 @@ class Seq2SeqTask(grain.MapTransform):
       'prompt': 'Hello! I would love to visit France.',
       'response': 'Bonjour ! J'adorerais visiter la France.',
   }
-  # Ouptut:
+  # Output:
   {
       'input': i32['max_length'],
       'target': i32['max_length 1'],

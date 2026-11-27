@@ -116,7 +116,7 @@ def make_seq2seq_fields(
   prompt = [10, 11, 12, 13],
   response = [20, 21, 1],  # Here, response ends with EOS token.
 
-  # Ouptut:
+  # Output:
   out.input =       [10, 11, 12, 13, 20, 21],
   out.target =      [11, 12, 13, 20, 21,  1],
   out.target_mask = [ 0,  0,  0,  1,  1,  1],
