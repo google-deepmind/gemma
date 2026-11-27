@@ -268,7 +268,7 @@ def load_params(
       raise ValueError(
           'The input params provided to `load_params()` should be the raw'
           " model params matching the Flax `model.init()['params']` structure."
-          f' Got: {_CheckpointType.NESTED}'
+          f' Got: {params.type}'
       )
     if text_only and params.has_mm_params:  # pyrefly: ignore[missing-attribute]
       raise ValueError(
