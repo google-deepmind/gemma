@@ -15,6 +15,7 @@
     peft
     checkpoints
     research
+    systemone_sampler
 
 .. toctree::
     :hidden:
